@@ -73,6 +73,13 @@ namespace OsuMate.Services
         private volatile bool _isMemoryReadReady = false;
 
         /// <summary>
+        /// 現在アタッチ中のosu!プロセスに対して、TryRead(＝ライブラリ内部の固定アドレス
+        /// キャッシュの確定)を開始してよい状態かどうか。false の間はStartMemoryReaderが
+        /// 一切のTryReadを呼ばないため、シグネチャスキャンの誤ヒットが発生し得ない。
+        /// </summary>
+        internal bool IsMemoryReadReady => _isMemoryReadReady;
+
+        /// <summary>
         /// osu!プロセスから読み取った生データの直接参照を返す。
         /// スナップショットの複製ではないため、Player配下(HitErrors等)を読む際は競合のリスクがある。
         /// Player配下へアクセスする場合は、本メソッドではなく <see cref="ReadPlayerHitErrors"/> 等の専用メソッドを使用する。
