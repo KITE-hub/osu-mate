@@ -1,0 +1,315 @@
+<UserControl x:Class="OsuMate.Views.Controls.TrainerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:utils="clr-namespace:OsuMate.Utils"
+             FontFamily="{DynamicResource AppFont}">
+    <!-- SectionSpacing / RowSpacing / BoolToVisibilityConverter はここではローカル定義しない。
+         Styles.xaml (App全体にマージ済み) の値をそのまま継承する。 -->
+    <UserControl.Resources>
+        <!-- DataGridColumn は視覚ツリー外にありDataContextを継承しないため、
+             Batch Preview の AR/CS 列の Visibility バインドにこのプロキシ経由で参照する -->
+        <utils:BindingProxy x:Key="Proxy" Data="{Binding}"/>
+
+        <Style x:Key="RateTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource ThemedTextBoxStyle}">
+            <Setter Property="Width"         Value="52"/>
+            <Setter Property="Padding"       Value="4,1"/>
+            <Setter Property="FontSize"      Value="13"/>
+            <Setter Property="FontWeight"    Value="Bold"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+        </Style>
+
+        <!-- 難易度スライダー（0〜10、0.1刻み） -->
+        <Style x:Key="DiffSliderStyle" TargetType="Slider" BasedOn="{StaticResource SliderStyle}">
+            <Setter Property="Minimum"             Value="0"/>
+            <Setter Property="Maximum"             Value="10"/>
+            <Setter Property="SmallChange"         Value="0.1"/>
+            <Setter Property="LargeChange"         Value="1.0"/>
+            <Setter Property="TickFrequency"       Value="0.1"/>
+            <Setter Property="IsSnapToTickEnabled" Value="True"/>
+        </Style>
+
+        <!-- 難易度値の表示スタイル -->
+        <Style x:Key="DiffValueStyle" TargetType="TextBlock">
+            <Setter Property="FontSize"          Value="12"/>
+            <Setter Property="Width"             Value="32"/>
+            <Setter Property="TextAlignment"     Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground"        Value="{DynamicResource TextBrush}"/>
+        </Style>
+
+        <!-- DataGrid 全体スタイル。DataGridBaseStyle (Styles.xaml, PlayLogViewと共通) を継承し、
+             ここでは Preview 固有の HeadersVisibility のみ上書きする -->
+        <Style x:Key="BatchDataGridStyle" TargetType="DataGrid" BasedOn="{StaticResource DataGridBaseStyle}">
+            <Setter Property="HeadersVisibility" Value="Column"/>
+        </Style>
+
+        <!-- DataGrid セルスタイル。Template/選択Triggerは DataGridCellBaseStyle を継承し、
+             ここでは Preview 固有の Padding のみ上書きする -->
+        <Style x:Key="BatchCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource DataGridCellBaseStyle}">
+            <Setter Property="Padding" Value="6,3"/>
+        </Style>
+
+        <!-- DataGrid 行スタイル。-->
+        <Style x:Key="BatchRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource DataGridRowBaseStyle}"/>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="10,0,10,10">
+
+            <!-- ══ Now Playing ══ -->
+            <StackPanel Margin="{StaticResource SectionSpacing}">
+                <TextBlock Text="Now Playing" Style="{StaticResource TextTitleStyle}"
+                           Margin="{StaticResource RowSpacing}"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ContentControl Grid.Column="0" Style="{StaticResource TextPanelStyle}" Padding="12,10">
+                        <StackPanel>
+                            <TextBlock Text="{Binding BeatmapTitle}"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <TextBlock Text="{Binding BeatmapArtist}"
+                                       FontSize="11" Opacity="0.7"
+                                       TextTrimming="CharacterEllipsis"
+                                       Margin="0,2,0,4"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <TextBlock FontSize="11" Opacity="0.6"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextBrush}">
+                                <Run Text="["/><Run Text="{Binding BeatmapVersion, Mode=OneWay}"/><Run Text="]"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </ContentControl>
+                    <ContentControl Grid.Column="2"
+                            Style="{StaticResource TextPanelStyle}" Padding="8,6"
+                            Width="100">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="Original BPM" FontSize="10" Opacity="0.6" Margin="0,0,0,6"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <TextBlock Text="{Binding OriginalBpm}"
+                                       FontSize="16" FontWeight="Bold"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <TextBlock Text="{Binding OriginalBpmRange}" FontSize="11"
+                                       Opacity="0.7" HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                        </StackPanel>
+                    </ContentControl>
+                </Grid>
+            </StackPanel>
+
+            <!-- ══ Rate ══ -->
+            <StackPanel Margin="{StaticResource SectionSpacing}">
+                <!-- 連続生成用 入力UI -->
+                <Grid Margin="{StaticResource RowSpacing}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="Rate" Style="{StaticResource TextTitleStyle}"
+                               VerticalAlignment="Center" Margin="0,0,16,0"/>
+
+                    <TextBlock Grid.Column="1" Text="Start:" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource TextBrush}"/>
+                    <TextBox Grid.Column="2" Text="{Binding BatchStartRate, UpdateSourceTrigger=LostFocus}" Style="{StaticResource RateTextBoxStyle}" Margin="4,0,8,0" HorizontalAlignment="Left" KeyDown="RateTextBox_KeyDown"/>
+
+                    <TextBlock Grid.Column="3" Text="Step:" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource TextBrush}"/>
+                    <TextBox Grid.Column="4" Text="{Binding BatchStep, UpdateSourceTrigger=LostFocus}" Style="{StaticResource RateTextBoxStyle}" Margin="4,0,8,0" HorizontalAlignment="Left" KeyDown="RateTextBox_KeyDown"/>
+
+                    <TextBlock Grid.Column="5" Text="Count:" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource TextBrush}"/>
+                    <TextBox Grid.Column="6" Text="{Binding BatchCount, UpdateSourceTrigger=LostFocus}" Style="{StaticResource RateTextBoxStyle}" Margin="4,0,0,0" HorizontalAlignment="Left" KeyDown="RateTextBox_KeyDown"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- ══ Preview ══ -->
+            <StackPanel Margin="{StaticResource SectionSpacing}">
+                <!-- 開閉トグル。SettingsView の Item Priority (AccordionHeaderStyle) と共通のスタイルを使用 -->
+                <ToggleButton x:Name="BatchPreviewToggle"
+                              Content="Preview"
+                              IsChecked="True"
+                              FontSize="14"
+                              FontWeight="Bold"
+                              Style="{StaticResource AccordionHeaderStyle}"
+                              Margin="{StaticResource RowSpacing}"/>
+                <DataGrid ItemsSource="{Binding BatchPreviews}"
+                          Visibility="{Binding IsChecked, ElementName=BatchPreviewToggle, Converter={StaticResource BoolToVisibilityConverter}}"
+                          Style="{StaticResource BatchDataGridStyle}"
+                          ColumnHeaderStyle="{StaticResource DataGridColumnHeaderBaseStyle}"
+                          CellStyle="{StaticResource BatchCellStyle}"
+                          RowStyle="{StaticResource BatchRowStyle}"
+                          MinHeight="80" MaxHeight="200"
+                          Margin="0,0,0,4">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Rate" Binding="{Binding RateText}" Width="1*"/>
+                        <DataGridTextColumn Header="BPM" Binding="{Binding BpmText}" Width="2*"/>
+                        <!-- AR/CS は taiko/mania (IsArCsEditable=false) では意味を持たないため非表示にする。
+                             DataGridColumnは視覚ツリー外のためBindingProxy経由でDataContextを参照する。 -->
+                        <DataGridTextColumn Header="AR" Binding="{Binding ArText}" Width="1*"
+                                            Visibility="{Binding Data.IsArCsEditable, Source={StaticResource Proxy}, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                        <DataGridTextColumn Header="OD" Binding="{Binding OdText}" Width="1*"/>
+                        <DataGridTextColumn Header="HP" Binding="{Binding HpText}" Width="1*"/>
+                        <DataGridTextColumn Header="CS" Binding="{Binding CsText}" Width="1*"
+                                            Visibility="{Binding Data.IsArCsEditable, Source={StaticResource Proxy}, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </StackPanel>
+
+            <!-- ══ Difficulty ══ -->
+            <StackPanel Margin="{StaticResource SectionSpacing}">
+                <TextBlock Text="Difficulty" Style="{StaticResource TextTitleStyle}"
+                           Margin="{StaticResource RowSpacing}"/>
+
+                <ContentControl Style="{StaticResource TextPanelStyle}" Padding="10,8">
+                    <StackPanel>
+
+                        <!-- AR (taiko/maniaでは未使用のため IsArCsEditable=false 時は編集不可) -->
+                        <Grid Height="28" Margin="0,0,0,6"
+                              IsEnabled="{Binding IsArCsEditable}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="24"/>  <!-- ラベル -->
+                                <ColumnDefinition Width="*"/>   <!-- スライダー -->
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="32"/>  <!-- 仮の値 -->
+                                <ColumnDefinition Width="6"/>
+                                <ColumnDefinition Width="Auto"/><!-- Scale -->
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="AR" FontSize="12" FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <Slider Grid.Column="1"
+                                    Style="{StaticResource DiffSliderStyle}"
+                                    Value="{Binding ArBase, Mode=TwoWay}"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="3"
+                                       Text="{Binding ArBaseText, Mode=OneWay}"
+                                       Style="{StaticResource DiffValueStyle}"/>
+                            <CheckBox Grid.Column="5"
+                                      IsChecked="{Binding ScaleAR}"
+                                      Style="{StaticResource ToggleSwitchStyle}"
+                                      Content="Scale" FontSize="11"
+                                      Foreground="{DynamicResource TextBrush}"
+                                      VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- OD -->
+                        <Grid Height="28" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="24"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="32"/>
+                                <ColumnDefinition Width="6"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="OD" FontSize="12" FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <Slider Grid.Column="1"
+                                    Style="{StaticResource DiffSliderStyle}"
+                                    Value="{Binding OdBase, Mode=TwoWay}"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="3"
+                                       Text="{Binding OdBaseText, Mode=OneWay}"
+                                       Style="{StaticResource DiffValueStyle}"/>
+                            <CheckBox Grid.Column="5"
+                                      IsChecked="{Binding ScaleOD}"
+                                      Style="{StaticResource ToggleSwitchStyle}"
+                                      Content="Scale" FontSize="11"
+                                      Foreground="{DynamicResource TextBrush}"
+                                      VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- HP (スケーリング廃止: スライダーの値がそのまま使われる) -->
+                        <Grid Height="28" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="24"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="32"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="HP" FontSize="12" FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <Slider Grid.Column="1"
+                                    Style="{StaticResource DiffSliderStyle}"
+                                    Value="{Binding HpBase, Mode=TwoWay}"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="3"
+                                       Text="{Binding HpBaseText, Mode=OneWay}"
+                                       Style="{StaticResource DiffValueStyle}"/>
+                        </Grid>
+
+                        <!-- CS (スケーリング廃止: スライダーの値がそのまま使われる。
+                             maniaではキー数を表す値のため、taiko/maniaでは編集不可にする) -->
+                        <Grid Height="28"
+                              IsEnabled="{Binding IsArCsEditable}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="24"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="32"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="CS" FontSize="12" FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <Slider Grid.Column="1"
+                                    Style="{StaticResource DiffSliderStyle}"
+                                    Value="{Binding CsBase, Mode=TwoWay}"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="3"
+                                       Text="{Binding CsBaseText, Mode=OneWay}"
+                                       Style="{StaticResource DiffValueStyle}"/>
+                        </Grid>
+
+                    </StackPanel>
+                </ContentControl>
+            </StackPanel>
+
+            <!-- ══ Options ══ -->
+            <StackPanel Margin="{StaticResource SectionSpacing}">
+                <TextBlock Text="Options" Style="{StaticResource TextTitleStyle}"
+                           Margin="{StaticResource RowSpacing}"/>
+                <Grid Height="24" Margin="{StaticResource RowSpacing}">
+                    <TextBlock Text="Adjust Pitch with Speed" FontSize="12"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextBrush}"/>
+                    <CheckBox IsChecked="{Binding AdjustPitchWithSpeed}"
+                              Style="{StaticResource ToggleSwitchStyle}"
+                              HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- ══ Generate ══ -->
+            <Button x:Name="GenerateButton"
+                    Content="Generate"
+                    Height="36"
+                    FontSize="14" FontWeight="Bold"
+                    IsEnabled="{Binding CanGenerate}"
+                    Click="Generate_Click"
+                    Style="{StaticResource AccentButtonStyle}"
+                    Margin="0,4,0,8"/>
+
+            <!-- ステータス -->
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="11" Opacity="0.7"
+                       TextWrapping="Wrap"
+                       HorizontalAlignment="Center"
+                       Foreground="{DynamicResource TextBrush}"/>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,139 @@
+<UserControl x:Class="OsuMate.Views.Controls.PlayLogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:OsuMate.Views.Controls">
+
+    <!-- BoolToVisibilityConverter はここではローカル定義しない。
+         Styles.xaml (App全体にマージ済み) の BoolToVisibilityConverter をそのまま使う。 -->
+    <UserControl.Resources>
+        <Style x:Key="LogModeFilterButtonStyle" TargetType="Button" BasedOn="{StaticResource SettingsButtonStyle}">
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Margin" Value="0,0,5,0"/>
+            <Setter Property="Padding" Value="5,0"/>
+            <Style.Triggers>
+                <!-- 選択中のフィルターはAccentBrush塗り(AccentButtonStyleと同じ考え方)で主要状態として明示する -->
+                <Trigger Property="Tag" Value="Active">
+                    <Setter Property="Background"  Value="{DynamicResource AccentBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                    <Setter Property="Foreground"  Value="{DynamicResource AccentOnBrush}"/>
+                    <Setter Property="FontWeight"  Value="SemiBold"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- DataGrid セルスタイル。Template/選択Triggerは DataGridCellBaseStyle (Styles.xaml) を継承し、
+             ここでは PlayLog 固有の Padding のみ上書きする -->
+        <Style x:Key="LogCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource DataGridCellBaseStyle}">
+            <Setter Property="Padding" Value="8,5"/>
+        </Style>
+
+        <!-- DataGrid 行スタイル。Background/ホバー/選択は DataGridRowBaseStyle を継承し、
+             ここでは中断済みプレイ(IsCompleted=False)を薄く表示するTriggerのみ追加する -->
+        <Style x:Key="LogRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource DataGridRowBaseStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsCompleted}" Value="False">
+                    <Setter Property="Opacity" Value="0.55"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ヘッダー: ステータスバー -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SurfaceLevel0Brush}"
+                BorderBrush="{DynamicResource SeparatorBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="10,0,10,6">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                <TextBlock Text="Play Log"
+                           FontSize="13" FontWeight="Bold"
+                           VerticalAlignment="Center"
+                           Margin="0,0,12,0"/>
+                <TextBlock Text="{Binding StatusText}"
+                           FontSize="11" Opacity="0.6"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="⟳ Loading..."
+                           FontSize="11"
+                           Margin="8,0,0,0"
+                           VerticalAlignment="Center"
+                           Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                </StackPanel>
+                <WrapPanel>
+                    <Button x:Name="StandardFilterButton" Style="{StaticResource LogModeFilterButtonStyle}"
+                            Content="standard" CommandParameter="Standard" Click="ModeFilterButton_Click"/>
+                    <Button x:Name="TaikoFilterButton" Style="{StaticResource LogModeFilterButtonStyle}"
+                            Content="taiko" CommandParameter="Taiko" Click="ModeFilterButton_Click"/>
+                    <Button x:Name="CatchFilterButton" Style="{StaticResource LogModeFilterButtonStyle}"
+                            Content="catch" CommandParameter="Catch" Click="ModeFilterButton_Click"/>
+                    <Button x:Name="Mania4KFilterButton" Style="{StaticResource LogModeFilterButtonStyle}"
+                            Content="mania (4K)" CommandParameter="Mania4K" Click="ModeFilterButton_Click"/>
+                    <Button x:Name="Mania7KFilterButton" Style="{StaticResource LogModeFilterButtonStyle}"
+                            Content="mania (7K)" CommandParameter="Mania7K" Click="ModeFilterButton_Click"/>
+                    <Button x:Name="ManiaOtherFilterButton" Style="{StaticResource LogModeFilterButtonStyle}"
+                            Content="mania (other)" CommandParameter="ManiaOther" Click="ModeFilterButton_Click"/>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <!--
+            上段: 左にコントリビューショングラフ（日ごとの合計打数ヒートマップ、1ヶ月分）と、
+            その直下に同じ月の日ごとの合計打数（MISS以外のHit数の合計）の推移グラフ（ContributionChart）、
+            右に月ごとの SR/pp/Acc 平均±標準偏差 推移グラフ（PlayStatsChart, OxyPlot, 3枚縦並び）。
+        -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <local:ContributionGraphView Grid.Row="0"
+                                              DataContext="{Binding ContributionGraphVM}"/>
+
+                <local:ContributionChartView Grid.Row="1"
+                                              DataContext="{Binding ContributionChartVM}"/>
+            </Grid>
+
+            <local:PlayStatsChartView Grid.Column="1"
+                                       DataContext="{Binding PlayStatsChartVM}"/>
+        </Grid>
+
+        <!-- DataGrid 本体 -->
+        <DataGrid x:Name="LogGrid"
+                  Grid.Row="2"
+                  Style="{StaticResource DataGridBaseStyle}"
+                  ColumnHeaderStyle="{StaticResource DataGridColumnHeaderBaseStyle}"
+                  CellStyle="{StaticResource LogCellStyle}"
+                  RowStyle="{StaticResource LogRowStyle}"
+                  RowHeaderWidth="0"
+                  Margin="0"
+                  VerticalAlignment="Stretch"
+                  HorizontalAlignment="Stretch"/>
+
+        <!-- フッター: 件数表示 -->
+        <Border Grid.Row="3"
+                Background="{DynamicResource SurfaceLevel1Brush}"
+                BorderBrush="{DynamicResource SeparatorBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="10,4">
+            <TextBlock FontSize="10" Opacity="0.5">
+                <Run Text="{Binding FilteredEntryCount, Mode=OneWay}"/>
+                <Run Text=" entries in this mode  |  Quited play data is grayed out."/>
+            </TextBlock>
+        </Border>
+    </Grid>
+</UserControl>

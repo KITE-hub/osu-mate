@@ -1,0 +1,209 @@
+<UserControl x:Class="OsuMate.Views.Controls.InfoPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Styles.xaml は App.xaml で Application.Resources に全体マージ済みのため、ここでの再マージは行わない-->
+    <StackPanel Orientation="Vertical">
+
+        <!-- 上段: MapInfo + Judge -->
+        <StackPanel Orientation="Horizontal">
+
+            <!-- MapInfo -->
+            <ContentControl Style="{StaticResource TextPanelStyle}" Width="180" VerticalAlignment="Top" Margin="0,0,10,10">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="SR :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding Sr}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="OD :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding Od}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="BPM :"/>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding Bpm}"/>
+                            <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding BpmRange}" FontSize="11"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="Hit object :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding HitObject}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="Time :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding Time}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="Avg density :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding Density}"/>
+                    </DockPanel>
+                </StackPanel>
+            </ContentControl>
+
+            <!-- Judge -->
+            <ContentControl Style="{StaticResource TextPanelStyle}" Width="190" VerticalAlignment="Top" Margin="0,0,0,10">
+                <StackPanel>
+
+                    <!-- MAX (mania only) -->
+                    <DockPanel Visibility="{Binding IsGekiVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="MAX"/>
+                        <TextBlock Style="{StaticResource TextPanelSubLabelStyle}" Text="{Binding WindowPerfect}"/>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text=" :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding HitGeki}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"
+                               Visibility="{Binding IsGekiVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                    <!-- 300 -->
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="300"/>
+                        <TextBlock Style="{StaticResource TextPanelSubLabelStyle}" Text="{Binding Window300}"/>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text=" :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding Hit300}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+
+                    <!-- 200 (mania only) -->
+                    <DockPanel Visibility="{Binding IsKatuVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="200"/>
+                        <TextBlock Style="{StaticResource TextPanelSubLabelStyle}" Text="{Binding Window200}"/>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text=" :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding HitKatu}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"
+                               Visibility="{Binding IsKatuVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                    <!-- 100 -->
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="100"/>
+                        <TextBlock Style="{StaticResource TextPanelSubLabelStyle}" Text="{Binding Window100}"/>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text=" :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding Hit100}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+
+                    <!-- 50 -->
+                    <DockPanel Visibility="{Binding Is50Visible, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="50"/>
+                        <TextBlock Style="{StaticResource TextPanelSubLabelStyle}" Text="{Binding Window50}"/>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text=" :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding Hit50}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"
+                               Visibility="{Binding Is50Visible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                    <!-- MISS -->
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="MISS :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding HitMiss}"/>
+                    </DockPanel>
+
+                </StackPanel>
+            </ContentControl>
+
+        </StackPanel>
+
+        <!-- 下段: Pp + Acc -->
+        <StackPanel Orientation="Horizontal">
+
+            <!-- Pp -->
+            <ContentControl Style="{StaticResource TextPanelStyle}" Width="180" VerticalAlignment="Top" Margin="0,0,10,10">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="pp (SS) :"/>
+                        <TextBlock Style="{StaticResource TextPanelBigValueStyle}" Text="{Binding SsPp}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelSubLabelStyle}" Text="pp (LossMode) :"/>
+                        <TextBlock Style="{StaticResource TextPanelBigValueStyle}" Text="{Binding LossModePp}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelSubLabelStyle}" Text="pp (Predicted) :"/>
+                        <TextBlock Style="{StaticResource TextPanelBigValueStyle}" Text="{Binding PredictedPp}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="pp (Current) :"/>
+                        <TextBlock Style="{StaticResource TextPanelBigValueStyle}" Text="{Binding CurrentPp}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelSubLabelStyle}" Text="pp (Best) :"/>
+                        <TextBlock Style="{StaticResource TextPanelBigValueStyle}" Text="{Binding BestPp}"/>
+                    </DockPanel>
+                </StackPanel>
+            </ContentControl>
+
+            <!-- Acc -->
+            <ContentControl Style="{StaticResource TextPanelStyle}" Width="190" VerticalAlignment="Top" Margin="0,0,0,10">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="Accuracy :"/>
+                        <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding Accuracy}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+                    <DockPanel>
+                        <DockPanel.ToolTip>
+                            <ToolTip Content="It displays the average offset in REAL TIME, not beatmap-relative time.">
+                                <ToolTip.Style>
+                                    <Style TargetType="ToolTip" BasedOn="{StaticResource TrackerToolTipStyle}"/>
+                                </ToolTip.Style>
+                            </ToolTip>
+                        </DockPanel.ToolTip>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="Avg offset :"/>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding ModifiedAvgOffset}"/>
+                            <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding ModifiedAvgOffsetStdev}" FontSize="12"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+                    <DockPanel>
+                        <DockPanel.ToolTip>
+                            <ToolTip>
+                                <ToolTip.Style>
+                                    <Style TargetType="ToolTip" BasedOn="{StaticResource TrackerToolTipStyle}"/>
+                                </ToolTip.Style>
+                                <TextBlock TextWrapping="Wrap">
+                                    <Run Text="It displays the unstable rate in the format of &quot;beatmap-relative time (real time)&quot;."/>
+                                    <LineBreak/>
+                                    <Run Text="Beatmap-relative time is the official UR."/>
+                                </TextBlock>
+                            </ToolTip>
+                        </DockPanel.ToolTip>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="UR :"/>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding RawUR}"/>
+                            <TextBlock Style="{StaticResource TextPanelValueStyle}" Text="{Binding ModifiedUR}" FontSize="12"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="Local offset help :"/>
+                        <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right"
+                                   Style="{StaticResource TextPanelValueStyle}" Text="{Binding LocalOffsetHelp}"/>
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}"/>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource TextPanelLabelStyle}" Text="Universal offset help :"/>
+                        <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right"
+                                   Style="{StaticResource TextPanelValueStyle}" Text="{Binding UniversalOffsetHelp}"/>
+                    </DockPanel>
+                </StackPanel>
+            </ContentControl>
+
+        </StackPanel>
+
+    </StackPanel>
+</UserControl>

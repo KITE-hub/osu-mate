@@ -1,0 +1,633 @@
+<UserControl x:Class="OsuMate.Views.Controls.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:utils="clr-namespace:OsuMate.Utils">
+    <!-- SectionSpacing / RowSpacing はここではローカル定義しない。
+         Styles.xaml (App全体にマージ済み) の値をそのまま継承する。 -->
+    <UserControl.Resources>
+        <utils:FontNameToFontFamilyConverter x:Key="FontNameToFontFamilyConverter"/>
+
+        <!-- Font Family用ComboBoxItemスタイル。既定のThemedComboBoxItemStyleをベースに、
+             AvailableFonts中の区切り線番兵値（AppFonts.FontListSeparator）だけを
+             選択不可・非フォーカスの薄い区切り線表示に切り替える。
+             （埋め込みフォントとインストール済みシステムフォントの一覧を区切るため） -->
+        <Style x:Key="FontFamilyComboBoxItemStyle" TargetType="ComboBoxItem"
+               BasedOn="{StaticResource ThemedComboBoxItemStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding}" Value="{x:Static utils:AppFonts.FontListSeparator}">
+                    <Setter Property="IsEnabled" Value="False"/>
+                    <Setter Property="IsHitTestVisible" Value="False"/>
+                    <Setter Property="Focusable" Value="False"/>
+                    <Setter Property="Padding" Value="0"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ComboBoxItem">
+                                <!-- ContentPresenterを持たないため、番兵値のテキスト自体は表示されない -->
+                                <Border Height="1" Margin="6,4" Background="{DynamicResource SeparatorBrush}"/>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="10,0,10,0">
+
+            <StackPanel Margin="{StaticResource SectionSpacing}">
+                <TextBlock Text="Overall" Style="{StaticResource TextTitleStyle}"
+                           Height="22" Margin="{StaticResource RowSpacing}"/>
+
+            <!-- Dark Mode -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Dark Mode" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Left"/>
+                <CheckBox IsChecked="{Binding IsDarkMode}"
+                          Style="{StaticResource ToggleSwitchStyle}"
+                          HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- Font Family -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Font Family" FontSize="12" VerticalAlignment="Center"
+                           Width="160" Foreground="{DynamicResource TextBrush}"/>
+                <ComboBox ItemsSource="{Binding AvailableFonts}"
+                          SelectedValue="{Binding FontFamily, Mode=TwoWay}"
+                          Width="150" MaxDropDownHeight="220"
+                          VerticalAlignment="Center"
+                          Style="{StaticResource ThemedComboBox}"
+                          ItemContainerStyle="{StaticResource FontFamilyComboBoxItemStyle}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}"
+                                       FontFamily="{Binding Converter={StaticResource FontNameToFontFamilyConverter}}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+
+            <!-- Update Interval -->
+            <!-- osu!プロセスからのメモリ読み取り(Fast Lane)とpp/Strain計算(Slow Lane)が共有する
+                 更新間隔。URBarの判定ドットやStrainGraph/URTimeGraph/URDistGraph、pp・スコア表示の
+                 更新頻度もこの値で律速される。大きくするほどosu!本体への負荷は下がるが表示は粗くなる。 -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Update Interval" FontSize="12" VerticalAlignment="Center"
+                           Width="160" Foreground="{DynamicResource TextBrush}"/>
+                <TextBox Text="{Binding DataUpdateIntervalMs, UpdateSourceTrigger=LostFocus}"
+                         Style="{StaticResource ThemedTextBoxStyle}" Width="60" HorizontalAlignment="Left"
+                         KeyDown="CommitOnEnter_KeyDown"/>
+                <TextBlock Text="ms" FontSize="12" Margin="6,0,0,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Text="{Binding DataUpdateIntervalFpsText}" Style="{StaticResource TextCaptionStyle}"
+                           Margin="6,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- osu!.exe Directory -->
+            <!-- 手動指定(Browse)は廃止し、起動中のosu!プロセスからの自動検出結果を
+                 表示するのみとする（検出時にSettingsViewModel側で自動的にConfigへ保存される）。 -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="osu!.exe Directory" FontSize="12" VerticalAlignment="Center"
+                           Width="160" Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Text="{Binding OsuExeDirectoryText}" Style="{StaticResource TextCaptionStyle}" Width="130"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding OsuExeDirectoryText}"/>
+            </StackPanel>
+            </StackPanel>
+
+            <StackPanel Margin="{StaticResource SectionSpacing}">
+            <!-- Auto Launch osu -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Auto Launch osu" Style="{StaticResource TextTitleStyle}"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Left"/>
+                <CheckBox IsChecked="{Binding AutoLaunchOsuEnabled}" VerticalAlignment="Center"
+                          HorizontalAlignment="Right"
+                          Style="{StaticResource ToggleSwitchStyle}"/>
+            </Grid>
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Path (osu!.exe/*.lnk)" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Grid.Column="1" Text="{Binding AutoLaunchOsuPathText}" Style="{StaticResource TextCaptionStyle}"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,6,0"
+                           ToolTip="{Binding AutoLaunchOsuPathText}"/>
+                <Button Grid.Column="2" Content="Browse" Width="60" FontSize="11"
+                        Click="BrowseAutoLaunchOsuPath_Click"
+                        Style="{StaticResource SettingsButtonStyle}"/>
+            </Grid>
+            </StackPanel>
+
+            <StackPanel Margin="{StaticResource SectionSpacing}">
+                <!-- ══ Play Log ══ -->
+                <TextBlock Text="Play Log" Style="{StaticResource TextTitleStyle}"
+                           Height="22" Margin="{StaticResource RowSpacing}"/>
+
+                <!-- Target Player Names -->
+                <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Target Player Names" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextBrush}"/>
+                    <TextBox Grid.Column="1" x:Name="TargetPlayerNameInput" Margin="0,0,6,0"
+                             Style="{StaticResource ThemedTextBoxStyle}"
+                             KeyDown="TargetPlayerNameInput_KeyDown"/>
+                    <Button Grid.Column="2" Content="Add" Width="45" FontSize="11"
+                            Click="AddTargetPlayerName_Click"
+                            Style="{StaticResource SettingsButtonStyle}"/>
+                </Grid>
+            <StackPanel Margin="{StaticResource RowSpacing}">
+
+                <ItemsControl ItemsSource="{Binding TargetPlayerNames}" Margin="0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Vertical" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,2" Padding="8,3" CornerRadius="6"
+                                    BorderThickness="1"
+                                    BorderBrush="{DynamicResource SeparatorBrush}"
+                                    Background="{DynamicResource SurfaceLevel2Brush}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding}" FontSize="12"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextBrush}"/>
+                                    <Button Grid.Column="1" Content="✕" Width="24" FontSize="11"
+                                            Tag="{Binding}"
+                                            Click="RemoveTargetPlayerName_Click"
+                                            Style="{StaticResource SettingsButtonStyle}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- Log File Directory -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Log File Directory" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Grid.Column="1" Text="{Binding LogOutputDirText}" Style="{StaticResource TextCaptionStyle}"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,6,0"
+                           ToolTip="{Binding LogOutputDirText}"/>
+                <Button Grid.Column="2" Content="Browse" Width="60" FontSize="11"
+                        Click="BrowseLogDirectory_Click"
+                        Style="{StaticResource SettingsButtonStyle}"/>
+            </Grid>
+
+            <!-- Show Aborted Plays -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Show Aborted Plays" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Left"/>
+                <CheckBox IsChecked="{Binding ShowAbortedPlays}"
+                          Style="{StaticResource ToggleSwitchStyle}"
+                          HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- ══ Item Priority ══ -->
+            <ToggleButton x:Name="LogColumnPriorityToggle"
+                          Content="Item Priority"
+                          Style="{StaticResource AccordionHeaderStyle}"
+                          Margin="{StaticResource RowSpacing}"/>
+
+            <ItemsControl x:Name="LogColumnList" ItemsSource="{Binding LogColumnSettings.LogColumnItems}"
+                          Visibility="{Binding IsChecked, ElementName=LogColumnPriorityToggle, Converter={StaticResource BoolToVisibilityConverter}}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Vertical"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,3" Padding="8,3" CornerRadius="6"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource SeparatorBrush}"
+                                Background="{DynamicResource SurfaceLevel2Brush}"
+                                AllowDrop="True"
+                                MouseLeftButtonDown="LogColumn_MouseLeftButtonDown"
+                                Tag="{Binding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="☰" FontSize="14"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"
+                                           Cursor="SizeAll" Opacity="0.4"
+                                           Foreground="{DynamicResource TextBrush}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Label}" FontSize="12"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock"
+                                               BasedOn="{StaticResource {x:Type TextBlock}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <CheckBox Grid.Column="2" IsChecked="{Binding IsEnabled}"
+                                          VerticalAlignment="Center" Margin="8,0,0,0"
+                                          Style="{StaticResource ToggleSwitchStyle}"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+            <!-- ══ Preset ══ -->
+            <StackPanel Margin="{StaticResource SectionSpacing}">
+                <TextBlock Text="Preset" Style="{StaticResource TextTitleStyle}"
+                           Height="22" Margin="{StaticResource RowSpacing}"/>
+
+                <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                    <ComboBox ItemsSource="{Binding Presets}"
+                              SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                              Width="150" VerticalAlignment="Center"
+                              Style="{StaticResource ThemedComboBox}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextBrush}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Content="New" Width="45" FontSize="11" Margin="6,0,0,0"
+                            Click="NewPreset_Click" Style="{StaticResource SettingsButtonStyle}"/>
+                    <Button Content="Copy" Width="45" FontSize="11" Margin="6,0,0,0"
+                            Click="DuplicatePreset_Click" Style="{StaticResource SettingsButtonStyle}"/>
+                    <Button Content="Delete" Width="55" FontSize="11" Margin="6,0,0,0"
+                            Click="DeletePreset_Click" Style="{StaticResource SettingsButtonStyle}"/>
+                </StackPanel>
+
+                <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Name" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextBrush}"/>
+                    <TextBox Grid.Column="1" x:Name="PresetNameBox"
+                             Text="{Binding SelectedPreset.Name, Mode=OneWay}"
+                             Margin="0,0,6,0"
+                             Style="{StaticResource ThemedTextBoxStyle}"/>
+                    <Button Grid.Column="2" Content="Rename" Width="60" FontSize="11"
+                            Click="RenamePreset_Click" Style="{StaticResource SettingsButtonStyle}"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- ══ Startup Window Position ══ -->
+            <StackPanel Margin="{StaticResource SectionSpacing}">
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Startup Window Position" Style="{StaticResource TextTitleStyle}"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Left"/>
+                <CheckBox IsChecked="{Binding StartupPositionEnabled}" Style="{StaticResource ToggleSwitchStyle}"
+                          VerticalAlignment="Center" HorizontalAlignment="Right"/>
+            </Grid>
+
+            <!-- App Position -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="osu mate Position" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Grid.Column="1" Text="{Binding AppPositionText}" Style="{StaticResource TextCaptionStyle}"
+                           VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="Save" Width="40" FontSize="11"
+                            Click="GetAppPosition_Click" Margin="0,0,6,0"
+                            Style="{StaticResource SettingsButtonStyle}"/>
+                    <Button Content="Apply" Width="45" FontSize="11"
+                            Click="ResetAppPosition_Click"
+                            Style="{StaticResource SettingsButtonStyle}"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- osu! Position -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="osu! Position" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Grid.Column="1" Text="{Binding OsuPositionText}" Style="{StaticResource TextCaptionStyle}"
+                           VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="Save" Width="40" FontSize="11"
+                            Click="GetOsuPosition_Click" Margin="0,0,6,0"
+                            Style="{StaticResource SettingsButtonStyle}"/>
+                    <Button Content="Apply" Width="45" FontSize="11"
+                            Click="ResetOsuPosition_Click"
+                            Style="{StaticResource SettingsButtonStyle}"/>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+
+        <StackPanel Margin="{StaticResource SectionSpacing}">
+            <!-- ══ URBar ══ -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="URBar" Style="{StaticResource TextTitleStyle}"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Left"/>
+                <CheckBox IsChecked="{Binding URBarEnabled}" VerticalAlignment="Center"
+                          HorizontalAlignment="Right"
+                          Style="{StaticResource ToggleSwitchStyle}"/>
+            </Grid>
+
+            <!-- URBar 回転（自前スタイルでボタン欠けを防止。三角は文字グリフ(AppFont=Oxanium)に
+                 依存しないよう、カスタムスクロールバーと同じPolygonベクター描画に統一している） -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}"
+                        VerticalAlignment="Center">
+                <TextBlock Text="Rotation" FontSize="12" VerticalAlignment="Center"
+                           Width="160" Foreground="{DynamicResource TextBrush}"/>
+                <Button Style="{StaticResource RotateButtonStyle}"
+                        Margin="0"
+                        VerticalAlignment="Center"
+                        Click="URBarRotateLeft_Click">
+                    <!-- Points は (0,0) 起点にしている。Polygon の既定 Stretch は None で、
+                         この場合の自然サイズは GetNaturalSize() が bounds.Right/Bottom
+                         （原点からの最大座標）をそのまま使うため、Points の最小座標が (0,0)
+                         からズレていると、そのズレ分だけ左上に不可視の余白を抱えたまま
+                         レイアウトされてしまう。結果、Button 中央寄せ後に三角の実体だけが
+                         右下（縦方向では下）にわずかにズレて見える。Margin で打ち消すのではなく
+                         座標自体を正規化して解消している。 -->
+                    <Polygon Points="0,4 6,0 6,8" Fill="{DynamicResource TextBrush}"
+                             HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Button>
+                <Border BorderBrush="{DynamicResource SeparatorBrush}"
+                        BorderThickness="0,1,0,1"
+                        Width="40" Height="22"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="{Binding URBarRotationLabel}"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextBrush}"/>
+                </Border>
+                <Button Style="{StaticResource RotateButtonStyle}"
+                        Margin="0"
+                        VerticalAlignment="Center"
+                        Click="URBarRotateRight_Click">
+                    <!-- 左向きボタンと同じ理由で Points を (0,0) 起点に正規化している -->
+                    <Polygon Points="6,4 0,0 0,8" Fill="{DynamicResource TextBrush}"
+                             HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Button>
+            </StackPanel>
+
+            <!-- URBar サイズ（枠ドラッグで変更、現在値表示のみ） -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Size (drag edge)" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Grid.Column="1" Text="{Binding URBarSizeText}" Style="{StaticResource TextCaptionStyle}"
+                           VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="Save" Width="40" FontSize="11"
+                            Click="SaveURBarSize_Click" Margin="0,0,6,0"
+                            Style="{StaticResource SettingsButtonStyle}"/>
+                    <Button Content="Apply" Width="45" FontSize="11"
+                            Click="ApplyURBarSize_Click"
+                            Style="{StaticResource SettingsButtonStyle}"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- URBar 位置 -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Relative Position (drag)" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Grid.Column="1" Text="{Binding URBarPositionText}" Style="{StaticResource TextCaptionStyle}"
+                           VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="Save" Width="40" FontSize="11"
+                            Click="SaveURBarPosition_Click" Margin="0,0,6,0"
+                            Style="{StaticResource SettingsButtonStyle}"/>
+                    <Button Content="Apply" Width="45" FontSize="11"
+                            Click="ApplyURBarPosition_Click"
+                            Style="{StaticResource SettingsButtonStyle}"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- URBar 平均線の追従の強さ（EMAにおけるhitErrors[i]側の重み。1で最新打鍵へ瞬時追従） -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Avg Line Follow Strength" FontSize="12" VerticalAlignment="Center"
+                           Width="160" Foreground="{DynamicResource TextBrush}"/>
+                <Slider Minimum="0" Maximum="1"
+                        Value="{Binding URBarAvgLineFollowStrength}"
+                        Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding URBarAvgLineFollowStrength, StringFormat={}{0:F2}}"
+                           FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+
+            <!-- URBar 平均線の移動アニメーション時間（ms）。0で瞬時移動 -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Avg Line Anim Duration" FontSize="12" Width="160" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBox Text="{Binding URBarAvgLineAnimMs, UpdateSourceTrigger=LostFocus}"
+                         Style="{StaticResource ThemedTextBoxStyle}" Width="60" HorizontalAlignment="Left"
+                         KeyDown="CommitOnEnter_KeyDown"/>
+                <TextBlock Text="ms" FontSize="12" Margin="6,0,0,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+
+            <!-- URBar 判定色帯（barThick）の不透明度 -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Segment Opacity" FontSize="12" VerticalAlignment="Center"
+                           Width="160" Foreground="{DynamicResource TextBrush}"/>
+                <Slider Minimum="0" Maximum="1"
+                        Value="{Binding URBarSegmentOpacity}"
+                        Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding URBarSegmentOpacity, StringFormat={}{0:F2}}"
+                           FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+
+            <!-- URBar 白線(中心線)と赤マーカー(Avg)の不透明度 -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Marker Opacity" FontSize="12" VerticalAlignment="Center"
+                           Width="160" Foreground="{DynamicResource TextBrush}"/>
+                <Slider Minimum="0" Maximum="1"
+                        Value="{Binding URBarMarkerOpacity}"
+                        Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding URBarMarkerOpacity, StringFormat={}{0:F2}}"
+                           FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+
+            <!-- URBar ラベル(判定幅の数値、EARLY/LATE)の不透明度 -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Label Opacity" FontSize="12" VerticalAlignment="Center"
+                           Width="160" Foreground="{DynamicResource TextBrush}"/>
+                <Slider Minimum="0" Maximum="1"
+                        Value="{Binding URBarLabelOpacity}"
+                        Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding URBarLabelOpacity, StringFormat={}{0:F2}}"
+                           FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+
+            <!-- URBar 判定ドットの不透明度 -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Hit Error Opacity" FontSize="12" VerticalAlignment="Center"
+                           Width="160" Foreground="{DynamicResource TextBrush}"/>
+                <Slider Minimum="0" Maximum="1"
+                        Value="{Binding URBarHitErrorOpacity}"
+                        Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding URBarHitErrorOpacity, StringFormat={}{0:F2}}"
+                           FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+</StackPanel>
+<StackPanel Margin="{StaticResource SectionSpacing}">
+            <!-- ══ In-Game Overlay ══ -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="In-Game Overlay" Style="{StaticResource TextTitleStyle}"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Left"/>
+                <CheckBox IsChecked="{Binding OverlayEnabled}" VerticalAlignment="Center"
+                          HorizontalAlignment="Right"
+                          Style="{StaticResource ToggleSwitchStyle}"/>
+            </Grid>
+
+            <!-- Font Size -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Font Size" FontSize="12" VerticalAlignment="Center"
+                           Width="160" Foreground="{DynamicResource TextBrush}"/>
+                <Slider Minimum="8" Maximum="48"
+                        Value="{Binding OverlayFontSize}"
+                        Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding OverlayFontSize, StringFormat={}{0:F0}}"
+                           FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+
+            <!-- Overlay Position -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Relative Position (drag)" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Grid.Column="1" Text="{Binding OverlayPositionText}" Style="{StaticResource TextCaptionStyle}"
+                           VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="Save" Width="40" FontSize="11"
+                            Click="SaveOverlayPosition_Click" Margin="0,0,6,0"
+                            Style="{StaticResource SettingsButtonStyle}"/>
+                    <Button Content="Apply" Width="45" FontSize="11"
+                            Click="ApplyOverlayPosition_Click"
+                            Style="{StaticResource SettingsButtonStyle}"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Show Value First -->
+            <Grid Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Show Value First" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Left"/>
+                <CheckBox IsChecked="{Binding IsShowValueFirst}"
+                          Style="{StaticResource ToggleSwitchStyle}"
+                          HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- ══ Item Priority ══ -->
+            <ToggleButton x:Name="OverlayItemPriorityToggle"
+                          Content="Item Priority"
+                          Style="{StaticResource AccordionHeaderStyle}"
+                          Margin="{StaticResource RowSpacing}"/>
+
+            <ItemsControl x:Name="ChipList" ItemsSource="{Binding Items}"
+                          Visibility="{Binding IsChecked, ElementName=OverlayItemPriorityToggle, Converter={StaticResource BoolToVisibilityConverter}}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Vertical"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,3" Padding="8,3" CornerRadius="6"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource SeparatorBrush}"
+                                Background="{DynamicResource SurfaceLevel2Brush}"
+                                AllowDrop="True"
+                                MouseLeftButtonDown="Item_MouseLeftButtonDown"
+                                Tag="{Binding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="☰" FontSize="14"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"
+                                           Cursor="SizeAll" Opacity="0.4"
+                                           Foreground="{DynamicResource TextBrush}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Label}" FontSize="12"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock"
+                                               BasedOn="{StaticResource {x:Type TextBlock}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <CheckBox Grid.Column="2" IsChecked="{Binding IsEnabled}"
+                                          VerticalAlignment="Center" Margin="8,0,0,0"
+                                          Style="{StaticResource ToggleSwitchStyle}"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+    </StackPanel>
+</ScrollViewer>
+</UserControl>

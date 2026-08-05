@@ -1,0 +1,963 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System.Windows;assembly=PresentationCore"
+                    xmlns:oxy="http://oxyplot.org/wpf">
+
+    <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+
+    <QuadraticEase x:Key="StandardEase" EasingMode="EaseOut"/>
+
+    <Thickness x:Key="SectionSpacing">0,0,0,14</Thickness>
+    <Thickness x:Key="RowSpacing">0,0,0,4</Thickness>
+
+    <DropShadowEffect x:Key="CardShadowEffect"
+                       Color="#000000" Direction="270"
+                       ShadowDepth="1.5" BlurRadius="14" Opacity="0.16"/>
+
+    <Style TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource AppFont}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+    </Style>
+
+    <Style x:Key="TextLargeTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontSize"   Value="22"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+
+    <Style x:Key="TextTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontSize"   Value="14"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+
+    <Style x:Key="TextBodyStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontSize"   Value="12"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+    </Style>
+
+    <Style x:Key="TextCaptionStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Opacity"  Value="0.65"/>
+    </Style>
+
+    <Style x:Key="TextValueEmphasisStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontSize"   Value="18"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+
+    <!-- TextPanelStyle: 影専用の空のBorder（Effectあり・コンテンツなし）を背景に敷き、
+    その上に実際の背景/枠線/コンテンツを描画するBorder（Effectなし）を重ねる二層構成 -->
+    <Style x:Key="TextPanelStyle" TargetType="ContentControl">
+        <Setter Property="Background"                 Value="{DynamicResource SurfaceLevel1Brush}"/>
+        <Setter Property="BorderBrush"                Value="{DynamicResource SeparatorBrush}"/>
+        <Setter Property="BorderThickness"             Value="1"/>
+        <Setter Property="Padding"                    Value="12,8"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment"   Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid>
+                        <!-- 影専用の空のBorder。コンテンツを持たず、Effect(DropShadow)はここにのみ適用する。
+                             ラスタライズされてぼやけるのはこの影レイヤーだけで、テキストには影響しない。 -->
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="12"
+                                Effect="{StaticResource CardShadowEffect}"/>
+
+                        <!-- 実際に表示される背景・枠線・コンテンツ用のBorder（Effectなし）。
+                             上の影用Borderと同じ形状・同じ位置に重ねることで、
+                             影レイヤーの背景面はこちらに完全に隠れ、輪郭からはみ出た影だけが見える。 -->
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                               HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="TextPanelLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontSize"   Value="12"/>
+        <Setter Property="VerticalAlignment"   Value="Center"/>
+    </Style>
+
+    <Style x:Key="TextPanelSubLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- PP/Acc/URなどの数値。§4のValueEmphasisロール（太字で階層をつける）を適用 -->
+    <Style x:Key="TextPanelValueStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="Foreground"          Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontSize"            Value="14"/>
+        <Setter Property="FontWeight"          Value="SemiBold"/>
+        <Setter Property="VerticalAlignment"   Value="Center"/>
+        <Setter Property="HorizontalAlignment" Value="Right"/>
+    </Style>
+
+    <Style x:Key="TextPanelBigValueStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="Foreground"          Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontSize"            Value="16"/>
+        <Setter Property="FontWeight"          Value="Bold"/>
+        <Setter Property="VerticalAlignment"   Value="Center"/>
+        <Setter Property="HorizontalAlignment" Value="Right"/>
+    </Style>
+
+    <Style x:Key="TabButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource AppFont}"/>
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="Padding" Value="0,8"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid x:Name="Root" Background="Transparent" Opacity="0.6">
+                        <ContentPresenter x:Name="Content"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"
+                          Margin="{TemplateBinding Padding}"/>
+                        <Rectangle x:Name="Indicator"
+                   Height="3"
+                   RadiusX="1.5" RadiusY="1.5"
+                   Fill="Transparent"
+                   Width="{Binding ActualWidth, ElementName=Content}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Bottom"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <!-- 現在地: アクセントの下線 + 完全不透明 -->
+                        <Trigger Property="Tag" Value="Active">
+                            <Setter TargetName="Indicator" Property="Fill" Value="{DynamicResource AccentBrush}"/>
+                            <Setter TargetName="Root" Property="Opacity" Value="1"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="CheckBoxStyle" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+        <Setter Property="Margin" Value="0,0,0,5"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource AppFont}"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border x:Name="Border"
+                            Width="14" Height="14"
+                            CornerRadius="3"
+                            BorderThickness="2"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            Background="Transparent"
+                            VerticalAlignment="Center">
+                            <Path x:Name="CheckMark"
+      Data="M3,8 L6,11 L13,4"
+      Stroke="{DynamicResource SurfaceLevel0Brush}"
+      StrokeThickness="1.5"
+      StrokeStartLineCap="Round"
+      StrokeEndLineCap="Round"
+      Stretch="Uniform"
+      Width="10" Height="10"
+      HorizontalAlignment="Center"
+      VerticalAlignment="Center"
+      Visibility="Collapsed"/>
+                        </Border>
+                        <ContentPresenter Margin="6,0,0,0"
+                                      VerticalAlignment="Center"
+                                      RecognizesAccessKey="True"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Border" Property="BorderThickness" Value="0"/>
+                            <Setter TargetName="Border" Property="Background" Value="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
+                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="Opacity" Value="0.8"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ToggleSwitchStyle" TargetType="CheckBox">
+        <Setter Property="Margin" Value="0,0,0,0"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource SurfaceLevel0Brush}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource AppFont}"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Background="Transparent">
+                        <Border x:Name="Border"
+                            Width="36" Height="18"
+                            CornerRadius="9"
+                            Background="{DynamicResource SurfaceLevel2Brush}"
+                            BorderThickness="1.5"
+                            BorderBrush="{DynamicResource SeparatorBrush}"
+                            VerticalAlignment="Center">
+                            <Ellipse x:Name="Knob"
+                                Width="12" Height="12"
+                                Fill="{TemplateBinding Foreground}"
+                                HorizontalAlignment="Left"
+                                Margin="3,0,0,0">
+                                <Ellipse.RenderTransform>
+                                    <TranslateTransform x:Name="KnobTransform" X="0"/>
+                                </Ellipse.RenderTransform>
+                            </Ellipse>
+                        </Border>
+                        <ContentPresenter x:Name="ContentHost" Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      RecognizesAccessKey="True"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <!-- Content未設定（Dark Modeトグル等、ラベルをCheckBox外のTextBlockで持つ場合）は
+                             ContentPresenter分の余白(8px)を消し、スイッチ本体がHorizontalAlignment="Right"の
+                             基準幅どおり右端ぴったりに寄るようにする。これが無いと見えない8pxが右側に
+                             残り、スクロールバーとの間に不自然な隙間が生じる -->
+                        <Trigger Property="HasContent" Value="False">
+                            <Setter TargetName="ContentHost" Property="Margin" Value="0"/>
+                        </Trigger>
+                        <!-- ON: プライマリアクションを示すAccentBrushで塗る。ノブは常にAccentOnBrushでコントラストを確保 -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                            <Setter TargetName="Border" Property="BorderThickness" Value="0"/>
+                            <Setter TargetName="Knob" Property="Fill" Value="{DynamicResource AccentOnBrush}"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="KnobTransform"
+                                                         Storyboard.TargetProperty="X"
+                                                         To="18" Duration="0:0:0.15"
+                                                         EasingFunction="{StaticResource StandardEase}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="KnobTransform"
+                                                         Storyboard.TargetProperty="X"
+                                                         To="0" Duration="0:0:0.15"
+                                                         EasingFunction="{StaticResource StandardEase}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="Opacity" Value="0.8"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══ MUI風スライダーのつまみ ══ -->
+    <Style x:Key="SliderThumbStyle" TargetType="Thumb">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Grid Width="14" Height="14" Background="Transparent">
+                        <Ellipse x:Name="Knob"
+                                 Width="14" Height="14"
+                                 Fill="{DynamicResource TextBrush}"
+                                 RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform>
+                                <ScaleTransform x:Name="KnobScale" ScaleX="1" ScaleY="1"/>
+                            </Ellipse.RenderTransform>
+                        </Ellipse>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="KnobScale"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         To="1.1429" Duration="0:0:0.12"/>
+                                        <DoubleAnimation Storyboard.TargetName="KnobScale"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         To="1.1429" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="KnobScale"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="0:0:0.12"/>
+                                        <DoubleAnimation Storyboard.TargetName="KnobScale"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══ MUI風スライダー（水平専用。Font Size 等の数値調整に使用） ══ -->
+    <Style x:Key="SliderStyle" TargetType="Slider">
+        <Setter Property="Height" Value="22"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsMoveToPointEnabled" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid x:Name="Root" VerticalAlignment="Center" Background="Transparent">
+                        <Track x:Name="PART_Track">
+                            <Track.DecreaseRepeatButton>
+                                <!-- Min側(つまみより左) = 到達済み。塗りつぶしトラック -->
+                                <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Border Height="4" CornerRadius="2"
+                                                    Background="{DynamicResource AccentBrush}"
+                                                    VerticalAlignment="Center"/>
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <!-- Max側(つまみより右) = 未到達。薄いトラック -->
+                                <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Border Height="4" CornerRadius="2"
+                                                    Background="{DynamicResource SurfaceLevel2Brush}"
+                                                    VerticalAlignment="Center"/>
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource SliderThumbStyle}"/>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <ControlTemplate x:Key="ThemedComboBoxToggle" TargetType="ToggleButton">
+        <Border x:Name="Bd"
+            Background="{DynamicResource SurfaceLevel1Brush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1" CornerRadius="4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="20"/>
+                </Grid.ColumnDefinitions>
+                <!-- 選択中テキストはテンプレート親の ComboBox が上から描くので空 -->
+                <Path Grid.Column="1"
+                  Data="M 0 0 L 4 4 L 8 0 Z"
+                  Fill="{DynamicResource TextBrush}"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Opacity="0.55"/>
+            </Grid>
+        </Border>
+        <ControlTemplate.Triggers>
+            <!-- 開いている間はAccentBrushの枠でフォーカスを明示する -->
+            <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <!-- ComboBoxItem用スタイル。ThemedComboBoxのItemContainerStyleとして使うほか、
+         SettingsViewのFont Family用ComboBoxではこれをBasedOnして区切り線（セパレータ）
+         バリアントを追加している（Views/Controls/SettingsView.xaml参照）。 -->
+    <Style x:Key="ThemedComboBoxItemStyle" TargetType="ComboBoxItem">
+        <Setter Property="Foreground"  Value="{DynamicResource TextBrush}"/>
+        <Setter Property="Background"  Value="Transparent"/>
+        <Setter Property="Padding"     Value="6,3"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="Bd"
+                        Background="{TemplateBinding Background}"
+                        Padding="{TemplateBinding Padding}"
+                        SnapsToDevicePixels="True">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSubtleBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSubtleBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ThemedComboBox" TargetType="ComboBox">
+        <Setter Property="Background"               Value="{DynamicResource SurfaceLevel1Brush}"/>
+        <Setter Property="Foreground"               Value="{DynamicResource TextBrush}"/>
+        <Setter Property="BorderBrush"              Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="Padding"                 Value="3,0"/>
+        <Setter Property="Height"               Value="22"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment"        Value="Center"/>
+        <Setter Property="FontFamily"                 Value="{DynamicResource AppFont}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <!-- トグルボタン（クリックで開閉） -->
+                        <ToggleButton
+                        Template="{StaticResource ThemedComboBoxToggle}"
+                        IsChecked="{Binding IsDropDownOpen,
+                            RelativeSource={RelativeSource TemplatedParent},
+                            Mode=TwoWay}"
+                        Focusable="False" ClickMode="Press"/>
+
+                        <!-- 選択中アイテム名：ItemTemplate/DisplayMemberPath の結果をそのまま表示する -->
+                        <ContentPresenter
+                        Content="{TemplateBinding SelectionBoxItem}"
+                        ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                        ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                        Margin="8,0,22,0"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False"/>
+
+                        <!-- ドロップダウン -->
+                        <Popup
+                        Placement="Bottom"
+                        IsOpen="{TemplateBinding IsDropDownOpen}"
+                        AllowsTransparency="True"
+                        Focusable="False"
+                        PopupAnimation="Slide">
+                            <Border
+                            Background="{DynamicResource SurfaceLevel1Brush}"
+                            BorderBrush="{DynamicResource SeparatorBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Effect="{StaticResource CardShadowEffect}"
+                            MinWidth="{Binding ActualWidth,
+                                RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                            MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <ScrollViewer>
+                                    <StackPanel
+                                    IsItemsHost="True"
+                                    KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <!-- アイテムのハイライト：既定テンプレートの青いSelected/MouseOver表示を完全に排除し、
+             テーマ準拠の BorderBrush のみで描画する -->
+        <Setter Property="ItemContainerStyle" Value="{StaticResource ThemedComboBoxItemStyle}"/>
+    </Style>
+
+    <!-- ══ テーマ対応 TextBox ══ -->
+    <Style x:Key="ThemedTextBoxStyle" TargetType="TextBox">
+        <Setter Property="Background"              Value="{DynamicResource SurfaceLevel1Brush}"/>
+        <Setter Property="Foreground"              Value="{DynamicResource TextBrush}"/>
+        <Setter Property="BorderBrush"             Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="CaretBrush"               Value="{DynamicResource AccentBrush}"/>
+        <!-- 選択範囲の背景色。AccentSubtleBrush(約12%不透明)はWPF既定のSelectionOpacity(0.4)と
+             乗算されるため実質約5%となり視認しづらかった。ここではAccentBrush(不透明色)を使い、
+             SelectionOpacityで見た目の透明度を明示的に指定する。 -->
+        <Setter Property="SelectionBrush"          Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="SelectionOpacity"        Value="0.35"/>
+        <Setter Property="FontFamily"                 Value="{DynamicResource AppFont}"/>
+        <Setter Property="FontSize"                Value="12"/>
+        <Setter Property="BorderThickness"         Value="1"/>
+        <Setter Property="Padding"                 Value="3,0"/>
+        <Setter Property="Height"               Value="22"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment"        Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Bd"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="4">
+                        <!-- PART_ContentHost はTextBoxのテキスト編集領域として必須の名前 -->
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                            <Setter TargetName="Bd" Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══ 設定画面ボタン共通スタイル ══ -->
+    <Style x:Key="SettingsButtonStyle" TargetType="Button">
+        <Setter Property="Height"               Value="22"/>
+        <Setter Property="Padding"              Value="6,0"/>
+        <Setter Property="Margin"               Value="0"/>
+        <Setter Property="BorderThickness"      Value="1"/>
+        <Setter Property="BorderBrush"          Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="Background"           Value="{DynamicResource SurfaceLevel1Brush}"/>
+        <Setter Property="Foreground"           Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontSize"             Value="11"/>
+        <Setter Property="FontFamily"                 Value="{DynamicResource AppFont}"/>
+        <Setter Property="Cursor"               Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="4">
+                        <Grid>
+                            <Border x:Name="StateLayer" CornerRadius="4" Background="Transparent"/>
+                            <ContentPresenter
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Margin="{TemplateBinding Padding}">
+                                <!-- Content=文字列(例:"Generate")の場合、ContentPresenterは自動生成のTextBlockで
+                                     描画するが、そのTextBlockはApp共通のTargetType="TextBlock"既定スタイル
+                                     (Foreground=TextBrush)にヒットしてしまい、Button.Foreground(TemplateBinding)
+                                     による継承よりStyleのSetterが優先されるため上書きされてしまう。
+                                     これがAccentButtonStyleのようにForegroundをAccentOnBrushに変えても
+                                     ダークモードで白文字のまま(=アクセント塗りの上で見にくい)になっていた原因。
+                                     ここでContentPresenter直下だけに効くローカルな暗黙スタイルを定義し、
+                                     必ずこのButton自身のForegroundを使うようにする -->
+                                <ContentPresenter.Resources>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground"
+                                                Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                    </Style>
+                                </ContentPresenter.Resources>
+                            </ContentPresenter>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="StateLayer" Property="Background" Value="{DynamicResource IconButtonHoverBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══ プライマリアクション用ボタン（AccentBrush塗り。SettingsButtonStyleの主要操作版） ══ -->
+    <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource SettingsButtonStyle}">
+        <Setter Property="Background"  Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="Foreground"  Value="{DynamicResource AccentOnBrush}"/>
+        <Setter Property="FontWeight"  Value="SemiBold"/>
+    </Style>
+
+    <!-- ══ 回転ボタン用スタイル（切れ対策：Padding/Margin を自前で確保）
+         角丸はLogViewの月ナビボタン（SettingsButtonStyle由来）と統一して4に揃えている ══ -->
+    <Style x:Key="RotateButtonStyle" TargetType="Button" BasedOn="{StaticResource SettingsButtonStyle}">
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Padding" Value="0"/>
+    </Style>
+
+    <!-- ══ カスタムスクロールバー縦用テンプレート ══ -->
+    <ControlTemplate x:Key="VerticalScrollBarTemplate" TargetType="ScrollBar">
+        <Grid Width="14" Background="{DynamicResource SurfaceLevel1Brush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="14"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="14"/>
+            </Grid.RowDefinitions>
+            <!-- 上矢印 -->
+            <RepeatButton Grid.Row="0" Command="ScrollBar.LineUpCommand" Focusable="False">
+                <RepeatButton.Template>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border x:Name="Bd" Background="Transparent" Width="14" Height="14"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Polygon Points="7,2 12,10 2,10"
+                                     Fill="{DynamicResource BorderBrush}" Opacity="0.55"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="1.0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </RepeatButton.Template>
+            </RepeatButton>
+            <!-- トラック -->
+            <Track Grid.Row="1" x:Name="PART_Track" IsDirectionReversed="True">
+                <Track.DecreaseRepeatButton>
+                    <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False"/>
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                    <Thumb>
+                        <Thumb.Template>
+                            <ControlTemplate TargetType="Thumb">
+                                <Border x:Name="ThumbBd"
+                                        Background="{DynamicResource BorderBrush}"
+                                        CornerRadius="5" Opacity="0.45" Margin="2,2"/>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="ThumbBd" Property="Opacity" Value="0.75"/>
+                                    </Trigger>
+                                    <Trigger Property="IsDragging" Value="True">
+                                        <Setter TargetName="ThumbBd" Property="Opacity" Value="0.9"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Thumb.Template>
+                    </Thumb>
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False"/>
+                </Track.IncreaseRepeatButton>
+            </Track>
+            <!-- 下矢印 -->
+            <RepeatButton Grid.Row="2" Command="ScrollBar.LineDownCommand" Focusable="False">
+                <RepeatButton.Template>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border x:Name="Bd" Background="Transparent" Width="14" Height="14"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Polygon Points="7,12 12,4 2,4"
+                                     Fill="{DynamicResource BorderBrush}" Opacity="0.55"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="1.0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </RepeatButton.Template>
+            </RepeatButton>
+        </Grid>
+    </ControlTemplate>
+
+    <!-- ══ カスタムスクロールバー横用テンプレート ══ -->
+    <ControlTemplate x:Key="HorizontalScrollBarTemplate" TargetType="ScrollBar">
+        <Grid Height="14" Background="{DynamicResource SurfaceLevel1Brush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="14"/>
+            </Grid.ColumnDefinitions>
+            <!-- 左矢印 -->
+            <RepeatButton Grid.Column="0" Command="ScrollBar.LineLeftCommand" Focusable="False">
+                <RepeatButton.Template>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border x:Name="Bd" Background="Transparent" Width="14" Height="14"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Polygon Points="2,7 10,2 10,12"
+                                     Fill="{DynamicResource BorderBrush}" Opacity="0.55"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="1.0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </RepeatButton.Template>
+            </RepeatButton>
+            <!-- トラック -->
+            <Track Grid.Column="1" x:Name="PART_Track" IsDirectionReversed="False">
+                <Track.DecreaseRepeatButton>
+                    <RepeatButton Command="ScrollBar.PageLeftCommand" Opacity="0" Focusable="False"/>
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                    <Thumb>
+                        <Thumb.Template>
+                            <ControlTemplate TargetType="Thumb">
+                                <Border x:Name="ThumbBdH"
+                                        Background="{DynamicResource BorderBrush}"
+                                        CornerRadius="5" Opacity="0.45" Margin="2,2"/>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="ThumbBdH" Property="Opacity" Value="0.75"/>
+                                    </Trigger>
+                                    <Trigger Property="IsDragging" Value="True">
+                                        <Setter TargetName="ThumbBdH" Property="Opacity" Value="0.9"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Thumb.Template>
+                    </Thumb>
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Command="ScrollBar.PageRightCommand" Opacity="0" Focusable="False"/>
+                </Track.IncreaseRepeatButton>
+            </Track>
+            <!-- 右矢印 -->
+            <RepeatButton Grid.Column="2" Command="ScrollBar.LineRightCommand" Focusable="False">
+                <RepeatButton.Template>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border x:Name="Bd" Background="Transparent" Width="14" Height="14"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Polygon Points="12,7 4,2 4,12"
+                                     Fill="{DynamicResource BorderBrush}" Opacity="0.55"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="1.0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </RepeatButton.Template>
+            </RepeatButton>
+        </Grid>
+    </ControlTemplate>
+
+    <!-- ══ カスタムスクロールバー（グローバル implicit style） ══ -->
+    <Style TargetType="ScrollBar">
+        <Setter Property="Template" Value="{StaticResource VerticalScrollBarTemplate}"/>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Template" Value="{StaticResource HorizontalScrollBarTemplate}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ══ DataGrid共通ベーススタイル ══ -->
+    <Style x:Key="DataGridBaseStyle" TargetType="DataGrid">
+        <Setter Property="Background"               Value="{DynamicResource SurfaceLevel0Brush}"/>
+        <Setter Property="BorderThickness"          Value="0"/>
+        <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource SeparatorBrush}"/>
+        <Setter Property="RowBackground"            Value="Transparent"/>
+        <Setter Property="AlternatingRowBackground" Value="Transparent"/>
+        <Setter Property="CanUserAddRows"           Value="False"/>
+        <Setter Property="CanUserDeleteRows"        Value="False"/>
+        <Setter Property="CanUserResizeRows"        Value="False"/>
+        <Setter Property="IsReadOnly"               Value="True"/>
+        <Setter Property="SelectionMode"            Value="Single"/>
+        <Setter Property="AutoGenerateColumns"      Value="False"/>
+        <Setter Property="FontSize"                 Value="11"/>
+        <Setter Property="Foreground"               Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontFamily"               Value="{DynamicResource AppFont}"/>
+        <Setter Property="EnableRowVirtualization"  Value="True"/>
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
+        <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling"/>
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True"/>
+        <Setter Property="VerticalScrollBarVisibility"   Value="Auto"/>
+        <Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
+    </Style>
+
+    <Style x:Key="DataGridColumnHeaderBaseStyle" TargetType="DataGridColumnHeader">
+        <Setter Property="Background"      Value="{DynamicResource SurfaceLevel1Brush}"/>
+        <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontSize"        Value="11"/>
+        <Setter Property="FontWeight"      Value="SemiBold"/>
+        <Setter Property="FontFamily"      Value="{DynamicResource AppFont}"/>
+        <Setter Property="Padding"         Value="6,4"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource SeparatorBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+    </Style>
+
+    <!-- Padding は Log/Trainer 双方で異なるため各Viewの派生スタイルで上書きする -->
+    <Style x:Key="DataGridCellBaseStyle" TargetType="DataGridCell">
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridCell">
+                    <Border Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}"
+                            BorderThickness="0">
+                        <ContentPresenter VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <!-- 選択行はAccentSubtleBrush(アクセント約12%)で薄く着色。ホバーのSurfaceLevel2とは別の状態として区別する -->
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- IsCompleted等の追加Triggerは各Viewの派生スタイルで追加する -->
+    <Style x:Key="DataGridRowBaseStyle" TargetType="DataGridRow">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SurfaceLevel2Brush}"/>
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AccordionHeaderStyle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="{TemplateBinding Background}" Padding="0,4,4,4">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{TemplateBinding Content}"
+                                       FontSize="{TemplateBinding FontSize}"
+                                       FontWeight="{TemplateBinding FontWeight}"
+                                       VerticalAlignment="Center"
+                                       Foreground="{TemplateBinding Foreground}"/>
+                            <TextBlock x:Name="Arrow" Text="▼"
+                                       FontSize="10" VerticalAlignment="Center"
+                                       Foreground="{TemplateBinding Foreground}" Margin="6,0,0,0" Opacity="0.7"/>
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Arrow" Property="Text" Value="▲"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Opacity" Value="0.7"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══ OxyPlotツールチップ（TrackerControl） ══ -->
+    <oxy:ThicknessConverter x:Key="TrackerBorderThicknessConverter"/>
+
+    <Style TargetType="{x:Type oxy:TrackerControl}">
+        <Setter Property="Background"       Value="{DynamicResource SurfaceLevel1Brush}"/>
+        <Setter Property="BorderBrush"      Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness"  Value="1"/>
+        <Setter Property="BorderEdgeMode"   Value="Aliased"/>
+        <Setter Property="Foreground"       Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontFamily"       Value="{DynamicResource AppFont}"/>
+        <Setter Property="FontSize"         Value="11"/>
+        <Setter Property="ShowPointer"      Value="False"/>
+        <Setter Property="CornerRadius"     Value="4"/>
+        <Setter Property="Distance"         Value="4"/>
+        <Setter Property="LineStroke"       Value="{DynamicResource SeparatorBrush}"/>
+        <Setter Property="LineThickness"    Value="1"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type oxy:TrackerControl}">
+                    <Canvas HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                        <Line x:Name="PART_HorizontalLine" Visibility="{TemplateBinding HorizontalLineVisibility}"
+                              Stroke="{TemplateBinding LineStroke}" RenderOptions.EdgeMode="Aliased"
+                              StrokeDashArray="{TemplateBinding LineDashArray}" StrokeThickness="{TemplateBinding LineThickness}"/>
+                        <Line x:Name="PART_VerticalLine" Visibility="{TemplateBinding VerticalLineVisibility}"
+                              Stroke="{TemplateBinding LineStroke}" RenderOptions.EdgeMode="Aliased"
+                              StrokeDashArray="{TemplateBinding LineDashArray}" StrokeThickness="{TemplateBinding LineThickness}"/>
+                        <Grid x:Name="PART_ContentContainer">
+                            <Path x:Name="PART_Path"
+                                  Fill="{TemplateBinding Background}"
+                                  Stroke="{TemplateBinding BorderBrush}"
+                                  StrokeThickness="{TemplateBinding BorderThickness, Converter={StaticResource TrackerBorderThicknessConverter}}"
+                                  RenderOptions.EdgeMode="{TemplateBinding BorderEdgeMode}"
+                                  Effect="{StaticResource CardShadowEffect}"/>
+                            <ContentPresenter x:Name="PART_Content" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Canvas>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══ 汎用ツールチップ（標準ToolTip用） ══ -->
+    <Style x:Key="TrackerToolTipStyle" TargetType="ToolTip">
+        <Setter Property="Background"       Value="{DynamicResource SurfaceLevel1Brush}"/>
+        <Setter Property="BorderBrush"      Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness"  Value="1"/>
+        <Setter Property="Foreground"       Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontFamily"       Value="{DynamicResource AppFont}"/>
+        <Setter Property="FontSize"         Value="11"/>
+        <Setter Property="Padding"          Value="8,6"/>
+        <Setter Property="HasDropShadow"    Value="False"/>
+        <Setter Property="Placement"        Value="Mouse"/>
+        <Setter Property="HorizontalOffset" Value="12"/>
+        <Setter Property="VerticalOffset"   Value="10"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <!-- TextPanelStyleと同じ二層構成：影専用の空のBorder(Effectあり)の上に
+                         実際の背景/枠線/コンテンツ用のBorder(Effectなし)を重ね、
+                         DropShadowのラスタライズによるボケがコンテンツ側に及ばないようにする -->
+                    <Grid>
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Effect="{StaticResource CardShadowEffect}"/>
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

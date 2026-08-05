@@ -1,0 +1,84 @@
+<Window x:Class="OsuMate.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:materialIcons="clr-namespace:Material.Icons.WPF;assembly=Material.Icons.WPF"
+        xmlns:controls="clr-namespace:OsuMate.Views.Controls"
+        mc:Ignorable="d"
+        Title="osu mate v1.0"
+        Icon="pack://application:,,,/Resources/Icons/icon.ico"
+        Background="{DynamicResource SurfaceLevel0Brush}"
+        Topmost="True"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="CanMinimize"
+        TextOptions.TextFormattingMode="Ideal">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Resources/Styles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <!-- タブバーエリア: コンテンツ高さ -->
+            <RowDefinition Height="Auto"/>
+            <!-- セパレーター -->
+            <RowDefinition Height="Auto"/>
+            <!-- コンテンツエリア: 残り全て -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- タブバー -->
+        <DockPanel Grid.Row="0" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <UniformGrid DockPanel.Dock="Left" Rows="1">
+                <Button x:Name="TabMain"
+                        Style="{StaticResource TabButtonStyle}"
+                        Click="TabMain_Click"
+                        Content="Main"/>
+                <Button x:Name="TabTrainer"
+                        Style="{StaticResource TabButtonStyle}"
+                        Click="TabTrainer_Click"
+                        Content="Trainer"/>
+                <Button x:Name="TabLog"
+                        Style="{StaticResource TabButtonStyle}"
+                        Click="TabLog_Click"
+                        Content="Log"/>
+                <Button x:Name="TabSettings"
+                        Style="{StaticResource TabButtonStyle}"
+                        Click="TabSettings_Click"
+                        Content="Settings"/>
+            </UniformGrid>
+        </DockPanel>
+
+        <!-- セパレーター -->
+        <Border x:Name="TabBorder"
+                Grid.Row="1"
+                Height="1"
+                Background="{DynamicResource SeparatorBrush}"
+                Margin="0,0,0,10"/>
+
+        <!-- メインパネル -->
+        <controls:MainView x:Name="MainPanel" Grid.Row="2"
+                            HorizontalAlignment="Left"/>
+
+        <!-- Trainer画面: Grid Row="2" で高さを自動的に埋める -->
+        <controls:TrainerView x:Name="TrainerPanel"
+                              Grid.Row="2"
+                              Visibility="Collapsed"/>
+
+        <!-- 設定画面: Grid Row="2" で高さを自動的に埋める -->
+        <controls:SettingsView x:Name="SettingsPanel"
+                               Grid.Row="2"
+                               Visibility="Collapsed"
+                               Opacity="1"
+                               MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"/>
+
+        <!-- ログ画面: Grid Row="2" で高さを自動的に埋める -->
+        <controls:PlayLogView x:Name="LogPanel"
+                              Grid.Row="2"
+                              Visibility="Collapsed"
+                              Margin="0,0,0,0"/>
+    </Grid>
+</Window>

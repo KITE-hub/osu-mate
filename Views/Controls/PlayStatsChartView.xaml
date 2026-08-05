@@ -1,0 +1,35 @@
+<UserControl x:Class="OsuMate.Views.Controls.PlayStatsChartView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:oxy="http://oxyplot.org/wpf">
+
+    <!--
+        ContributionGraphで選択中の月における、日ごとの SR / pp / Acc（平均±標準偏差 + 個々のプレイの
+        散布図）を縦に3枚並べる。
+        DataContext は PlayStatsChartViewModel。ロジックは一切持たず、
+        StarRatingPlotModel / PpPlotModel / AccuracyPlotModel を
+        そのまま PlotView.Model にバインドして描画するだけ。
+
+        Background="Transparent" は必須。PlotModel.Background / PlotAreaBackground を
+        Transparent にしても、oxy:PlotView（WPFコントロール自体）の既定背景は白のままで
+        別物として塗られてしまうため、Darkテーマ時に真っ白な四角が浮いて見えてしまう。
+        PlotModel側とPlotView側の両方をTransparentにして初めて背景が透過する。
+
+        PlotView 自身は「中身に応じた自然な高さ」を持たない（TextBlock等と違い、
+        コンテンツから逆算できる Auto サイズが存在しない）ため、各 PlotView に
+        明示的な Height を与えている。これを外部の Grid.RowDefinitions="*,*,*" のような
+        比率指定に頼ってしまうと、この View 自体が Height=Auto な親（PlayLogView.xaml側）
+        の中に置かれた際に「配るべき高さが定まらず全部0になる」という事態になり得るため、
+        あえて StackPanel + 固定 Height にして自己完結でサイズが決まるようにしている。
+    -->
+    <Border Background="{DynamicResource SurfaceLevel0Brush}"
+            BorderBrush="{DynamicResource SeparatorBrush}"
+            BorderThickness="1,0,0,1"
+            >
+        <StackPanel>
+            <oxy:PlotView Model="{Binding StarRatingPlotModel}" Background="Transparent" Height="110" Margin="0,5,0,0"/>
+            <oxy:PlotView Model="{Binding PpPlotModel}" Background="Transparent" Height="110" Margin="0"/>
+            <oxy:PlotView Model="{Binding AccuracyPlotModel}" Background="Transparent" Height="110" Margin="0"/>
+        </StackPanel>
+    </Border>
+</UserControl>
