@@ -1,27 +1,24 @@
 using NAudio.Lame;
 using NAudio.Vorbis;
 using NAudio.Wave;
-using System.Diagnostics;
+using SoundTouch;
+using SoundTouch.Net.NAudioSupport;
 using System.IO;
-using System.Text;
 
 namespace OsuMate.Services.Trainer
 {
     /// <summary>
-    /// NAudio + soundstretch.exe を使って音声ファイルの再生速度を変換する。
+    /// NAudio + SoundTouch.Net（SoundTouch.Net.NAudioSupport）を使って音声ファイルの再生速度を変換する。
     /// </summary>
     internal static class SongSpeedChanger
     {
-        /// <summary>soundstretch.exe の実行タイムアウト（ミリ秒）。この時間を超えるとプロセスを強制終了する。</summary>
-        private const int SoundstretchTimeoutMs = 5 * 60 * 1000; // 5分
-
         /// <param name="inFile">変換元ファイルパス（.mp3 / .ogg / .wav）</param>
         /// <param name="outFile">出力ファイルパス（.mp3）</param>
         /// <param name="effectiveMultiplier">再生速度倍率</param>
         /// <param name="adjustPitchWithSpeed">
-        ///   true  = "Adjust Pitch with Speed"（テープ再生風。soundstretch の -rate フラグを使い
+        ///   true  = "Adjust Pitch with Speed"（テープ再生風。SoundTouchProcessor の RateChange を使い
         ///            テンポ・ピッチを同時に変化させる。WSOLA 非使用のため音質劣化が少ない）
-        ///   false = テンポのみ変化・ピッチ保持（soundstretch の -tempo フラグ）
+        ///   false = テンポのみ変化・ピッチ保持（SoundTouchProcessor の TempoChange を使用）
         /// </param>
         public static void GenerateAudioFile(
             string inFile,
@@ -32,7 +29,6 @@ namespace OsuMate.Services.Trainer
             string ext   = Path.GetExtension(inFile).ToLowerInvariant();
             string temp1 = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ext);
             string temp2 = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".wav");
-            string temp3 = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".wav");
 
             try
             {
@@ -68,69 +64,37 @@ namespace OsuMate.Services.Trainer
                     throw new NotSupportedException($"Unsupported audio format: {ext}");
                 }
 
-                // soundstretch.exe で変換
-                // -rate  : テンポ+ピッチを同時に変化（テープ再生風、WSOLA不使用で高品質）
-                // -tempo : テンポのみ変化・ピッチ保持（DT/HT風、WSOLA使用）
+                // SoundTouchProcessor でテンポ・ピッチを変換
+                // RateChange  : テンポ+ピッチを同時に変化（テープ再生風、WSOLA不使用で高品質）
+                // TempoChange : テンポのみ変化・ピッチ保持（DT/HT風、WSOLA使用）
                 double pct = ((double)effectiveMultiplier - 1.0) * 100.0;
-                string ssArgs = adjustPitchWithSpeed
-                    ? $"-rate={pct:F4}"
-                    : $"-tempo={pct:F4}";
 
-                string soundstretchPath = Path.Combine(
-                    AppDomain.CurrentDomain.BaseDirectory, "binaries", "soundstretch.exe");
+                using var wavReader   = new WaveFileReader(temp2);
+                using var floatStream = new WaveChannel32(wavReader) { PadWithZeroes = false };
 
-                if (!File.Exists(soundstretchPath))
+                var processor = new SoundTouchProcessor
                 {
-                    throw new FileNotFoundException(
-                        $"soundstretch.exe not found: {soundstretchPath}", soundstretchPath);
+                    SampleRate = wavReader.WaveFormat.SampleRate,
+                    Channels   = wavReader.WaveFormat.Channels,
+                };
+
+                if (adjustPitchWithSpeed)
+                {
+                    processor.RateChange = pct;
+                }
+                else
+                {
+                    processor.TempoChange = pct;
                 }
 
-                var stderrBuilder = new StringBuilder();
-
-                using (var proc = new Process
-                {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName               = soundstretchPath,
-                        Arguments              = $"\"{temp2}\" \"{temp3}\" {ssArgs}",
-                        UseShellExecute        = false,
-                        CreateNoWindow         = true,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError  = true,
-                    }
-                })
-                {
-                    // 標準出力・標準エラーの両方を非同期で読み捨てる（読み取らないと
-                    // OSパイプが一杯になった際に子プロセスがブロックし、WaitForExitと
-                    // 合わせてデッドロックする恐れがあるため）。エラーはメッセージ用に保持する。
-                    proc.ErrorDataReceived  += (_, e) => { if (e.Data != null) stderrBuilder.AppendLine(e.Data); };
-                    proc.OutputDataReceived += (_, _) => { };
-
-                    proc.Start();
-                    proc.BeginOutputReadLine();
-                    proc.BeginErrorReadLine();
-
-                    if (!proc.WaitForExit(SoundstretchTimeoutMs))
-                    {
-                        try { proc.Kill(entireProcessTree: true); } catch { }
-                        throw new TimeoutException(
-                            $"soundstretch.exe timed out ({SoundstretchTimeoutMs / 1000}s). Operation aborted.");
-                    }
-
-                    if (proc.ExitCode != 0)
-                    {
-                        string detail = stderrBuilder.Length > 0 ? stderrBuilder.ToString().Trim() : "(No details)";
-                        throw new InvalidOperationException(
-                            $"soundstretch.exe exited with error (ExitCode={proc.ExitCode}): {detail}");
-                    }
-                }
+                using var soundTouchStream = new SoundTouchWaveStream(floatStream, processor);
+                using var pcm16Stream      = new Wave32To16Stream(soundTouchStream);
 
                 // wav → mp3（STANDARD 品質）
                 if (File.Exists(outFile)) File.Delete(outFile);
-                using (var wavReader = new WaveFileReader(temp3))
-                using (var mp3Writer = new LameMP3FileWriter(outFile, wavReader.WaveFormat, LAMEPreset.STANDARD))
+                using (var mp3Writer = new LameMP3FileWriter(outFile, pcm16Stream.WaveFormat, LAMEPreset.STANDARD))
                 {
-                    wavReader.CopyTo(mp3Writer);
+                    pcm16Stream.CopyTo(mp3Writer);
                 }
             }
             finally
@@ -138,7 +102,6 @@ namespace OsuMate.Services.Trainer
                 // 途中で例外が発生した場合でも一時ファイルを残さないようにする
                 try { if (File.Exists(temp1)) File.Delete(temp1); } catch { }
                 try { if (File.Exists(temp2)) File.Delete(temp2); } catch { }
-                try { if (File.Exists(temp3)) File.Delete(temp3); } catch { }
             }
         }
     }

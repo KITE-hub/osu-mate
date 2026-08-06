@@ -30,12 +30,7 @@
 		<PackageReference Include="NAudio" Version="2.2.1" />
 		<PackageReference Include="NAudio.Lame" Version="2.1.0" />
 		<PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<None Include="binaries\soundstretch.exe">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
+		<PackageReference Include="SoundTouch.Net.NAudioSupport.Core" Version="2.3.2" />
 	</ItemGroup>
 
 	<!-- 同梱フォント（Oxanium / Roboto、いずれもOFL 1.1）とアプリアイコンをWPFの埋め込みリソースとして追加。
@@ -50,8 +45,6 @@
 		<Resource Include="Resources\Icons\icon.ico" />
 	</ItemGroup>
 
-	<!-- OFLライセンス条文。埋め込みリソースとしてexeに含める（コンパイル物として同梱）だけでなく、
-	     再配布物として目視・確認しやすいよう出力フォルダにもそのままコピーしておく。 -->
 	<ItemGroup>
 		<None Include="Resources\Fonts\Oxanium\OFL.txt">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -61,11 +54,6 @@
 		</None>
 	</ItemGroup>
 
-	<!-- OxyPlot（OxyPlot.Wpf）はフォントを常にベースURIなしの単一文字列（new FontFamily(string)）で
-	     解決するため、pack://application:,,, の埋め込みリソースを参照できない
-	     （WPFがこの経路で許可する絶対URIスキームは file: のみのため）。
-	     そのため Regular ウェイトの ttf 実体を出力フォルダにもコピーしておき、
-	     Utils/AppFonts.ResolveFontFamilyString がそのファイルを指す file: URI を組み立てて渡す。 -->
 	<ItemGroup>
 		<None Include="Resources\Fonts\Oxanium\Oxanium-Regular.ttf">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

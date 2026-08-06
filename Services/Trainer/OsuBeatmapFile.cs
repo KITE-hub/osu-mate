@@ -274,9 +274,19 @@ namespace OsuMate.Services.Trainer
             }
 
             var dominantBl = durations.OrderByDescending(kv => kv.Value).First().Key;
-            DominantBpm = (decimal)(60000.0 / dominantBl);
-            MinBpm      = (decimal)(60000.0 / pts.Max(p => p.beatLength));
-            MaxBpm      = (decimal)(60000.0 / pts.Min(p => p.beatLength));
+            DominantBpm = ToSafeBpm(60000.0 / dominantBl);
+            MinBpm      = ToSafeBpm(60000.0 / pts.Max(p => p.beatLength));
+            MaxBpm      = ToSafeBpm(60000.0 / pts.Min(p => p.beatLength));
+        }
+
+        private const decimal SafeBpmBound = 1_000_000_000_000m;
+
+        private static decimal ToSafeBpm(double bpm)
+        {
+            if (double.IsNaN(bpm)) return 0m;
+            if (bpm >= (double)SafeBpmBound) return SafeBpmBound;
+            if (bpm <= -(double)SafeBpmBound) return -SafeBpmBound;
+            return (decimal)bpm;
         }
 
         // ============================================================
@@ -503,16 +513,7 @@ namespace OsuMate.Services.Trainer
             return string.Join(",", parts);
         }
 
-        // ---- Events 行のフィルタ／スケーリング ----
-        // Video・ストーリーボード（Sprite/Animation とそれにぶら下がるコマンド行）は
-        // 生成後の譜面から完全に除去する。動画デコードやストーリーボード描画は
-        // 生成にも再生負荷にも時間がかかり、Trainerで求められる軽快さを損なうため。
-        // 戻り値が null の場合、その行は出力しない（＝譜面から除去する）。
-        //
-        // 備考: 別ファイルの .osb（ストーリーボードファイル）自体はこのメソッドの対象外。
-        // .osb はセット内の全難易度で共有されるため、.osb が存在する譜面セットでは
-        // このメソッドで .osu 側の埋め込みストーリーボードを除去しても、
-        // .osb 側のストーリーボードは引き続き適用される点に注意。
+        // Video・ストーリーボードを除去
         private static string? FilterAndScaleEventLine(string raw, decimal rate)
         {
             var line = raw.Trim();

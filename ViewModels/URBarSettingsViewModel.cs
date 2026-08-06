@@ -104,6 +104,12 @@ namespace OsuMate.ViewModels
             set { _presetConfig().URBarAvgLineAnimMs = Math.Max(0, value); OnPropertyChanged(); _save(); }
         }
 
+        /// <summary>ラベル（判定幅の数値、EARLY/LATE）の不透明度（0～1）。Slider経由で連続的に変化するためデバウンス保存を使う。</summary>
+        public double URBarLabelOpacity
+        {
+            get => _presetConfig().URBarLabelOpacity;
+            set { _presetConfig().URBarLabelOpacity = Math.Clamp(value, 0, 1); OnPropertyChanged(); _debouncedSave(); }
+        }
         /// <summary>barThick（判定色帯）の不透明度（0～1）。Slider経由で連続的に変化するためデバウンス保存を使う。</summary>
         public double URBarSegmentOpacity
         {
@@ -116,13 +122,6 @@ namespace OsuMate.ViewModels
         {
             get => _presetConfig().URBarMarkerOpacity;
             set { _presetConfig().URBarMarkerOpacity = Math.Clamp(value, 0, 1); OnPropertyChanged(); _debouncedSave(); }
-        }
-
-        /// <summary>ラベル（判定幅の数値、EARLY/LATE）の不透明度（0～1）。Slider経由で連続的に変化するためデバウンス保存を使う。</summary>
-        public double URBarLabelOpacity
-        {
-            get => _presetConfig().URBarLabelOpacity;
-            set { _presetConfig().URBarLabelOpacity = Math.Clamp(value, 0, 1); OnPropertyChanged(); _debouncedSave(); }
         }
 
         /// <summary>判定ドットの不透明度（0～1）。Slider経由で連続的に変化するためデバウンス保存を使う。</summary>
@@ -148,9 +147,9 @@ namespace OsuMate.ViewModels
             OnPropertyChanged(nameof(URBarSizeText));
             OnPropertyChanged(nameof(URBarAvgLineFollowStrength));
             OnPropertyChanged(nameof(URBarAvgLineAnimMs));
+            OnPropertyChanged(nameof(URBarLabelOpacity));
             OnPropertyChanged(nameof(URBarSegmentOpacity));
             OnPropertyChanged(nameof(URBarMarkerOpacity));
-            OnPropertyChanged(nameof(URBarLabelOpacity));
             OnPropertyChanged(nameof(URBarHitErrorOpacity));
         }
     }

@@ -110,11 +110,11 @@ namespace OsuMate.Views
         /// あるため、labelOpacityはここで直接そのOpacityへ適用する。
         /// WindowManagerServiceが起動時および該当設定の変更時に呼び出す。
         /// </summary>
-        public void UpdateOpacitySettings(double segmentOpacity, double markerOpacity, double labelOpacity, double hitErrorOpacity)
+        public void UpdateOpacitySettings(double labelOpacity, double segmentOpacity, double markerOpacity, double hitErrorOpacity)
         {
+            _renderer.LabelOpacity = labelOpacity;
             _renderer.SegmentOpacity = segmentOpacity;
             _renderer.MarkerOpacity = markerOpacity;
-            _renderer.LabelOpacity = labelOpacity;
             _renderer.HitErrorOpacity = hitErrorOpacity;
 
             double clampedLabelOpacity = Math.Clamp(labelOpacity, 0, 1);

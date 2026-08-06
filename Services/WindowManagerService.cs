@@ -48,7 +48,7 @@ namespace OsuMate.Services
             _urBarWindow.SetViewModel(_mainViewModel.URBar);
             _urBarWindow.SetRotation(_settingsVm.URBarRotation);
             _urBarWindow.UpdateAnimationSettings(_settingsVm.URBarAvgLineFollowStrength, _settingsVm.URBarAvgLineAnimMs);
-            _urBarWindow.UpdateOpacitySettings(_settingsVm.URBarSegmentOpacity, _settingsVm.URBarMarkerOpacity, _settingsVm.URBarLabelOpacity, _settingsVm.URBarHitErrorOpacity);
+            _urBarWindow.UpdateOpacitySettings(_settingsVm.URBarLabelOpacity, _settingsVm.URBarSegmentOpacity, _settingsVm.URBarMarkerOpacity, _settingsVm.URBarHitErrorOpacity);
             _urBarWindow.PositionChanged += (left, top) =>
             {
                 if (TryGetOsuWindowRect(out var rect))
@@ -133,12 +133,12 @@ namespace OsuMate.Services
             {
                 _urBarWindow.UpdateAnimationSettings(_settingsVm.URBarAvgLineFollowStrength, _settingsVm.URBarAvgLineAnimMs);
             }
-            else if (e.PropertyName == nameof(SettingsViewModel.URBarSegmentOpacity)
+            else if (e.PropertyName == nameof(SettingsViewModel.URBarLabelOpacity)
                   || e.PropertyName == nameof(SettingsViewModel.URBarMarkerOpacity)
-                  || e.PropertyName == nameof(SettingsViewModel.URBarLabelOpacity)
+                  || e.PropertyName == nameof(SettingsViewModel.URBarSegmentOpacity)
                   || e.PropertyName == nameof(SettingsViewModel.URBarHitErrorOpacity))
             {
-                _urBarWindow.UpdateOpacitySettings(_settingsVm.URBarSegmentOpacity, _settingsVm.URBarMarkerOpacity, _settingsVm.URBarLabelOpacity, _settingsVm.URBarHitErrorOpacity);
+                _urBarWindow.UpdateOpacitySettings(_settingsVm.URBarLabelOpacity, _settingsVm.URBarSegmentOpacity, _settingsVm.URBarMarkerOpacity, _settingsVm.URBarHitErrorOpacity);
             }
             else if (e.PropertyName == nameof(SettingsViewModel.OverlayEnabled))
             {
@@ -164,6 +164,10 @@ namespace OsuMate.Services
             _isSettingsOpen = false;
             if (!_mainViewModel.IsPlaying)
             {
+                // Hide() する前に見た目を通常状態へ戻す
+                _overlayWindow.SetDraggable(false);
+                _urBarWindow.SetSettingsMode(false, _settingsVm.URBarWidth, _settingsVm.URBarHeight);
+
                 _overlayWindow.Hide();
                 _urBarWindow.Hide();
             }

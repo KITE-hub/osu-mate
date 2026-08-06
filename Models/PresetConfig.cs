@@ -34,14 +34,14 @@ namespace OsuMate.Models
         /// </summary>
         public double URBarAvgLineAnimMs { get; set; } = 800;
 
+        /// <summary>ラベル（判定幅の数値、EARLY/LATE）の不透明度（0～1）。</summary>
+        public double URBarLabelOpacity { get; set; } = 0.5;
+
         /// <summary>barThick（判定色帯）の不透明度（0～1）。</summary>
         public double URBarSegmentOpacity { get; set; } = 0.2;
 
         /// <summary>白線（中心線）と赤マーカー（Avg）の不透明度（0～1）。</summary>
         public double URBarMarkerOpacity { get; set; } = 0.75;
-
-        /// <summary>ラベル（判定幅の数値、EARLY/LATE）の不透明度（0～1）。</summary>
-        public double URBarLabelOpacity { get; set; } = 0.5;
 
         /// <summary>判定ドットの不透明度（0～1）。</summary>
         public double URBarHitErrorOpacity { get; set; } = 1.0;

@@ -125,8 +125,8 @@
             </StackPanel>
 
             <StackPanel Margin="{StaticResource SectionSpacing}">
-                <!-- ══ Play Log ══ -->
-                <TextBlock Text="Play Log" Style="{StaticResource TextTitleStyle}"
+                <!-- ══ Local Play Log ══ -->
+                <TextBlock Text="Local Play Log" Style="{StaticResource TextTitleStyle}"
                            Height="22" Margin="{StaticResource RowSpacing}"/>
 
                 <!-- Target Player Names -->
@@ -471,6 +471,18 @@
                            Foreground="{DynamicResource TextBrush}"/>
             </StackPanel>
 
+            <!-- URBar ラベル(判定幅の数値、EARLY/LATE)の不透明度 -->
+            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock Text="Label Opacity" FontSize="12" VerticalAlignment="Center"
+                           Width="160" Foreground="{DynamicResource TextBrush}"/>
+                <Slider Minimum="0" Maximum="1"
+                        Value="{Binding URBarLabelOpacity}"
+                        Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding URBarLabelOpacity, StringFormat={}{0:F2}}"
+                           FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+
             <!-- URBar 判定色帯（barThick）の不透明度 -->
             <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
                 <TextBlock Text="Segment Opacity" FontSize="12" VerticalAlignment="Center"
@@ -491,18 +503,6 @@
                         Value="{Binding URBarMarkerOpacity}"
                         Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding URBarMarkerOpacity, StringFormat={}{0:F2}}"
-                           FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextBrush}"/>
-            </StackPanel>
-
-            <!-- URBar ラベル(判定幅の数値、EARLY/LATE)の不透明度 -->
-            <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
-                <TextBlock Text="Label Opacity" FontSize="12" VerticalAlignment="Center"
-                           Width="160" Foreground="{DynamicResource TextBrush}"/>
-                <Slider Minimum="0" Maximum="1"
-                        Value="{Binding URBarLabelOpacity}"
-                        Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding URBarLabelOpacity, StringFormat={}{0:F2}}"
                            FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"
                            Foreground="{DynamicResource TextBrush}"/>
             </StackPanel>

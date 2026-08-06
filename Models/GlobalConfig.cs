@@ -72,6 +72,6 @@ namespace OsuMate.Models
         /// いずれもこの値で律速される。値を大きくするほど各表示の更新は粗くなるが、
         /// osu!本体への負荷（ReadProcessMemory呼び出し頻度）は下がる。
         /// </summary>
-        public int DataUpdateIntervalMs { get; set; } = 15;
+        public int DataUpdateIntervalMs { get; set; } = 33;
     }
 }

@@ -206,7 +206,7 @@ namespace OsuMate.ViewModels
             Save();
         }
 
-        // ─── プリセット対象設定（Overlay/URBar/App・Osu位置） 
+        // ─── プリセット対象設定（Overlay/URBar/App・Osu位置）
         public double OverlayX { get => Overlay.OverlayX; set => Overlay.OverlayX = value; }
         public double OverlayY { get => Overlay.OverlayY; set => Overlay.OverlayY = value; }
         public string OverlayPositionText => Overlay.OverlayPositionText;
@@ -225,9 +225,9 @@ namespace OsuMate.ViewModels
         public string URBarSizeText => URBar.URBarSizeText;
         public double URBarAvgLineFollowStrength { get => URBar.URBarAvgLineFollowStrength; set => URBar.URBarAvgLineFollowStrength = value; }
         public double URBarAvgLineAnimMs { get => URBar.URBarAvgLineAnimMs; set => URBar.URBarAvgLineAnimMs = value; }
+        public double URBarLabelOpacity { get => URBar.URBarLabelOpacity; set => URBar.URBarLabelOpacity = value; }
         public double URBarSegmentOpacity { get => URBar.URBarSegmentOpacity; set => URBar.URBarSegmentOpacity = value; }
         public double URBarMarkerOpacity { get => URBar.URBarMarkerOpacity; set => URBar.URBarMarkerOpacity = value; }
-        public double URBarLabelOpacity { get => URBar.URBarLabelOpacity; set => URBar.URBarLabelOpacity = value; }
         public double URBarHitErrorOpacity { get => URBar.URBarHitErrorOpacity; set => URBar.URBarHitErrorOpacity = value; }
 
         public bool AppPositionEnabled { get => Position.AppPositionEnabled; set => Position.AppPositionEnabled = value; }

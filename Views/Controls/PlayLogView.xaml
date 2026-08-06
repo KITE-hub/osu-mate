@@ -54,7 +54,7 @@
                 Padding="10,0,10,6">
             <StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                <TextBlock Text="Play Log"
+                <TextBlock Text="Local Play Log"
                            FontSize="13" FontWeight="Bold"
                            VerticalAlignment="Center"
                            Margin="0,0,12,0"/>
