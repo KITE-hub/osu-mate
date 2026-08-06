@@ -118,7 +118,7 @@ namespace OsuMate.Services
             if (calculated == null) return;
 
             // --- UI通知（1回にまとめる） ---
-            NotifyUi(dispatcher, ct, calculated.Value.Data, calculated.Value.Hits, strainUpdated, strains, skillNames, calculated.Value.SpeedMultiplier);
+            NotifyUi(dispatcher, calculated.Value.Data, calculated.Value.Hits, strainUpdated, strains, skillNames, calculated.Value.SpeedMultiplier, ct);
         }
 
         private string ResolveBeatmapPath()
@@ -251,7 +251,7 @@ namespace OsuMate.Services
         /// <summary>
         /// 計算結果をUIスレッドへ1回のBeginInvokeにまとめて通知する。
         /// </summary>
-        private void NotifyUi(Dispatcher dispatcher, CancellationToken ct, BeatmapData data, HitsResult hits, bool strainUpdated, List<float[]> strains, string[] skillNames, double speedMultiplier)
+        private void NotifyUi(Dispatcher dispatcher, BeatmapData data, HitsResult hits, bool strainUpdated, List<float[]> strains, string[] skillNames, double speedMultiplier, CancellationToken ct)
         {
             if (dispatcher.HasShutdownStarted || ct.IsCancellationRequested) return;
 

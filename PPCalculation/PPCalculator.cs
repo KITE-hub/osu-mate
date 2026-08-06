@@ -423,7 +423,7 @@ namespace OsuMate.PPCalculation
 
         internal int GetLastObjectTime()
         {
-            var lastObject = workingBeatmap.Beatmap.HitObjects.LastOrDefault();
+            var lastObject = workingBeatmap.Beatmap.HitObjects.Count > 0 ? workingBeatmap.Beatmap.HitObjects[^1] : null;
             return (int)(lastObject?.GetEndTime() ?? 0); // StartTimeだとスライダーエンドが含まれないのでGetEndTime()推奨
         }
     }

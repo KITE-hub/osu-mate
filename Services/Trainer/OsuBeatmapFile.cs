@@ -100,7 +100,7 @@ namespace OsuMate.Services.Trainer
                     SourceOsuFileName = line[SourceMarkerPrefix.Length..].Trim();
                 if (line.StartsWith("//") || line == "") continue;
 
-                if (line.StartsWith("["))
+                if (line.StartsWith('['))
                 {
                     section = line switch
                     {
@@ -202,7 +202,7 @@ namespace OsuMate.Services.Trainer
                 var line = raw.Trim();
                 if (line.StartsWith("//") || line == "") continue;
 
-                if (line.StartsWith("["))
+                if (line.StartsWith('['))
                 {
                     // [Difficulty] セクションを読み終えて次のセクション（[Events]等）に入った時点で、
                     // メタデータ取得に必要な情報は揃っているため、以降は読み込まずに打ち切る。
@@ -331,7 +331,7 @@ namespace OsuMate.Services.Trainer
             {
                 var line = raw.Trim();
 
-                if (line.StartsWith("["))
+                if (line.StartsWith('['))
                 {
                     section = line switch
                     {

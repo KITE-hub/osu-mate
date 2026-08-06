@@ -51,7 +51,7 @@ namespace OsuMate.Services
             {
                 try
                 {
-                    await Task.Delay(16).ConfigureAwait(false);
+                    await Task.Delay(16, ct).ConfigureAwait(false);
                     if (ct.IsCancellationRequested) break;
 
                     if (!EnsureProcess()) continue;

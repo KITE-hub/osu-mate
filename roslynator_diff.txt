@@ -1,33 +1,51 @@
-diff --git a/Services/OsuMemoryService.cs b/Services/OsuMemoryService.cs
-index 312040d..f2773ad 100644
---- a/Services/OsuMemoryService.cs
-+++ b/Services/OsuMemoryService.cs
-@@ -72,6 +72,13 @@ namespace OsuMate.Services
-         private DateTime? _osuWindowSeenAt = null;
-         private volatile bool _isMemoryReadReady = false;
+diff --git a/Services/OsuProcessMonitorService.cs b/Services/OsuProcessMonitorService.cs
+index 33b0d2e..1efaa19 100644
+--- a/Services/OsuProcessMonitorService.cs
++++ b/Services/OsuProcessMonitorService.cs
+@@ -51,7 +51,7 @@ namespace OsuMate.Services
+             {
+                 try
+                 {
+-                    await Task.Delay(16).ConfigureAwait(false);
++                    await Task.Delay(16, ct).ConfigureAwait(false);
+                     if (ct.IsCancellationRequested) break;
  
-+        /// <summary>
-+        /// 現在アタッチ中のosu!プロセスに対して、TryRead(＝ライブラリ内部の固定アドレス
-+        /// キャッシュの確定)を開始してよい状態かどうか。false の間はStartMemoryReaderが
-+        /// 一切のTryReadを呼ばないため、シグネチャスキャンの誤ヒットが発生し得ない。
-+        /// </summary>
-+        internal bool IsMemoryReadReady => _isMemoryReadReady;
-+
-         /// <summary>
-         /// osu!プロセスから読み取った生データの直接参照を返す。
-         /// スナップショットの複製ではないため、Player配下(HitErrors等)を読む際は競合のリスクがある。
-diff --git a/osu-mate.csproj b/osu-mate.csproj
-index f7fdaf9..fd88780 100644
---- a/osu-mate.csproj
-+++ b/osu-mate.csproj
-@@ -30,10 +30,6 @@
- 		<PackageReference Include="NAudio" Version="2.2.1" />
- 		<PackageReference Include="NAudio.Lame" Version="2.1.0" />
- 		<PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
--		<PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
--		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
--		  <PrivateAssets>all</PrivateAssets>
--		</PackageReference>
- 	</ItemGroup>
- 
- 	<ItemGroup>
+                     if (!EnsureProcess()) continue;
+diff --git a/roslynator_diff.txt b/roslynator_diff.txt
+index 330778d..e69de29 100644
+--- a/roslynator_diff.txt
++++ b/roslynator_diff.txt
+@@ -1,33 +0,0 @@
+-diff --git a/Services/OsuMemoryService.cs b/Services/OsuMemoryService.cs
+-index 312040d..f2773ad 100644
+---- a/Services/OsuMemoryService.cs
+-+++ b/Services/OsuMemoryService.cs
+-@@ -72,6 +72,13 @@ namespace OsuMate.Services
+-         private DateTime? _osuWindowSeenAt = null;
+-         private volatile bool _isMemoryReadReady = false;
+- 
+-+        /// <summary>
+-+        /// 現在アタッチ中のosu!プロセスに対して、TryRead(＝ライブラリ内部の固定アドレス
+-+        /// キャッシュの確定)を開始してよい状態かどうか。false の間はStartMemoryReaderが
+-+        /// 一切のTryReadを呼ばないため、シグネチャスキャンの誤ヒットが発生し得ない。
+-+        /// </summary>
+-+        internal bool IsMemoryReadReady => _isMemoryReadReady;
+-+
+-         /// <summary>
+-         /// osu!プロセスから読み取った生データの直接参照を返す。
+-         /// スナップショットの複製ではないため、Player配下(HitErrors等)を読む際は競合のリスクがある。
+-diff --git a/osu-mate.csproj b/osu-mate.csproj
+-index f7fdaf9..fd88780 100644
+---- a/osu-mate.csproj
+-+++ b/osu-mate.csproj
+-@@ -30,10 +30,6 @@
+- 		<PackageReference Include="NAudio" Version="2.2.1" />
+- 		<PackageReference Include="NAudio.Lame" Version="2.1.0" />
+- 		<PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
+--		<PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
+--		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+--		  <PrivateAssets>all</PrivateAssets>
+--		</PackageReference>
+- 	</ItemGroup>
+- 
+- 	<ItemGroup>

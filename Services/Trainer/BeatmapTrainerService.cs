@@ -170,8 +170,7 @@ namespace OsuMate.Services.Trainer
                         try
                         {
                             if (req.Rate <= 0)
-                                throw new ArgumentOutOfRangeException(nameof(req.Rate), req.Rate, "rate must be greater than zero.");
-
+                                throw new ArgumentOutOfRangeException(nameof(requests), req.Rate, "rate must be greater than zero.");
                             // --- メタデータ構築 ---
                             string bpmStr = (original.DominantBpm * req.Rate).ToString("0");
                             string rateStr = req.Rate.ToString("0.##");
