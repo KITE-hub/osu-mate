@@ -49,6 +49,12 @@ A companion desktop tool for **osu!** (Windows, C# / WPF).
 - [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) (not required if you use a self-contained release build)
 - osu! (stable)
 
+## Assets
+
+- [osu-mate-win-x64.zip](https://github.com/KITE-hub/osu-mate/releases/latest/download/osu-mate-win-x64.zip) — latest Windows build (self-contained exe)
+- [Source code (zip)](https://github.com/KITE-hub/osu-mate/archive/refs/heads/main.zip)
+- [Source code (tar.gz)](https://github.com/KITE-hub/osu-mate/archive/refs/heads/main.tar.gz)
+
 ## Installation
 
 1. Download the latest zip from the [Releases](../../releases) page

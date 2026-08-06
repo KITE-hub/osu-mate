@@ -23,6 +23,7 @@ jobs:
       - name: Build
         run: dotnet build -c Release --no-restore
 
+      # タグ push 時のみ Release 用に自己完結ビルドを作成する例
       - name: Publish (self-contained)
         if: startsWith(github.ref, 'refs/tags/')
         run: dotnet publish osu-mate.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish
@@ -39,10 +40,13 @@ jobs:
           name: osu-mate-win-x64
           path: ./publish/**
 
+      # タグ push 時、GitHub Releases ページを作成して zip を添付する
+      # （本文は空のまま作成されるので、GitHub上のReleasesページで後から手動編集する）
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          name: ${{ github.ref_name }}
           files: ./osu-mate-${{ github.ref_name }}-win-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

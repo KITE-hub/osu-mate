@@ -3,6 +3,9 @@
 out/
 publish/
 
+Config.json
+PlayLogs/
+
 .vs/
 *.user
 *.suo

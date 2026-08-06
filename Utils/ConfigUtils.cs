@@ -8,7 +8,8 @@ namespace OsuMate.Utils
 {
     internal static class ConfigUtils
     {
-        private const string JSON_PATH = "Config.json";
+        private static readonly string JSON_PATH =
+        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Config.json");
 
         /// <summary>
         /// Config.json をルート構造（Global + Presets）として読み込む。
