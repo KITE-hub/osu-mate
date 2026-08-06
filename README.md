@@ -8,13 +8,40 @@ A companion desktop tool for **osu!** (Windows, C# / WPF).
 
 - **Real-time PP / difficulty display** while playing (built on `ppy.osu.Game` libraries)
 - **Trainer**: live AR/OD/HP/CS simulation and generation of speed-changed audio (rate/tempo, via NAudio + SoundTouch.Net)
-![Trainer](.github/images/screenshot-trainer.png)
+
+  <details>
+  <summary>Screenshot</summary>
+
+  ![Trainer](.github/images/screenshot-trainer.png)
+
+  </details>
+
 - **Play log**: local play history tracking and a GitHub-style contribution graph
-![Play Log](.github/images/screenshot-playLog.png)
+
+  <details>
+  <summary>Screenshot</summary>
+
+  ![Play Log](.github/images/screenshot-playLog.png)
+
+  </details>
+
 - **UR bar / UR graph**: visualize hit-timing deviation (unstable rate)
-![UR Bar](.github/images/screenshot-urBar.png)
+
+  <details>
+  <summary>Screenshot</summary>
+
+  ![UR Bar](.github/images/screenshot-urBar.png)
+
+  </details>
+
 - **In-game overlay**: lightweight on-screen info overlay
-![In-game Overlay](.github/images/screenshot-inGameOverlay.png)
+
+  <details>
+  <summary>Screenshot</summary>
+
+  ![In-game Overlay](.github/images/screenshot-inGameOverlay.png)
+
+  </details>
 
 ## Requirements
 
