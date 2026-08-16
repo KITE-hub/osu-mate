@@ -2,11 +2,11 @@
 
 namespace OsuMate.Views.Controls
 {
-    public partial class URDistGraph : UserControl
+  public partial class URDistGraph : UserControl
+  {
+    public URDistGraph()
     {
-        public URDistGraph()
-        {
-            InitializeComponent();
-        }
+      InitializeComponent();
     }
+  }
 }

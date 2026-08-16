@@ -3,97 +3,230 @@ using System.Collections.Generic;
 
 namespace OsuMate.Services.Osu;
 
-/// <summary>
-/// HitErrorsに対するUR・offset平均用の統計量を、Welfordのオンラインアルゴリズムで増分更新するアキュムレータ。
-/// 
-/// - 過去の計算済み件数との差分のみを取り込むことで、リストの再走査コストを抑える。
-/// - 複数のスレッドから同一インスタンスを共有して呼び出されるため、内部でロックを用いて保護する。
-/// - 外れ値除去（トリム平均・IQRなど）は行わず、単純な平均と母標準偏差のみを算出する。
-/// </summary>
 internal sealed class HitErrorStatsAccumulator
 {
-    internal readonly record struct Result(
-        double RawAvg,
-        double ModifiedAvg,
-        double ModifiedStdev,
-        double RawUR,
-        double ModifiedUR);
+  internal readonly record struct Result(
+    double RawAvg,
+    double ModifiedAvg,
+    double ModifiedStdev,
+    double RawUR,
+    double ModifiedUR,
+    double RobustAvg
+  );
 
-    private static readonly Result Empty = new(0, 0, 0, 0, 0);
+  private static readonly Result Empty = new(0, 0, 0, 0, 0, 0);
 
-    private readonly object _lock = new();
+  private const double OutlierModifiedZThreshold = 3.5;
 
-    private int _count;
-    private double _mean;
-    private double _m2; // Welfordのアルゴリズムにおける「平均からの偏差二乗和」
-    private int _lastValue;
+  private const double MadZScale = 0.6745;
 
-    /// <summary>
-    /// 現在のHitErrorsスナップショットとの差分だけを取り込み、速度Mod補正込みの統計量を返す。
-    /// Slow Lane・Fast Laneの双方から、同一インスタンスに対して呼び出すことを想定している。
-    /// </summary>
-    /// <param name="hitErrors">
-    /// 現時点でのHitErrors全体のスナップショット。同じ系譜のリストが末尾に追記されて
-    /// 単調に伸びていく前提（osu!側の実際の挙動）。
-    /// </param>
-    /// <param name="speedMultiplier">DT/HT等による再生速度倍率。offset・UR双方に掛かる。</param>
-    internal Result Sync(IReadOnlyList<int> hitErrors, double speedMultiplier)
+  private const int OffsetMin = -1000;
+  private const int OffsetMax = 1000;
+  private const int BucketCount = OffsetMax - OffsetMin + 1;
+
+  private readonly object _lock = new();
+
+  private int _count;
+  private double _mean;
+  private double _m2;
+  private int _lastValue;
+
+  private readonly long[] _bitCount = new long[BucketCount + 1];
+  private readonly long[] _bitSum = new long[BucketCount + 1];
+
+  internal Result Sync(IReadOnlyList<int> hitErrors, double speedMultiplier)
+  {
+    lock (_lock)
     {
-        lock (_lock)
-        {
-            int newCount = hitErrors.Count;
+      int newCount = hitErrors.Count;
 
-            // 巻き戻り（リトライ等でosu!側のHitErrorsがクリアされた）を検知した場合や、
-            // 前回取り込んだ末尾要素と食い違う場合（Slow Lane / Fast Laneが別タイミングで
-            // 取得した、系譜の異なるスナップショットを取り込もうとした場合）は、
-            // 差分だけの追記が安全でないためゼロから作り直す。
-            // 通常時（同一系譜のリストが単調に伸びていくだけ）はこの分岐には入らず、
-            // 増えた分だけを取り込むO(増分件数)の経路を通る。
-            bool discontinuous = newCount < _count
-                || (_count > 0 && hitErrors[_count - 1] != _lastValue);
+      if (HitErrorHelper.IsDiscontinuous(hitErrors, _count, _lastValue))
+        Reset();
 
-            if (discontinuous)
-                Reset();
+      for (int i = _count; i < newCount; i++)
+        Add(hitErrors[i]);
 
-            for (int i = _count; i < newCount; i++)
-                Add(hitErrors[i]);
+      return ComputeResult(speedMultiplier);
+    }
+  }
 
-            if (_count == 0)
-                return Empty;
+  internal Result GetCurrent(double speedMultiplier)
+  {
+    lock (_lock)
+    {
+      return ComputeResult(speedMultiplier);
+    }
+  }
 
-            double rawVariance = _m2 / _count; // 既存実装(TimingHelper)と同じ母分散の定義
-            double rawStdev = Math.Sqrt(rawVariance);
+  private Result ComputeResult(double speedMultiplier)
+  {
+    if (_count == 0)
+      return Empty;
 
-            double rawAvg = _mean;
-            double modifiedAvg = rawAvg * speedMultiplier;
-            double modifiedStdev = rawStdev * speedMultiplier;
+    double rawVariance = _m2 / _count;
+    double rawStdev = Math.Sqrt(rawVariance);
 
-            double rawUR = rawStdev * 10;
-            double modifiedUR = rawUR * speedMultiplier;
+    double rawAvg = _mean;
+    double modifiedAvg = rawAvg * speedMultiplier;
+    double modifiedStdev = rawStdev * speedMultiplier;
 
-            // 既存実装と同じ異常値ガード（外れ値除去ではなく、破綻値のフォールバックのみ）
-            if (rawUR > 10000) rawUR = double.NaN;
-            if (modifiedUR > 10000) modifiedUR = double.NaN;
+    double rawUR = rawStdev * 10;
+    double modifiedUR = rawUR * speedMultiplier;
 
-            return new Result(rawAvg, modifiedAvg, modifiedStdev, rawUR, modifiedUR);
-        }
+    if (rawUR > 10000)
+      rawUR = double.NaN;
+    if (modifiedUR > 10000)
+      modifiedUR = double.NaN;
+
+    double robustAvg = ComputeRobustAverage();
+
+    return new Result(rawAvg, modifiedAvg, modifiedStdev, rawUR, modifiedUR, robustAvg);
+  }
+
+  private double ComputeRobustAverage()
+  {
+    int n = _count;
+    if (n == 0)
+      return 0;
+
+    if (n <= 2)
+      return _mean;
+
+    double median = GetMedian(n);
+    double mad = GetMad(n, median);
+
+    if (mad == 0)
+      return median;
+
+    double radius = OutlierModifiedZThreshold * mad / MadZScale;
+
+    int loVal = (int)Math.Ceiling(median - radius);
+    int hiVal = (int)Math.Floor(median + radius);
+    int loIdx = ToIndex(loVal);
+    int hiIdx = ToIndex(hiVal);
+
+    long countIn = BitRangeSum(_bitCount, loIdx, hiIdx);
+    long sumIn = BitRangeSum(_bitSum, loIdx, hiIdx);
+
+    return countIn > 0 ? (double)sumIn / countIn : median;
+  }
+
+  private double GetMedian(int n)
+  {
+    if ((n & 1) == 1)
+    {
+      int idx = FindKth((n + 1) / 2);
+      return ToValue(idx);
     }
 
-    private void Add(int value)
+    int idxLo = FindKth(n / 2);
+    int idxHi = FindKth(n / 2 + 1);
+    return (ToValue(idxLo) + ToValue(idxHi)) / 2.0;
+  }
+
+  private double GetMad(int n, double median)
+  {
+    long median2 = (long)Math.Round(median * 2.0);
+
+    if ((n & 1) == 1)
     {
-        _count++;
-        double delta = value - _mean;
-        _mean += delta / _count;
-        double delta2 = value - _mean;
-        _m2 += delta * delta2;
-        _lastValue = value;
+      long k = (n + 1) / 2;
+      long radius2 = FindDeviationRadius(median2, k);
+      return radius2 / 2.0;
     }
 
-    private void Reset()
+    long k1 = n / 2;
+    long k2 = n / 2 + 1;
+    long r1 = FindDeviationRadius(median2, k1);
+    long r2 = FindDeviationRadius(median2, k2);
+    return (r1 + r2) / 2.0 / 2.0;
+  }
+
+  private long FindDeviationRadius(long median2, long k)
+  {
+    long lo = 0,
+      hi = 2L * (OffsetMax - OffsetMin);
+    while (lo < hi)
     {
-        _count = 0;
-        _mean = 0;
-        _m2 = 0;
-        _lastValue = 0;
+      long mid = (lo + hi) / 2;
+      if (CountWithinDoubledRadius(median2, mid) >= k)
+        hi = mid;
+      else
+        lo = mid + 1;
     }
+    return lo;
+  }
+
+  private long CountWithinDoubledRadius(long median2, long radius2)
+  {
+    int xLow = (int)Math.Ceiling((median2 - radius2) / 2.0);
+    int xHigh = (int)Math.Floor((median2 + radius2) / 2.0);
+    int loIdx = ToIndex(xLow);
+    int hiIdx = ToIndex(xHigh);
+    return BitRangeSum(_bitCount, loIdx, hiIdx);
+  }
+
+  private static int ToIndex(int value) => Math.Clamp(value, OffsetMin, OffsetMax) - OffsetMin + 1;
+
+  private static int ToValue(int index) => index - 1 + OffsetMin;
+
+  private static void BitAdd(long[] bit, int idx, long delta)
+  {
+    for (; idx < bit.Length; idx += idx & (-idx))
+      bit[idx] += delta;
+  }
+
+  private static long BitQuery(long[] bit, int idx)
+  {
+    long sum = 0;
+    for (; idx > 0; idx -= idx & (-idx))
+      sum += bit[idx];
+    return sum;
+  }
+
+  private static long BitRangeSum(long[] bit, int loIdx, int hiIdx)
+  {
+    if (hiIdx < loIdx)
+      return 0;
+    return BitQuery(bit, hiIdx) - BitQuery(bit, loIdx - 1);
+  }
+
+  private int FindKth(long k)
+  {
+    int lo = 1,
+      hi = BucketCount;
+    while (lo < hi)
+    {
+      int mid = (lo + hi) / 2;
+      if (BitQuery(_bitCount, mid) >= k)
+        hi = mid;
+      else
+        lo = mid + 1;
+    }
+    return lo;
+  }
+
+  private void Add(int value)
+  {
+    _count++;
+    double delta = value - _mean;
+    _mean += delta / _count;
+    double delta2 = value - _mean;
+    _m2 += delta * delta2;
+    _lastValue = value;
+
+    int idx = ToIndex(value);
+    BitAdd(_bitCount, idx, 1);
+    BitAdd(_bitSum, idx, value);
+  }
+
+  private void Reset()
+  {
+    _count = 0;
+    _mean = 0;
+    _m2 = 0;
+    _lastValue = 0;
+    Array.Clear(_bitCount);
+    Array.Clear(_bitSum);
+  }
 }

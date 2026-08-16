@@ -8,19 +8,18 @@ using OsuMate.ViewModels;
 
 namespace OsuMate.Views.Controls
 {
-    public partial class StrainGraphPanel : UserControl
+  public partial class StrainGraphPanel : UserControl
+  {
+    private StrainGraphViewModel? ViewModel => DataContext as StrainGraphViewModel;
+
+    public StrainGraphPanel()
     {
-        private StrainGraphViewModel? ViewModel =>
-            DataContext as StrainGraphViewModel;
-
-        public StrainGraphPanel()
-        {
-            InitializeComponent();
-        }
-
-        private void CheckChanged(object sender, System.Windows.RoutedEventArgs e)
-        {
-            ViewModel?.Render();
-        }
+      InitializeComponent();
     }
+
+    private void CheckChanged(object sender, System.Windows.RoutedEventArgs e)
+    {
+      ViewModel?.Render();
+    }
+  }
 }

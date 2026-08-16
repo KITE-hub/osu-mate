@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "csharpier": {
+      "version": "1.3.0",
+      "commands": [
+        "csharpier"
+      ],
+      "rollForward": false
+    },
+    "dotnet-trace": {
+      "version": "9.0.661903",
+      "commands": [
+        "dotnet-trace"
+      ],
+      "rollForward": false
+    },
+    "dotnet-counters": {
+      "version": "9.0.661903",
+      "commands": [
+        "dotnet-counters"
+      ],
+      "rollForward": false
+    },
+    "dotnet-gcdump": {
+      "version": "9.0.661903",
+      "commands": [
+        "dotnet-gcdump"
+      ],
+      "rollForward": false
+    },
+    "dotnet-dump": {
+      "version": "9.0.661903",
+      "commands": [
+        "dotnet-dump"
+      ],
+      "rollForward": false
+    }
+  }
+}

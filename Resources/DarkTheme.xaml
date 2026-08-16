@@ -1,22 +1,20 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    >
-    <SolidColorBrush x:Key="TextBrush"        Color="#E6FFFFFF"/>
-    <SolidColorBrush x:Key="BorderBrush"       Color="#28FFFFFF"/>
-    <SolidColorBrush x:Key="IconButtonHoverBrush"  Color="#18FFFFFF"/>
-    <SolidColorBrush x:Key="IconButtonPressedBrush" Color="#28FFFFFF"/>
+<ResourceDictionary
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+>
+  <SolidColorBrush x:Key="TextBrush" Color="#E6FFFFFF" />
+  <SolidColorBrush x:Key="BorderBrush" Color="#28FFFFFF" />
+  <SolidColorBrush x:Key="IconButtonHoverBrush" Color="#18FFFFFF" />
+  <SolidColorBrush x:Key="IconButtonPressedBrush" Color="#28FFFFFF" />
 
-    <SolidColorBrush x:Key="SurfaceLevel0Brush" Color="#FF070909"/>
-    <SolidColorBrush x:Key="SurfaceLevel1Brush" Color="#FF0F1112"/>
-    <SolidColorBrush x:Key="SurfaceLevel2Brush" Color="#FF191C1D"/>
+  <SolidColorBrush x:Key="SurfaceLevel0Brush" Color="#FF070909" />
+  <SolidColorBrush x:Key="SurfaceLevel1Brush" Color="#FF0F1112" />
+  <SolidColorBrush x:Key="SurfaceLevel2Brush" Color="#FF191C1D" />
 
-    <!-- アクセント。背景比コントラスト14.4:1。塗り面の上に白文字は乗せず、必ずAccentOnBrushを使う -->
-    <SolidColorBrush x:Key="AccentBrush"        Color="#FF87F1F7"/>
-    <SolidColorBrush x:Key="AccentOnBrush"      Color="#FF191C1C"/>
-    <!-- Accentの約12%不透明度（背景に敷く用の弱色） -->
-    <SolidColorBrush x:Key="AccentSubtleBrush"  Color="#1F87F1F7"/>
+  <SolidColorBrush x:Key="AccentBrush" Color="#FF87F1F7" />
+  <SolidColorBrush x:Key="AccentOnBrush" Color="#FF191C1C" />
 
-    <!-- セパレーター専用（1px境界線）。BorderBrushより不透明度を下げた薄い区切り線 -->
-    <SolidColorBrush x:Key="SeparatorBrush" Color="#14FFFFFF"/>
+  <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1F87F1F7" />
 
+  <SolidColorBrush x:Key="SeparatorBrush" Color="#14FFFFFF" />
 </ResourceDictionary>

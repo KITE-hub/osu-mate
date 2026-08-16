@@ -1,226 +1,211 @@
-<UserControl x:Class="OsuMate.Views.Controls.ContributionGraphView"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:OsuMate.Views.Controls">
+<UserControl
+  x:Class="OsuMate.Views.Controls.ContributionGraphView"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:local="clr-namespace:OsuMate.Views.Controls"
+>
+  <UserControl.Resources>
+    <Style x:Key="ContributionCellStyle" TargetType="Border">
+      <Setter Property="Width" Value="20" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="Margin" Value="2" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceLevel2Brush}" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding Level}" Value="1">
+          <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+          <Setter Property="Opacity" Value="0.30" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Level}" Value="2">
+          <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+          <Setter Property="Opacity" Value="0.55" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Level}" Value="3">
+          <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+          <Setter Property="Opacity" Value="0.80" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Level}" Value="4">
+          <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+          <Setter Property="Opacity" Value="1.0" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
 
-    <UserControl.Resources>
-        <!--
-            コントリビューションセル1マス分の外観。
-            DataContext は ContributionDay (Level: 0〜4)。
-            Level=0（プレイなし）は色を付けず SurfaceLevel2Brush のまま。
-            Level=1〜4 は AccentBrush の不透明度を段階的に上げることで濃淡を表現
-        -->
-        <Style x:Key="ContributionCellStyle" TargetType="Border">
-            <Setter Property="Width" Value="20"/>
-            <Setter Property="Height" Value="20"/>
-            <Setter Property="Margin" Value="2"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Background" Value="{DynamicResource SurfaceLevel2Brush}"/>
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Level}" Value="1">
-                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-                    <Setter Property="Opacity" Value="0.30"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Level}" Value="2">
-                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-                    <Setter Property="Opacity" Value="0.55"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Level}" Value="3">
-                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-                    <Setter Property="Opacity" Value="0.80"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Level}" Value="4">
-                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-                    <Setter Property="Opacity" Value="1.0"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
+    <Style x:Key="PlaceholderCellStyle" TargetType="Border">
+      <Setter Property="Width" Value="18" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="Margin" Value="2" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
 
-        <!-- プレースホルダーセル（月頭の空白埋め）。透明で非インタラクティブ -->
-        <Style x:Key="PlaceholderCellStyle" TargetType="Border">
-            <Setter Property="Width" Value="18"/>
-            <Setter Property="Height" Value="18"/>
-            <Setter Property="Margin" Value="2"/>
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
+    <Style x:Key="WeekdayHeaderStyle" TargetType="TextBlock">
+      <Setter Property="Width" Value="24" />
+      <Setter Property="FontSize" Value="9" />
+      <Setter Property="FontFamily" Value="{DynamicResource AppFont}" />
+      <Setter Property="Opacity" Value="0.55" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="TextAlignment" Value="Center" />
+    </Style>
 
-        <!-- 曜日ヘッダーラベル (Sun / Mon / ... / Sat)
-             幅はセル1マス分の専有幅(Width+Margin*2 = 20+2*2 = 24)
-             ContributionCellStyle/PlaceholderCellStyle の Width を変えたら、ここも追従させる -->
-        <Style x:Key="WeekdayHeaderStyle" TargetType="TextBlock">
-            <Setter Property="Width" Value="24"/>
-            <Setter Property="FontSize" Value="9"/>
-            <Setter Property="FontFamily" Value="{DynamicResource AppFont}"/>
-            <Setter Property="Opacity" Value="0.55"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-            <Setter Property="TextAlignment" Value="Center"/>
-        </Style>
+    <Style
+      x:Key="MonthNavButtonStyle"
+      TargetType="Button"
+      BasedOn="{StaticResource SettingsButtonStyle}"
+    >
+      <Setter Property="Width" Value="24" />
+      <Setter Property="Height" Value="22" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
 
-        <!-- 月ナビゲーションボタン -->
-        <Style x:Key="MonthNavButtonStyle" TargetType="Button" BasedOn="{StaticResource SettingsButtonStyle}">
-            <Setter Property="Width" Value="24"/>
-            <Setter Property="Height" Value="22"/>
-            <Setter Property="Padding" Value="0"/>
-        </Style>
+    <Style x:Key="LegendSwatchStyle" TargetType="Border">
+      <Setter Property="Width" Value="13" />
+      <Setter Property="Height" Value="13" />
+      <Setter Property="Margin" Value="1.5,0" />
+      <Setter Property="CornerRadius" Value="2" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceLevel2Brush}" />
+    </Style>
 
-        <!-- 右下の凡例（Less〜More）用スウォッチ。 -->
-        <Style x:Key="LegendSwatchStyle" TargetType="Border">
-            <Setter Property="Width" Value="13"/>
-            <Setter Property="Height" Value="13"/>
-            <Setter Property="Margin" Value="1.5,0"/>
-            <Setter Property="CornerRadius" Value="2"/>
-            <Setter Property="Background" Value="{DynamicResource SurfaceLevel2Brush}"/>
-        </Style>
+    <Style x:Key="LegendTextStyle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="9" />
+      <Setter Property="FontFamily" Value="{DynamicResource AppFont}" />
+      <Setter Property="Opacity" Value="0.55" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Resources>
 
-        <Style x:Key="LegendTextStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="9"/>
-            <Setter Property="FontFamily" Value="{DynamicResource AppFont}"/>
-            <Setter Property="Opacity" Value="0.55"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
+  <Border
+    Background="{DynamicResource SurfaceLevel0Brush}"
+    BorderBrush="{DynamicResource SeparatorBrush}"
+    BorderThickness="0"
+    Padding="10,8"
+  >
+    <StackPanel>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
+        <Button
+          Style="{StaticResource MonthNavButtonStyle}"
+          Command="{Binding PreviousMonthCommand}"
+          Visibility="{Binding CanGoToPreviousMonth, Converter={x:Static local:BoolToHiddenConverter.Instance}}"
+          ToolTip="Previous month"
+        >
+          <Polygon
+            Points="0,4 6,0 6,8"
+            Fill="{DynamicResource TextBrush}"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+          />
+        </Button>
+        <ComboBox
+          Style="{StaticResource ThemedComboBox}"
+          ItemsSource="{Binding AvailableMonths}"
+          SelectedItem="{Binding SelectedMonth, Mode=TwoWay}"
+          MinWidth="100"
+          Margin="6,0"
+          FontSize="12"
+          FontWeight="SemiBold"
+        >
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock
+                Text="{Binding Converter={x:Static local:MonthDateOnlyConverter.Instance}}"
+                FontSize="11"
+              />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button
+          Style="{StaticResource MonthNavButtonStyle}"
+          Command="{Binding NextMonthCommand}"
+          Visibility="{Binding CanGoToNextMonth, Converter={x:Static local:BoolToHiddenConverter.Instance}}"
+          ToolTip="Next month"
+        >
+          <Polygon
+            Points="6,4 0,0 0,8"
+            Fill="{DynamicResource TextBrush}"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+          />
+        </Button>
+      </StackPanel>
 
-        <!--
-            セルのテンプレート選択ロジック。
-            IsPlaceholder=True のセルは PlaceholderCellStyle、
-            False のセルは ContributionCellStyle を使うよう切り替える。
-            DataTemplateSelector を使わず DataTemplate 内でトリガーを使うため、
-            1つの DataTemplate に両スタイルのセルをネストし Style.Triggers で切り替える。
-        -->
-    </UserControl.Resources>
-
-    <Border Background="{DynamicResource SurfaceLevel0Brush}"
-            BorderBrush="{DynamicResource SeparatorBrush}"
-            BorderThickness="0"
-            Padding="10,8">
-        <StackPanel>
-
-            <!-- 月ナビゲーション行 -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
-                <Button Style="{StaticResource MonthNavButtonStyle}"
-                        Command="{Binding PreviousMonthCommand}"
-                        Visibility="{Binding CanGoToPreviousMonth, Converter={x:Static local:BoolToHiddenConverter.Instance}}"
-                        ToolTip="Previous month">
-                    <!-- Points は (0,0) 起点にしている。Polygon の既定 Stretch は None で、
-                         この場合の自然サイズは GetNaturalSize() が bounds.Right/Bottom
-                         （原点からの最大座標）をそのまま使うため、Points の最小座標が (0,0)
-                         からズレていると、そのズレ分だけ左上に不可視の余白を抱えたまま
-                         レイアウトされてしまう。結果、Button 中央寄せ後に三角の実体だけが
-                         右下（縦方向では下）にわずかにズレて見える。Margin で打ち消すのではなく
-                         座標自体を正規化して解消している。 -->
-                    <Polygon Points="0,4 6,0 6,8" Fill="{DynamicResource TextBrush}"
-                             HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Button>
-                <ComboBox Style="{StaticResource ThemedComboBox}"
-                          ItemsSource="{Binding AvailableMonths}"
-                          SelectedItem="{Binding SelectedMonth, Mode=TwoWay}"
-                          MinWidth="100"
-                          Margin="6,0"
-                          FontSize="12"
-                          FontWeight="SemiBold">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding Converter={x:Static local:MonthDateOnlyConverter.Instance}}"
-                                       FontSize="11"/>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                <Button Style="{StaticResource MonthNavButtonStyle}"
-                        Command="{Binding NextMonthCommand}"
-                        Visibility="{Binding CanGoToNextMonth, Converter={x:Static local:BoolToHiddenConverter.Instance}}"
-                        ToolTip="Next month">
-                    <!-- 左向きボタンと同じ理由で Points を (0,0) 起点に正規化している -->
-                    <Polygon Points="6,4 0,0 0,8" Fill="{DynamicResource TextBrush}"
-                             HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Button>
-            </StackPanel>
-
-            <!-- カレンダー本体 -->
-            <StackPanel HorizontalAlignment="Center">
-
-                <!-- 曜日ヘッダー行 (Sun / Mon / Tue / Wed / Thu / Fri / Sat) -->
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                    <TextBlock Text="Sun" Style="{StaticResource WeekdayHeaderStyle}"/>
-                    <TextBlock Text="Mon" Style="{StaticResource WeekdayHeaderStyle}"/>
-                    <TextBlock Text="Tue" Style="{StaticResource WeekdayHeaderStyle}"/>
-                    <TextBlock Text="Wed" Style="{StaticResource WeekdayHeaderStyle}"/>
-                    <TextBlock Text="Thu" Style="{StaticResource WeekdayHeaderStyle}"/>
-                    <TextBlock Text="Fri" Style="{StaticResource WeekdayHeaderStyle}"/>
-                    <TextBlock Text="Sat" Style="{StaticResource WeekdayHeaderStyle}"/>
-                </StackPanel>
-
-                <!--
-                    グラフ本体
-                    ContributionGraphViewModel.Days は week-major（行優先: 日〜土 → 翌週）の順で構築されている。
-                    UniformGrid は Columns を固定すると「行優先」で子要素を配置するネイティブ仕様を持つため、
-                    Columns=7（曜日数）に固定することで (row=週, col=曜日) というカレンダーレイアウトになる。
-                    IsPlaceholder=True のセルは透明、False のセルはヒートマップ色で描画する。
-
-                    行数(Rows)は6固定で明示する。UniformGridはRows/Columnsを両方明示すると
-                    実際の子要素数に関わらずそのグリッドサイズ（6行×7列）固定で領域を確保し、
-                    凡例の位置も常に一定になる（1ヶ月の最大週数は6週）
-                -->
-                <ItemsControl ItemsSource="{Binding Days}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Rows="6" Columns="7"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <!--
-                                ToolTipService.InitialShowDelay: ホバーしてからツールチップが出るまでの待ち時間(既定は約400ms)を短縮。
-                                ToolTipService.BetweenShowDelay: 隣接セルへ素早くホバーし直した際、間を置かず即座に切り替える。
-                            -->
-                            <Border ToolTipService.InitialShowDelay="150"
-                                    ToolTipService.BetweenShowDelay="0">
-                                <Border.Style>
-                                    <Style TargetType="Border" BasedOn="{StaticResource ContributionCellStyle}">
-                                        <Style.Triggers>
-                                            <!-- プレースホルダーセルは透明で表示（ToolTipなし） -->
-                                            <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
-                                                <Setter Property="Background" Value="Transparent"/>
-                                                <Setter Property="BorderThickness" Value="0"/>
-                                                <Setter Property="Opacity" Value="0"/>
-                                                <Setter Property="IsHitTestVisible" Value="False"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <Border.ToolTip>
-                                    <!-- 見た目はStyles.xamlのTrackerToolTipStyle（OxyPlotツールチップ/TrackerControlと共通）を使用 -->
-                                    <ToolTip>
-                                        <ToolTip.Style>
-                                            <Style TargetType="ToolTip" BasedOn="{StaticResource TrackerToolTipStyle}">
-                                                <Setter Property="Content" Value="{Binding TooltipText}"/>
-                                                <Style.Triggers>
-                                                    <!-- プレースホルダーはツールチップを表示しない -->
-                                                    <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ToolTip.Style>
-                                    </ToolTip>
-                                </Border.ToolTip>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-
-            <!-- 凡例: Less（プレイなし）〜More（打数が多い） -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
-                <TextBlock Text="Less" Style="{StaticResource LegendTextStyle}" Margin="0,0,3,0"/>
-                <Border Style="{StaticResource LegendSwatchStyle}"/>
-                <Border Style="{StaticResource LegendSwatchStyle}" Background="{DynamicResource AccentBrush}" Opacity="0.30"/>
-                <Border Style="{StaticResource LegendSwatchStyle}" Background="{DynamicResource AccentBrush}" Opacity="0.55"/>
-                <Border Style="{StaticResource LegendSwatchStyle}" Background="{DynamicResource AccentBrush}" Opacity="0.80"/>
-                <Border Style="{StaticResource LegendSwatchStyle}" Background="{DynamicResource AccentBrush}" Opacity="1.0"/>
-                <TextBlock Text="More" Style="{StaticResource LegendTextStyle}" Margin="3,0,0,0"/>
-            </StackPanel>
-
+      <StackPanel HorizontalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+          <TextBlock Text="Sun" Style="{StaticResource WeekdayHeaderStyle}" />
+          <TextBlock Text="Mon" Style="{StaticResource WeekdayHeaderStyle}" />
+          <TextBlock Text="Tue" Style="{StaticResource WeekdayHeaderStyle}" />
+          <TextBlock Text="Wed" Style="{StaticResource WeekdayHeaderStyle}" />
+          <TextBlock Text="Thu" Style="{StaticResource WeekdayHeaderStyle}" />
+          <TextBlock Text="Fri" Style="{StaticResource WeekdayHeaderStyle}" />
+          <TextBlock Text="Sat" Style="{StaticResource WeekdayHeaderStyle}" />
         </StackPanel>
-    </Border>
+
+        <ItemsControl ItemsSource="{Binding Days}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <UniformGrid Rows="6" Columns="7" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border ToolTipService.InitialShowDelay="100">
+                <Border.Style>
+                  <Style TargetType="Border" BasedOn="{StaticResource ContributionCellStyle}">
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Opacity" Value="0" />
+                        <Setter Property="IsHitTestVisible" Value="False" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </Border.Style>
+                <Border.ToolTip>
+                  <ToolTip>
+                    <ToolTip.Style>
+                      <Style TargetType="ToolTip" BasedOn="{StaticResource TrackerToolTipStyle}">
+                        <Setter Property="Content" Value="{Binding TooltipText}" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </ToolTip.Style>
+                  </ToolTip>
+                </Border.ToolTip>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+        <TextBlock Text="Less" Style="{StaticResource LegendTextStyle}" Margin="0,0,3,0" />
+        <Border Style="{StaticResource LegendSwatchStyle}" />
+        <Border
+          Style="{StaticResource LegendSwatchStyle}"
+          Background="{DynamicResource AccentBrush}"
+          Opacity="0.30"
+        />
+        <Border
+          Style="{StaticResource LegendSwatchStyle}"
+          Background="{DynamicResource AccentBrush}"
+          Opacity="0.55"
+        />
+        <Border
+          Style="{StaticResource LegendSwatchStyle}"
+          Background="{DynamicResource AccentBrush}"
+          Opacity="0.80"
+        />
+        <Border
+          Style="{StaticResource LegendSwatchStyle}"
+          Background="{DynamicResource AccentBrush}"
+          Opacity="1.0"
+        />
+        <TextBlock Text="More" Style="{StaticResource LegendTextStyle}" Margin="3,0,0,0" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
 </UserControl>

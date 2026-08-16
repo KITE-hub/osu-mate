@@ -4,6 +4,6 @@ namespace OsuMate.Models;
 
 internal class MapPerformanceAttributes
 {
-    internal string[] Mods { get; set; } = [];
-    internal PerformanceAttributes? PerformanceAttributes { get; set; }
+  internal string[] Mods { get; set; } = [];
+  internal PerformanceAttributes? PerformanceAttributes { get; set; }
 }

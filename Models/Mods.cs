@@ -2,6 +2,6 @@
 
 internal class Mods
 {
-    internal string[] Calculation { get; set; } = [];
-    internal string[] Display { get; set; } = [];
+  internal string[] Calculation { get; set; } = [];
+  internal string[] Display { get; set; } = [];
 }

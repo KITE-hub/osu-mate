@@ -2,11 +2,11 @@
 
 namespace OsuMate.Views.Controls
 {
-    public partial class URTimeGraph : UserControl
+  public partial class URTimeGraph : UserControl
+  {
+    public URTimeGraph()
     {
-        public URTimeGraph()
-        {
-            InitializeComponent();
-        }
+      InitializeComponent();
     }
+  }
 }

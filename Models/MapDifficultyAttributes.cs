@@ -4,6 +4,6 @@ namespace OsuMate.Models;
 
 internal class MapDifficultyAttributes
 {
-    internal string[] Mods { get; set; } = [];
-    internal DifficultyAttributes DifficultyAttributes { get; set; } = new DifficultyAttributes();
+  internal string[] Mods { get; set; } = [];
+  internal DifficultyAttributes DifficultyAttributes { get; set; } = new DifficultyAttributes();
 }

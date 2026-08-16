@@ -3,44 +3,56 @@ using OsuMate.Services.Osu;
 
 namespace OsuMate.ViewModels
 {
-    public class URBarViewModel
+  public class URBarViewModel
+  {
+    private sealed record HitSnapshot(
+      List<int> HitErrors,
+      int HitErrorTotalCount,
+      IReadOnlyDictionary<HitResult, double> HitWindows
+    );
+
+    private static readonly HitSnapshot EmptySnapshot = new(
+      [],
+      0,
+      new Dictionary<HitResult, double>()
+    );
+
+    private volatile HitSnapshot _snapshot = EmptySnapshot;
+
+    private volatile bool _isDirty = false;
+
+    public List<int> HitErrors => _snapshot.HitErrors;
+
+    public int HitErrorTotalCount => _snapshot.HitErrorTotalCount;
+
+    public void Update(
+      List<int> hitErrors,
+      int hitErrorTotalCount,
+      IReadOnlyDictionary<HitResult, double> hitWindows,
+      bool isPlaying
+    )
     {
-        // スレッドセーフなスナップショット保持
-        private volatile List<int> _hitErrors = [];
-        private volatile Dictionary<HitResult, double> _hitWindows = [];
+      var errors = isPlaying ? hitErrors : [];
+      var totalCount = isPlaying ? hitErrorTotalCount : 0;
 
-        // 描画側が「データが更新された」を検知するためのフラグ
-        private volatile bool _isDirty = false;
-
-        /// <summary>描画スレッドが読み取る用のスナップショット</summary>
-        public List<int> HitErrors => _hitErrors;
-
-        /// <summary>
-        /// バックグラウンドスレッドから呼ばれる更新メソッド。
-        /// リストをコピーして保持することでスレッド安全を確保する。
-        /// </summary>
-        public void Update(List<int> hitErrors, Dictionary<HitResult, double> hitWindows, bool isPlaying)
-        {
-            // コピーを作成してから参照を差し替える
-            var errorsCopy = isPlaying ? new List<int>(hitErrors) : [];
-            var windowsCopy = new Dictionary<HitResult, double>(hitWindows);
-
-            _hitErrors = errorsCopy;
-            _hitWindows = windowsCopy;
-            _isDirty = true;
-        }
-
-        /// <summary>描画側がフラグを消費するメソッド</summary>
-        public bool ConsumeIsDirty()
-        {
-            if (!_isDirty) return false;
-            _isDirty = false;
-            return true;
-        }
-
-        public int GetJudgement(double offsetMs) => HitJudgementHelper.GetJudgement(offsetMs, _hitWindows);
-        public double GetMaxWindow() => HitJudgementHelper.GetMaxWindow(_hitWindows);
-        public List<(int judgement, double msValue, double from, double to)> GetCenterLineSegments()
-            => HitJudgementHelper.GetCenterLineSegments(_hitWindows);
+      _snapshot = new HitSnapshot(errors, totalCount, hitWindows);
+      _isDirty = true;
     }
+
+    public bool ConsumeIsDirty()
+    {
+      if (!_isDirty)
+        return false;
+      _isDirty = false;
+      return true;
+    }
+
+    public int GetJudgement(double offsetMs) =>
+      HitJudgementHelper.GetJudgement(offsetMs, _snapshot.HitWindows);
+
+    public double GetMaxWindow() => HitJudgementHelper.GetMaxWindow(_snapshot.HitWindows);
+
+    public List<(int judgement, double msValue, double from, double to)> GetCenterLineSegments() =>
+      HitJudgementHelper.GetCenterLineSegments(_snapshot.HitWindows);
+  }
 }

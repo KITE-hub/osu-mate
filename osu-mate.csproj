@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
+    <PlatformTarget>x64</PlatformTarget>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
@@ -10,61 +10,61 @@
     <AssemblyName>osu-mate</AssemblyName>
     <AssemblyTitle>osu mate</AssemblyTitle>
     <Product>osu mate</Product>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
     <ApplicationIcon>Resources\Icons\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
-	<ItemGroup>
-		<PackageReference Include="Material.Icons.WPF" Version="3.0.0" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
-		<PackageReference Include="ppy.osu.Game" Version="2026.702.1" />
-		<PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="2026.702.1" />
-		<PackageReference Include="ppy.osu.Game.Rulesets.Taiko" Version="2026.702.1" />
-		<PackageReference Include="ppy.osu.Game.Rulesets.Catch" Version="2026.702.1" />
-		<PackageReference Include="ppy.osu.Game.Rulesets.Mania" Version="2026.702.1" />
-		<PackageReference Include="OsuMemoryDataProvider" Version="0.12.2" />
-		<PackageReference Include="OxyPlot.Wpf" Version="2.2.0" />
-		<PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-		<PackageReference Include="NAudio" Version="2.2.1" />
-		<PackageReference Include="NAudio.Lame" Version="2.1.0" />
-		<PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
-		<PackageReference Include="SoundTouch.Net.NAudioSupport.Core" Version="2.3.2" />
-	</ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Material.Icons.WPF" Version="3.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
+    <PackageReference Include="ppy.osu.Game" Version="2026.702.1" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="2026.702.1" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Taiko" Version="2026.702.1" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Catch" Version="2026.702.1" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Mania" Version="2026.702.1" />
+    <PackageReference Include="OsuMemoryDataProvider" Version="0.12.2" />
+    <PackageReference Include="OxyPlot.Wpf" Version="2.2.0" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="NAudio.Lame" Version="2.1.0" />
+    <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
+    <PackageReference Include="SoundTouch.Net.NAudioSupport.Core" Version="2.3.2" />
+  </ItemGroup>
 
-	<!-- 同梱フォント（Oxanium / Roboto、いずれもOFL 1.1）とアプリアイコンをWPFの埋め込みリソースとして追加。
+  <!-- 同梱フォント（Oxanium / Roboto、いずれもOFL 1.1）とアプリアイコンをWPFの埋め込みリソースとして追加。
 	     pack://application:,,,/Resources/... で参照するため Build Action は Resource にする必要がある。 -->
-	<ItemGroup>
-		<Resource Include="Resources\Fonts\Oxanium\Oxanium-Regular.ttf" />
-		<Resource Include="Resources\Fonts\Oxanium\Oxanium-SemiBold.ttf" />
-		<Resource Include="Resources\Fonts\Oxanium\Oxanium-Bold.ttf" />
-		<Resource Include="Resources\Fonts\Roboto\Roboto-Regular.ttf" />
-		<Resource Include="Resources\Fonts\Roboto\Roboto-SemiBold.ttf" />
-		<Resource Include="Resources\Fonts\Roboto\Roboto-Bold.ttf" />
-		<Resource Include="Resources\Icons\icon.ico" />
-	</ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Fonts\Oxanium\Oxanium-Regular.ttf" />
+    <Resource Include="Resources\Fonts\Oxanium\Oxanium-SemiBold.ttf" />
+    <Resource Include="Resources\Fonts\Oxanium\Oxanium-Bold.ttf" />
+    <Resource Include="Resources\Fonts\Roboto\Roboto-Regular.ttf" />
+    <Resource Include="Resources\Fonts\Roboto\Roboto-SemiBold.ttf" />
+    <Resource Include="Resources\Fonts\Roboto\Roboto-Bold.ttf" />
+    <Resource Include="Resources\Icons\icon.ico" />
+  </ItemGroup>
 
-	<ItemGroup>
-		<None Include="Resources\Fonts\Oxanium\OFL.txt">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
-		<None Include="Resources\Fonts\Roboto\OFL.txt">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
-	</ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Fonts\Oxanium\OFL.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\Fonts\Roboto\OFL.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
-	<ItemGroup>
-		<None Include="Resources\Fonts\Oxanium\Oxanium-Regular.ttf">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
-		<None Include="Resources\Fonts\Roboto\Roboto-Regular.ttf">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
-	</ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Fonts\Oxanium\Oxanium-Regular.ttf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\Fonts\Roboto\Roboto-Regular.ttf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
-<ItemGroup>
-  <Compile Remove="test/**/*.cs" />
-  <None Remove="test/**/*" />
-</ItemGroup>
+  <ItemGroup>
+    <Compile Remove="test/**/*.cs" />
+    <None Remove="test/**/*" />
+  </ItemGroup>
 </Project>

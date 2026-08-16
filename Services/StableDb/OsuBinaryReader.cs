@@ -3,95 +3,137 @@ using System.IO;
 
 namespace OsuMate.Services.StableDb
 {
-    /// <summary>
-    /// osu!.db / scores.db のバイナリ形式に共通するプリミティブ読み取りヘルパー
-    /// </summary>
-    public abstract class OsuBinaryReader
+  public abstract class OsuBinaryReader : IDisposable
+  {
+    private readonly Stream _stream;
+    private readonly byte[] _primitiveBuffer = new byte[8];
+
+    protected OsuBinaryReader(Stream stream)
     {
-        protected readonly byte[] _data;
-        protected int _offset;
-
-        protected OsuBinaryReader(byte[] data)
-        {
-            _data = data;
-            _offset = 0;
-        }
-
-        protected byte ReadByte() => _data[_offset++];
-
-        protected ushort ReadUInt16()
-        {
-            ushort v = BitConverter.ToUInt16(_data, _offset);
-            _offset += 2;
-            return v;
-        }
-
-        protected int ReadInt32()
-        {
-            int v = BitConverter.ToInt32(_data, _offset);
-            _offset += 4;
-            return v;
-        }
-
-        protected long ReadInt64()
-        {
-            long v = BitConverter.ToInt64(_data, _offset);
-            _offset += 8;
-            return v;
-        }
-
-        protected float ReadSingle()
-        {
-            float v = BitConverter.ToSingle(_data, _offset);
-            _offset += 4;
-            return v;
-        }
-
-        protected double ReadDouble()
-        {
-            double v = BitConverter.ToDouble(_data, _offset);
-            _offset += 8;
-            return v;
-        }
-
-        /// <summary>
-        /// osu! 独自の ULEB128 + UTF8 文字列形式を読む。
-        /// 先頭マーカー: 0x00 = null, 0x0b = 文字列あり(続けて ULEB128 長 + UTF8バイト列)。
-        /// </summary>
-        protected string? ReadString()
-        {
-            byte marker = ReadByte();
-            if (marker == 0x00)
-            {
-                return null;
-            }
-            if (marker != 0x0b)
-            {
-                throw new InvalidDataException(
-                    $"Unexpected string marker 0x{marker:x2} at offset {_offset - 1}");
-            }
-
-            int length = ReadULeb128();
-            string s = System.Text.Encoding.UTF8.GetString(_data, _offset, length);
-            _offset += length;
-            return s;
-        }
-
-        protected int ReadULeb128()
-        {
-            int result = 0;
-            int shift = 0;
-            while (true)
-            {
-                byte b = ReadByte();
-                result |= (b & 0x7f) << shift;
-                if ((b & 0x80) == 0)
-                {
-                    break;
-                }
-                shift += 7;
-            }
-            return result;
-        }
+      _stream = stream;
     }
+
+    protected byte ReadByte()
+    {
+      ReadExact(_primitiveBuffer, 1);
+      return _primitiveBuffer[0];
+    }
+
+    protected ushort ReadUInt16()
+    {
+      ReadExact(_primitiveBuffer, 2);
+      return BitConverter.ToUInt16(_primitiveBuffer, 0);
+    }
+
+    protected int ReadInt32()
+    {
+      ReadExact(_primitiveBuffer, 4);
+      return BitConverter.ToInt32(_primitiveBuffer, 0);
+    }
+
+    protected long ReadInt64()
+    {
+      ReadExact(_primitiveBuffer, 8);
+      return BitConverter.ToInt64(_primitiveBuffer, 0);
+    }
+
+    protected float ReadSingle()
+    {
+      ReadExact(_primitiveBuffer, 4);
+      return BitConverter.ToSingle(_primitiveBuffer, 0);
+    }
+
+    protected double ReadDouble()
+    {
+      ReadExact(_primitiveBuffer, 8);
+      return BitConverter.ToDouble(_primitiveBuffer, 0);
+    }
+
+    protected string? ReadString()
+    {
+      byte marker = ReadByte();
+      if (marker == 0x00)
+      {
+        return null;
+      }
+      if (marker != 0x0b)
+      {
+        string offsetInfo = _stream.CanSeek ? $" at offset {_stream.Position - 1}" : string.Empty;
+        throw new InvalidDataException($"Unexpected string marker 0x{marker:x2}{offsetInfo}.");
+      }
+
+      int length = ReadULeb128();
+      if (length < 0)
+        throw new InvalidDataException("Negative string length.");
+      if (length == 0)
+        return string.Empty;
+
+      var bytes = new byte[length];
+      ReadExact(bytes, length);
+      return System.Text.Encoding.UTF8.GetString(bytes);
+    }
+
+    protected int ReadULeb128()
+    {
+      int result = 0;
+      int shift = 0;
+      while (true)
+      {
+        byte b = ReadByte();
+        result |= (b & 0x7f) << shift;
+        if ((b & 0x80) == 0)
+        {
+          break;
+        }
+        shift += 7;
+        if (shift > 28)
+          throw new InvalidDataException("ULEB128 value is too large.");
+      }
+      return result;
+    }
+
+    protected void Skip(int count)
+    {
+      if (count < 0)
+        throw new InvalidDataException("Negative skip length.");
+      if (count == 0)
+        return;
+
+      if (_stream.CanSeek)
+      {
+        if (_stream.Position + count > _stream.Length)
+          throw new InvalidDataException("Unexpected end of osu database file.");
+        _stream.Seek(count, SeekOrigin.Current);
+        return;
+      }
+
+      var discardBuffer = new byte[Math.Min(count, 8192)];
+      int remaining = count;
+      while (remaining > 0)
+      {
+        int chunk = Math.Min(discardBuffer.Length, remaining);
+        int read = _stream.Read(discardBuffer, 0, chunk);
+        if (read <= 0)
+          throw new InvalidDataException("Unexpected end of osu database file.");
+        remaining -= read;
+      }
+    }
+
+    private void ReadExact(byte[] buffer, int count)
+    {
+      int total = 0;
+      while (total < count)
+      {
+        int read = _stream.Read(buffer, total, count - total);
+        if (read <= 0)
+          throw new InvalidDataException("Unexpected end of osu database file.");
+        total += read;
+      }
+    }
+
+    public void Dispose()
+    {
+      _stream.Dispose();
+    }
+  }
 }

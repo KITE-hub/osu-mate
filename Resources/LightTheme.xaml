@@ -1,23 +1,20 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-					>
-    <SolidColorBrush x:Key="TextBrush"        Color="#FF222222"/>
-    <SolidColorBrush x:Key="BorderBrush"       Color="#FFBFBFBF"/>
-<SolidColorBrush x:Key="IconButtonHoverBrush"   Color="#18000000"/>
-<SolidColorBrush x:Key="IconButtonPressedBrush"  Color="#28000000"/>
+<ResourceDictionary
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+>
+  <SolidColorBrush x:Key="TextBrush" Color="#FF222222" />
+  <SolidColorBrush x:Key="BorderBrush" Color="#FFBFBFBF" />
+  <SolidColorBrush x:Key="IconButtonHoverBrush" Color="#18000000" />
+  <SolidColorBrush x:Key="IconButtonPressedBrush" Color="#28000000" />
 
-    <!-- ══ Apple風リデザインで追加したトークン（カラーパレット確定版） ══ -->
-    <SolidColorBrush x:Key="SurfaceLevel0Brush" Color="#FFF3F4F4"/>
-    <SolidColorBrush x:Key="SurfaceLevel1Brush" Color="#FFFCFCFC"/>
-    <SolidColorBrush x:Key="SurfaceLevel2Brush" Color="#FFE6E9E9"/>
+  <SolidColorBrush x:Key="SurfaceLevel0Brush" Color="#FFF3F4F4" />
+  <SolidColorBrush x:Key="SurfaceLevel1Brush" Color="#FFFCFCFC" />
+  <SolidColorBrush x:Key="SurfaceLevel2Brush" Color="#FFE6E9E9" />
 
-    <!-- アクセントはA案（Apple HIG準拠寄り, systemTeal相当）を採用。黒文字比8.2:1のためAccentOnBrushは濃色を使う -->
-    <SolidColorBrush x:Key="AccentBrush"        Color="#FF2AB2B9"/>
-    <SolidColorBrush x:Key="AccentOnBrush"      Color="#FF0F1111"/>
-    <!-- Accentの約12%不透明度（背景に敷く用の弱色） -->
-    <SolidColorBrush x:Key="AccentSubtleBrush"  Color="#1F2AB2B9"/>
+  <SolidColorBrush x:Key="AccentBrush" Color="#FF2AB2B9" />
+  <SolidColorBrush x:Key="AccentOnBrush" Color="#FF0F1111" />
 
-    <!-- セパレーター専用（1px境界線）。BorderBrushより不透明度を下げた薄い区切り線 -->
-    <SolidColorBrush x:Key="SeparatorBrush" Color="#14000000"/>
+  <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1F2AB2B9" />
 
+  <SolidColorBrush x:Key="SeparatorBrush" Color="#14000000" />
 </ResourceDictionary>
