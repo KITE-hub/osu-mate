@@ -135,6 +135,7 @@ namespace OsuMate.Services.Trainer
       string beatmapPath,
       IEnumerable<BatchGenerationRequest> requests,
       bool adjustPitchWithSpeed,
+      bool randomizeEnabled,
       Action<string>? progress = null,
       CancellationToken ct = default
     )
@@ -144,6 +145,17 @@ namespace OsuMate.Services.Trainer
         progress?.Invoke("Loading beatmap...");
         var original = OsuBeatmapFile.Load(beatmapPath);
         string songDir = Path.GetDirectoryName(beatmapPath)!;
+
+        List<string>? randomizedHitObjectLines = null;
+        if (randomizeEnabled && RandomModApplier.IsSupported(original.Mode))
+        {
+          randomizedHitObjectLines = RandomModApplier.Apply(
+            original.ExtractHitObjectLines(),
+            original.Mode,
+            original.CircleSize,
+            new Random()
+          );
+        }
 
         var osuFilesToAdd = new List<(string tempOsuPath, string newOsuFilename)>();
         var failures = new List<(decimal rate, string reason)>();
@@ -163,11 +175,12 @@ namespace OsuMate.Services.Trainer
                   "rate must be greater than zero."
                 );
 
-              string bpmStr = (original.DominantBpm * req.Rate).ToString("0");
-              string rateStr = req.Rate.ToString("0.##");
-              string newVersion = $"{original.Version} {rateStr}x ({bpmStr}bpm)";
+              string rateStr = req.Rate.ToString("0.0#");
+              string newVersion = $"{original.Version} {rateStr}x";
 
               var diffSuffixes = new List<string>();
+              if (randomizedHitObjectLines != null)
+                diffSuffixes.Add("Random");
               if (
                 req.ArOverride.HasValue
                 && original.ApproachRate >= 0
@@ -218,7 +231,7 @@ namespace OsuMate.Services.Trainer
 
               if (needMp3)
               {
-                progress?.Invoke($"Generating audio... ({req.Rate:0.##}x)");
+                progress?.Invoke($"Generating audio... ({req.Rate:0.0#}x)");
                 string inAudio = Path.Combine(songDir, original.AudioFilename);
                 SongSpeedChanger.GenerateAudioFile(
                   inAudio,
@@ -228,13 +241,15 @@ namespace OsuMate.Services.Trainer
                 );
               }
 
-              progress?.Invoke($"Generating beatmap... ({req.Rate:0.##}x)");
+              progress?.Invoke($"Generating beatmap... ({req.Rate:0.0#}x)");
               tempOsuPath = Path.GetTempFileName();
 
               var mapToSave = OsuBeatmapFile.Load(beatmapPath);
               mapToSave.Version = newVersion;
               mapToSave.AudioFilename = newAudioName;
               mapToSave.Tags = tags;
+              if (randomizedHitObjectLines != null)
+                mapToSave.ReplaceHitObjectLines(randomizedHitObjectLines);
               mapToSave.SaveWithRate(
                 tempOsuPath,
                 req.Rate,
@@ -249,7 +264,7 @@ namespace OsuMate.Services.Trainer
             catch (Exception ex)
             {
               LogUtils.DebugLogger(
-                $"[Trainer] Failed to generate Rate {req.Rate:0.##}x: {ex.Message}",
+                $"[Trainer] Failed to generate Rate {req.Rate:0.0#}x: {ex.Message}",
                 true
               );
               failures.Add((req.Rate, ex.Message));
@@ -273,7 +288,7 @@ namespace OsuMate.Services.Trainer
 
           if (osuFilesToAdd.Count == 0)
           {
-            string detail = string.Join(" / ", failures.Select(f => $"{f.rate:0.##}x: {f.reason}"));
+            string detail = string.Join(" / ", failures.Select(f => $"{f.rate:0.0#}x: {f.reason}"));
             throw new InvalidOperationException($"Failed to generate for all Rates. {detail}");
           }
 
@@ -283,7 +298,7 @@ namespace OsuMate.Services.Trainer
 
           if (failures.Count > 0)
           {
-            string failedRates = string.Join(", ", failures.Select(f => $"{f.rate:0.##}x"));
+            string failedRates = string.Join(", ", failures.Select(f => $"{f.rate:0.0#}x"));
             progress?.Invoke($"Done! (failed: {failedRates})");
           }
           else

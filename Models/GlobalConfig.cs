@@ -21,6 +21,8 @@ namespace OsuMate.Models
 
     public bool AdjustPitchWithSpeed { get; set; } = false;
 
+    public bool IsRandomEnabled { get; set; } = false;
+
     public int DataUpdateIntervalMs { get; set; } = 33;
   }
 }

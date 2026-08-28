@@ -37,6 +37,14 @@
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
 
+    <Style x:Key="DisabledOpacityGridStyle" TargetType="Grid">
+      <Style.Triggers>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Opacity" Value="0.4" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
     <Style
       x:Key="BatchDataGridStyle"
       TargetType="DataGrid"
@@ -63,18 +71,35 @@
   <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="10,0,10,10">
       <StackPanel Margin="{StaticResource SectionSpacing}">
-        <TextBlock
-          Text="Now Playing"
-          Style="{StaticResource TextTitleStyle}"
-          Margin="{StaticResource RowSpacing}"
-        />
         <Grid>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="8" />
-            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="110" />
           </Grid.ColumnDefinitions>
-          <ContentControl Grid.Column="0" Style="{StaticResource TextPanelStyle}" Padding="12,10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <TextBlock
+            Grid.Column="0"
+            Grid.Row="0"
+            Text="Now Playing"
+            Style="{StaticResource TextTitleStyle}"
+            Margin="{StaticResource RowSpacing}"
+          />
+          <TextBlock
+            Grid.Column="2"
+            Grid.Row="0"
+            Text="Original BPM"
+            Style="{StaticResource TextTitleStyle}"
+            Margin="{StaticResource RowSpacing}"
+          />
+          <ContentControl
+            Grid.Column="0"
+            Grid.Row="1"
+            Style="{StaticResource TextPanelStyle}"
+          >
             <StackPanel>
               <TextBlock
                 Text="{Binding BeatmapTitle}"
@@ -88,7 +113,7 @@
                 FontSize="11"
                 Opacity="0.7"
                 TextTrimming="CharacterEllipsis"
-                Margin="0,2,0,4"
+                Margin="0,0,0,2"
                 Foreground="{DynamicResource TextBrush}"
               />
               <TextBlock
@@ -105,31 +130,20 @@
           </ContentControl>
           <ContentControl
             Grid.Column="2"
+            Grid.Row="1"
             Style="{StaticResource TextPanelStyle}"
-            Padding="8,6"
-            Width="100"
           >
-            <StackPanel HorizontalAlignment="Center">
-              <TextBlock
-                Text="Original BPM"
-                FontSize="10"
-                Opacity="0.6"
-                Margin="0,0,0,6"
-                HorizontalAlignment="Center"
-                Foreground="{DynamicResource TextBrush}"
-              />
+            <StackPanel>
               <TextBlock
                 Text="{Binding OriginalBpm}"
-                FontSize="16"
-                FontWeight="Bold"
-                HorizontalAlignment="Center"
+                FontSize="14"
+                FontWeight="SemiBold"
                 Foreground="{DynamicResource TextBrush}"
               />
               <TextBlock
                 Text="{Binding OriginalBpmRange}"
                 FontSize="11"
                 Opacity="0.7"
-                HorizontalAlignment="Center"
                 Foreground="{DynamicResource TextBrush}"
               />
             </StackPanel>
@@ -259,7 +273,12 @@
 
         <ContentControl Style="{StaticResource TextPanelStyle}" Padding="10,8">
           <StackPanel>
-            <Grid Height="28" Margin="0,0,0,6" IsEnabled="{Binding IsArCsEditable}">
+            <Grid
+              Height="28"
+              Margin="0,0,0,6"
+              IsEnabled="{Binding IsArCsEditable}"
+              Style="{StaticResource DisabledOpacityGridStyle}"
+            >
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="24" />
                 <ColumnDefinition Width="*" />
@@ -365,7 +384,11 @@
               />
             </Grid>
 
-            <Grid Height="28" IsEnabled="{Binding IsArCsEditable}">
+            <Grid
+              Height="28"
+              IsEnabled="{Binding IsArCsEditable}"
+              Style="{StaticResource DisabledOpacityGridStyle}"
+            >
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="24" />
                 <ColumnDefinition Width="*" />
@@ -402,6 +425,61 @@
           Style="{StaticResource TextTitleStyle}"
           Margin="{StaticResource RowSpacing}"
         />
+        <Grid
+          Height="24"
+          Margin="{StaticResource RowSpacing}"
+          IsEnabled="{Binding IsRandomAvailable}"
+          Style="{StaticResource DisabledOpacityGridStyle}"
+        >
+          <DockPanel ToolTipService.InitialShowDelay="100" ToolTipService.ShowOnDisabled="True">
+            <DockPanel.ToolTip>
+              <ToolTip>
+                <ToolTip.Style>
+                  <Style TargetType="ToolTip" BasedOn="{StaticResource TrackerToolTipStyle}">
+                    <Setter Property="Width" Value="200" />
+                    <Setter Property="MaxWidth" Value="200" />
+                  </Style>
+                </ToolTip.Style>
+                <TextBlock TextWrapping="Wrap">
+                  <Run Text="Random:" />
+                  <LineBreak />
+                  <Run Text="Support for each mode is as follows." />
+                  <LineBreak />
+                  <LineBreak />
+                  <Run Text="osu!standard: Supported. Objects are placed randomly according to the following three conditions:" />
+                  <LineBreak />
+                  <Run Text="1. Maintain the distance between the end point of the previous object and the start position of the next object." />
+                  <LineBreak />
+                  <Run Text="2. Place objects so they avoid the edges of the playfield as much as possible." />
+                  <LineBreak />
+                  <Run Text="3. Place objects so they do not overlap with the preceding object as much as possible." />
+                  <LineBreak />
+                  <LineBreak />
+                  <Run Text="osu!taiko: Supported. Randomly changes only the color without altering the placement." />
+                  <LineBreak />
+                  <LineBreak />
+                  <Run Text="osu!catch: Not supported (randomization is not applied)." />
+                  <LineBreak />
+                  <LineBreak />
+                  <Run Text="osu!mania: Supported. Shuffles the lanes while preserving the pattern." />
+                </TextBlock>
+              </ToolTip>
+            </DockPanel.ToolTip>
+            <TextBlock
+              Text="Random"
+              FontSize="12"
+              VerticalAlignment="Center"
+              Foreground="{DynamicResource TextBrush}"
+            />
+            <CheckBox
+              IsChecked="{Binding IsRandomEnabled}"
+              Style="{StaticResource ToggleSwitchStyle}"
+              HorizontalAlignment="Right"
+              VerticalAlignment="Center"
+            />
+          </DockPanel>
+        </Grid>
+
         <Grid Height="24" Margin="{StaticResource RowSpacing}">
           <TextBlock
             Text="Adjust Pitch with Speed"

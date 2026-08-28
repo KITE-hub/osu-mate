@@ -31,6 +31,8 @@ namespace OsuMate.Services.Trainer
 
     public bool IsTaikoOrMania => Mode == 1 || Mode == 3;
 
+    public bool IsCatch => Mode == 2;
+
     public decimal DominantBpm { get; private set; }
     public decimal MinBpm { get; private set; }
     public decimal MaxBpm { get; private set; }
@@ -108,6 +110,81 @@ namespace OsuMate.Services.Trainer
       }
 
       CalcBpm(bpmPoints, lastHitObjectTime);
+    }
+
+    public List<string> ExtractHitObjectLines()
+    {
+      var lines = new List<string>();
+      var section = Section.None;
+
+      foreach (var raw in _rawLines)
+      {
+        var line = raw.Trim();
+        if (line.StartsWith('['))
+        {
+          section = line switch
+          {
+            "[General]" => Section.General,
+            "[Metadata]" => Section.Metadata,
+            "[Difficulty]" => Section.Difficulty,
+            "[Events]" => Section.Events,
+            "[TimingPoints]" => Section.TimingPoints,
+            "[HitObjects]" => Section.HitObjects,
+            _ => Section.Other,
+          };
+          continue;
+        }
+
+        if (section == Section.HitObjects && line != "" && !line.StartsWith("//"))
+          lines.Add(raw);
+      }
+
+      return lines;
+    }
+
+    public void ReplaceHitObjectLines(IReadOnlyList<string> newLines)
+    {
+      var result = new List<string>(_rawLines.Count + newLines.Count);
+      var section = Section.None;
+      bool replaced = false;
+
+      foreach (var raw in _rawLines)
+      {
+        var line = raw.Trim();
+        if (line.StartsWith('['))
+        {
+          section = line switch
+          {
+            "[General]" => Section.General,
+            "[Metadata]" => Section.Metadata,
+            "[Difficulty]" => Section.Difficulty,
+            "[Events]" => Section.Events,
+            "[TimingPoints]" => Section.TimingPoints,
+            "[HitObjects]" => Section.HitObjects,
+            _ => Section.Other,
+          };
+          result.Add(raw);
+          if (section == Section.HitObjects)
+          {
+            result.AddRange(newLines);
+            replaced = true;
+          }
+          continue;
+        }
+
+        if (section == Section.HitObjects)
+          continue;
+
+        result.Add(raw);
+      }
+
+      if (!replaced)
+      {
+        result.Add("[HitObjects]");
+        result.AddRange(newLines);
+      }
+
+      _rawLines = result;
     }
 
     private void ParseHeaderSectionLine(Section section, string line)

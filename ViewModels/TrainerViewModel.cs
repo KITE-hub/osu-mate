@@ -344,6 +344,40 @@ namespace OsuMate.ViewModels
     }
     public string CsBaseText => _cs.BaseText;
 
+    private bool _isRandomEnabled = false;
+    public bool IsRandomEnabled
+    {
+      get => _isRandomEnabled;
+      set
+      {
+        if (_isRandomEnabled == value)
+          return;
+        _isRandomEnabled = value;
+        OnPropertyChanged();
+        SaveIsRandomEnabled(value);
+      }
+    }
+
+    private static void SaveIsRandomEnabled(bool value)
+    {
+      var root = ConfigUtils.LoadRootConfig();
+      root.Global.IsRandomEnabled = value;
+      ConfigUtils.SaveRootConfig(root);
+    }
+
+    private bool _isRandomAvailable = true;
+    public bool IsRandomAvailable
+    {
+      get => _isRandomAvailable;
+      private set
+      {
+        if (_isRandomAvailable == value)
+          return;
+        _isRandomAvailable = value;
+        OnPropertyChanged();
+      }
+    }
+
     private bool _adjustPitchWithSpeed = false;
     public bool AdjustPitchWithSpeed
     {
@@ -409,6 +443,7 @@ namespace OsuMate.ViewModels
       _dispatcher = Dispatcher.CurrentDispatcher;
 
       _adjustPitchWithSpeed = ConfigUtils.LoadGlobalConfig().AdjustPitchWithSpeed;
+      _isRandomEnabled = ConfigUtils.LoadGlobalConfig().IsRandomEnabled;
 
       _pollTimer = new System.Threading.Timer(PollBeatmap, null, 2000, 2000);
     }
@@ -495,6 +530,7 @@ namespace OsuMate.ViewModels
 
         _mode = bm.Mode;
         IsArCsEditable = !bm.IsTaikoOrMania;
+        IsRandomAvailable = !bm.IsCatch;
 
         _ar.Original = bm.ApproachRate >= 0 ? bm.ApproachRate : (decimal?)null;
         _od.Original = bm.OverallDifficulty >= 0 ? bm.OverallDifficulty : (decimal?)null;
@@ -566,6 +602,7 @@ namespace OsuMate.ViewModels
           _effectiveBeatmapPath,
           requests,
           AdjustPitchWithSpeed,
+          IsRandomEnabled && IsRandomAvailable,
           msg => _dispatcher.BeginInvoke(() => StatusMessage = msg),
           _generationCts.Token
         );
