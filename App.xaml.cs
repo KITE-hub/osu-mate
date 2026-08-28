@@ -108,9 +108,9 @@ namespace OsuMate
 
       services.AddSingleton<PlayLogAggregationService>();
       services.AddSingleton<PlayStatsAggregationService>();
-      services.AddSingleton<ContributionGraphViewModel>();
+      services.AddSingleton<ActivityGridViewModel>();
 
-      services.AddSingleton<ContributionChartViewModel>();
+      services.AddSingleton<ActivityChartViewModel>();
 
       services.AddSingleton<PlayStatsChartViewModel>();
 

@@ -55,7 +55,7 @@ namespace OsuMate.Views
       _mainViewModel.OnThemeChanged();
 
       _playLogVm.PlayStatsChartVM.ApplyTheme(_mainViewModel.Theme.Current);
-      _playLogVm.ContributionChartVM.ApplyTheme(_mainViewModel.Theme.Current);
+      _playLogVm.ActivityChartVM.ApplyTheme(_mainViewModel.Theme.Current);
       _mainViewModel.SetOverlayFontSize(_settingsVm.OverlayFontSize);
       _mainViewModel.SetOverlayShowValueFirst(_settingsVm.IsShowValueFirst);
 
@@ -69,7 +69,7 @@ namespace OsuMate.Views
               _mainViewModel.Theme.Toggle();
               _mainViewModel.OnThemeChanged();
               _playLogVm.PlayStatsChartVM.ApplyTheme(_mainViewModel.Theme.Current);
-              _playLogVm.ContributionChartVM.ApplyTheme(_mainViewModel.Theme.Current);
+              _playLogVm.ActivityChartVM.ApplyTheme(_mainViewModel.Theme.Current);
 
               Dispatcher.BeginInvoke(
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle,
@@ -81,7 +81,7 @@ namespace OsuMate.Views
             _mainViewModel.Theme.SetFont(_settingsVm.FontFamily);
             _mainViewModel.OnThemeChanged();
             _playLogVm.PlayStatsChartVM.ApplyTheme(_mainViewModel.Theme.Current);
-            _playLogVm.ContributionChartVM.ApplyTheme(_mainViewModel.Theme.Current);
+            _playLogVm.ActivityChartVM.ApplyTheme(_mainViewModel.Theme.Current);
             SettingsPanel.InvalidateBitmapCache();
             break;
           case nameof(SettingsViewModel.OverlayFontSize):

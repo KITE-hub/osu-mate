@@ -189,6 +189,8 @@
                   <Run Text="Avg offset:" />
                   <LineBreak />
                   <Run Text="It displays the average offset in REAL TIME, not beatmap-relative time." />
+                  <LineBreak />
+                  <Run Text="It doesn't use robust average." />
                 </TextBlock>
               </ToolTip>
             </DockPanel.ToolTip>
@@ -218,6 +220,8 @@
                   <Run Text="It displays the unstable rate in the format of &quot;beatmap-relative time (real time)&quot;." />
                   <LineBreak />
                   <Run Text="Beatmap-relative time is the official UR." />
+                  <LineBreak />
+                  <Run Text="It doesn't use robust average." />
                 </TextBlock>
               </ToolTip>
             </DockPanel.ToolTip>

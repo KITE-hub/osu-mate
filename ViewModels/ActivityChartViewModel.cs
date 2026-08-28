@@ -5,7 +5,7 @@ using OxyPlot.Series;
 
 namespace OsuMate.ViewModels
 {
-  public class ContributionChartViewModel : ObservableBase, IThemeable
+  public class ActivityChartViewModel : ObservableBase, IThemeable
   {
     private ThemeSettings _theme;
 
@@ -21,7 +21,7 @@ namespace OsuMate.ViewModels
       }
     }
 
-    public ContributionChartViewModel(ThemeSettings theme)
+    public ActivityChartViewModel(ThemeSettings theme)
     {
       _theme = theme;
 

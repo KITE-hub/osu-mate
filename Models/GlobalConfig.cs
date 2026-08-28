@@ -23,6 +23,12 @@ namespace OsuMate.Models
 
     public bool IsRandomEnabled { get; set; } = false;
 
+    public decimal BatchStartRate { get; set; } = 1.05M;
+
+    public decimal BatchStep { get; set; } = 0.05M;
+
+    public int BatchCount { get; set; } = 4;
+
     public int DataUpdateIntervalMs { get; set; } = 33;
   }
 }

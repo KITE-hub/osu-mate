@@ -7,7 +7,7 @@ using OsuMate.Services.PlayLog;
 
 namespace OsuMate.ViewModels
 {
-  public class ContributionGraphViewModel : ObservableBase
+  public class ActivityGridViewModel : ObservableBase
   {
     private const int ActivityLevelCount = 4;
 
@@ -97,9 +97,9 @@ namespace OsuMate.ViewModels
 
     public ICommand NextMonthCommand { get; }
 
-    public ObservableCollection<ContributionDay> Days { get; } = new();
+    public ObservableCollection<ActivityDay> Days { get; } = new();
 
-    public ContributionGraphViewModel(
+    public ActivityGridViewModel(
       PlayLogAggregationService aggregationService,
       PlayStatsAggregationService playStatsAggregationService
     )
@@ -202,7 +202,7 @@ namespace OsuMate.ViewModels
       var startOffset = (int)firstDayOfMonth.DayOfWeek;
 
       for (int i = 0; i < startOffset; i++)
-        Days.Add(ContributionDay.Placeholder);
+        Days.Add(ActivityDay.Placeholder);
 
       for (int day = 1; day <= daysInMonth; day++)
       {
@@ -216,7 +216,7 @@ namespace OsuMate.ViewModels
         var isToday = date == today;
         _cachedDailyStats.TryGetValue(date, out var dailyStats);
         Days.Add(
-          new ContributionDay(
+          new ActivityDay(
             date,
             hits,
             level,

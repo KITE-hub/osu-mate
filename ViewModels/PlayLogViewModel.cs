@@ -17,15 +17,15 @@ namespace OsuMate.ViewModels
     private readonly PlayLogService _service;
     private readonly SettingsViewModel _settings;
     private readonly Dispatcher _dispatcher;
-    private readonly ContributionGraphViewModel _contributionGraphViewModel;
-    private readonly ContributionChartViewModel _contributionChartViewModel;
+    private readonly ActivityGridViewModel _activityGridViewModel;
+    private readonly ActivityChartViewModel _activityChartViewModel;
     private readonly PlayStatsChartViewModel _playStatsChartViewModel;
 
     private List<PlayLogEntry> _lastFilteredEntries = [];
 
-    public ContributionGraphViewModel ContributionGraphVM => _contributionGraphViewModel;
+    public ActivityGridViewModel ActivityGridVM => _activityGridViewModel;
 
-    public ContributionChartViewModel ContributionChartVM => _contributionChartViewModel;
+    public ActivityChartViewModel ActivityChartVM => _activityChartViewModel;
 
     public PlayStatsChartViewModel PlayStatsChartVM => _playStatsChartViewModel;
 
@@ -94,8 +94,8 @@ namespace OsuMate.ViewModels
     public PlayLogViewModel(
       PlayLogService service,
       SettingsViewModel settings,
-      ContributionGraphViewModel contributionGraphViewModel,
-      ContributionChartViewModel contributionChartViewModel,
+      ActivityGridViewModel activityGridViewModel,
+      ActivityChartViewModel activityChartViewModel,
       PlayStatsChartViewModel playStatsChartViewModel
     )
     {
@@ -103,8 +103,8 @@ namespace OsuMate.ViewModels
       _settings = settings;
       _dispatcher = Dispatcher.CurrentDispatcher;
       _service.AttachUiDispatcher(_dispatcher);
-      _contributionGraphViewModel = contributionGraphViewModel;
-      _contributionChartViewModel = contributionChartViewModel;
+      _activityGridViewModel = activityGridViewModel;
+      _activityChartViewModel = activityChartViewModel;
       _playStatsChartViewModel = playStatsChartViewModel;
       _filteredEntries = CollectionViewSource.GetDefaultView(Entries);
       _filteredEntries.Filter = item =>
@@ -131,18 +131,18 @@ namespace OsuMate.ViewModels
         NotifyFilteredEntriesChanged();
       };
 
-      _contributionGraphViewModel.PropertyChanged += (_, e) =>
+      _activityGridViewModel.PropertyChanged += (_, e) =>
       {
-        if (e.PropertyName != nameof(ContributionGraphViewModel.CurrentMonth))
+        if (e.PropertyName != nameof(ActivityGridViewModel.CurrentMonth))
           return;
-        _contributionChartViewModel.Recalculate(
-          _contributionGraphViewModel.DailyHits,
-          _contributionGraphViewModel.CurrentMonth
+        _activityChartViewModel.Recalculate(
+          _activityGridViewModel.DailyHits,
+          _activityGridViewModel.CurrentMonth
         );
         _playStatsChartViewModel.Recalculate(
           _lastFilteredEntries,
-          _contributionGraphViewModel.DailyStats,
-          _contributionGraphViewModel.CurrentMonth
+          _activityGridViewModel.DailyStats,
+          _activityGridViewModel.CurrentMonth
         );
       };
     }
@@ -211,16 +211,16 @@ namespace OsuMate.ViewModels
           var allEntriesIgnoringMode = Entries.Where(PassesNonModeFilters).ToList();
 
           _lastFilteredEntries = filtered;
-          _contributionGraphViewModel.Recalculate(filtered, allEntriesIgnoringMode);
+          _activityGridViewModel.Recalculate(filtered, allEntriesIgnoringMode);
 
-          _contributionChartViewModel.Recalculate(
-            _contributionGraphViewModel.DailyHits,
-            _contributionGraphViewModel.CurrentMonth
+          _activityChartViewModel.Recalculate(
+            _activityGridViewModel.DailyHits,
+            _activityGridViewModel.CurrentMonth
           );
           _playStatsChartViewModel.Recalculate(
             filtered,
-            _contributionGraphViewModel.DailyStats,
-            _contributionGraphViewModel.CurrentMonth
+            _activityGridViewModel.DailyStats,
+            _activityGridViewModel.CurrentMonth
           );
         })
       );

@@ -2,9 +2,9 @@ using System.Windows.Controls;
 
 namespace OsuMate.Views.Controls
 {
-  public partial class ContributionChartView : UserControl
+  public partial class ActivityGridView : UserControl
   {
-    public ContributionChartView()
+    public ActivityGridView()
     {
       InitializeComponent();
     }

@@ -141,9 +141,9 @@
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <local:ContributionGraphView Grid.Row="0" DataContext="{Binding ContributionGraphVM}" />
+        <local:ActivityGridView Grid.Row="0" DataContext="{Binding ActivityGridVM}" />
 
-        <local:ContributionChartView Grid.Row="1" DataContext="{Binding ContributionChartVM}" />
+        <local:ActivityChartView Grid.Row="1" DataContext="{Binding ActivityChartVM}" />
       </Grid>
 
       <local:PlayStatsChartView Grid.Column="1" DataContext="{Binding PlayStatsChartVM}" />

@@ -130,10 +130,21 @@ namespace OsuMate.ViewModels
       get => _batchStartRate;
       set
       {
-        _batchStartRate = Math.Max(0.5M, Math.Min(2.0M, value));
+        var clamped = Math.Max(0.5M, Math.Min(2.0M, value));
+        if (_batchStartRate == clamped)
+          return;
+        _batchStartRate = clamped;
         OnPropertyChanged();
         UpdateBatchPreviews();
+        SaveBatchStartRate(clamped);
       }
+    }
+
+    private static void SaveBatchStartRate(decimal value)
+    {
+      var root = ConfigUtils.LoadRootConfig();
+      root.Global.BatchStartRate = value;
+      ConfigUtils.SaveRootConfig(root);
     }
 
     private decimal _batchStep = 0.05M;
@@ -142,10 +153,21 @@ namespace OsuMate.ViewModels
       get => _batchStep;
       set
       {
-        _batchStep = Math.Max(0.01M, Math.Min(1.0M, value));
+        var clamped = Math.Max(0.01M, Math.Min(1.0M, value));
+        if (_batchStep == clamped)
+          return;
+        _batchStep = clamped;
         OnPropertyChanged();
         UpdateBatchPreviews();
+        SaveBatchStep(clamped);
       }
+    }
+
+    private static void SaveBatchStep(decimal value)
+    {
+      var root = ConfigUtils.LoadRootConfig();
+      root.Global.BatchStep = value;
+      ConfigUtils.SaveRootConfig(root);
     }
 
     private int _batchCount = 4;
@@ -154,10 +176,21 @@ namespace OsuMate.ViewModels
       get => _batchCount;
       set
       {
-        _batchCount = Math.Max(1, Math.Min(20, value));
+        var clamped = Math.Max(1, Math.Min(20, value));
+        if (_batchCount == clamped)
+          return;
+        _batchCount = clamped;
         OnPropertyChanged();
         UpdateBatchPreviews();
+        SaveBatchCount(clamped);
       }
+    }
+
+    private static void SaveBatchCount(int value)
+    {
+      var root = ConfigUtils.LoadRootConfig();
+      root.Global.BatchCount = value;
+      ConfigUtils.SaveRootConfig(root);
     }
 
     public ObservableCollection<BatchPreviewItem> BatchPreviews { get; } = new();
@@ -442,8 +475,12 @@ namespace OsuMate.ViewModels
       _memory = memory;
       _dispatcher = Dispatcher.CurrentDispatcher;
 
-      _adjustPitchWithSpeed = ConfigUtils.LoadGlobalConfig().AdjustPitchWithSpeed;
-      _isRandomEnabled = ConfigUtils.LoadGlobalConfig().IsRandomEnabled;
+      var globalConfig = ConfigUtils.LoadGlobalConfig();
+      _adjustPitchWithSpeed = globalConfig.AdjustPitchWithSpeed;
+      _isRandomEnabled = globalConfig.IsRandomEnabled;
+      _batchStartRate = globalConfig.BatchStartRate;
+      _batchStep = globalConfig.BatchStep;
+      _batchCount = globalConfig.BatchCount;
 
       _pollTimer = new System.Threading.Timer(PollBeatmap, null, 2000, 2000);
     }

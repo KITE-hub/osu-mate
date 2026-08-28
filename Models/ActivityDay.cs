@@ -1,6 +1,6 @@
 namespace OsuMate.Models
 {
-  public sealed class ContributionDay
+  public sealed class ActivityDay
   {
     public DateOnly Date { get; }
 
@@ -25,7 +25,7 @@ namespace OsuMate.Models
       + $"pp: {FormatMetric(Pp)}\n"
       + $"Acc: {FormatMetric(Accuracy, "%")}";
 
-    public ContributionDay(
+    public ActivityDay(
       DateOnly date,
       int totalHits,
       int level,
@@ -45,9 +45,9 @@ namespace OsuMate.Models
       Accuracy = accuracy;
     }
 
-    public static ContributionDay Placeholder { get; } = new ContributionDay();
+    public static ActivityDay Placeholder { get; } = new ActivityDay();
 
-    private ContributionDay()
+    private ActivityDay()
     {
       IsPlaceholder = true;
       StarRating = MetricStat.Empty;
