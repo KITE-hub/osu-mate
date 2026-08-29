@@ -54,12 +54,28 @@ namespace OsuMate.Services.PlayLog
 
           var idx = existing.FindIndex(e => e.DedupeKey == entry.DedupeKey);
 
-          if (idx < 0 && oldDedupeKey != null)
-            idx = existing.FindIndex(e => e.DedupeKey == oldDedupeKey);
           if (idx >= 0)
             existing[idx] = entry;
+          else if (oldDedupeKey != null)
+          {
+            idx = existing.FindIndex(e => e.DedupeKey == oldDedupeKey);
+            if (idx >= 0)
+              existing[idx] = entry;
+            else
+              existing.Add(entry);
+          }
           else
+          {
             existing.Add(entry);
+          }
+
+          if (
+            oldDedupeKey != null
+            && oldDedupeKey != entry.DedupeKey
+          )
+          {
+            existing.RemoveAll(e => e.DedupeKey == oldDedupeKey);
+          }
 
           WriteEntriesToFile(path, existing);
 

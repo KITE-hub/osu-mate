@@ -92,7 +92,7 @@ namespace OsuMate.Services.PlayLog
         var persistedEntries = _repository.LoadAllFromDisk();
         var persistedByKey = SelectBestByDedupeKey(persistedEntries);
 
-        var addedEntries = new List<PlayLogEntry>();
+        var entriesToSave = new List<(PlayLogEntry Entry, string? OldDedupeKey, DateTime? OldPlayedAt)>();
 
         var uiDispatcher = _uiDispatcher;
         if (uiDispatcher == null)
@@ -114,18 +114,29 @@ namespace OsuMate.Services.PlayLog
 
           foreach (var entry in newEntries.OrderByDescending(e => e.PlayedAt))
           {
-            if (
-              persistedByKey.ContainsKey(entry.DedupeKey)
-              || !_entriesByKey.TryAdd(entry.DedupeKey, entry)
-            )
+            if (_entriesByKey.ContainsKey(entry.DedupeKey))
               continue;
+
+            var matchedMemoryForEntry = FindMatchingCompletedMemoryEntry(_entriesByKey.Values, entry);
+            if (matchedMemoryForEntry is not null)
+            {
+              MergePersistedCalculation(entry, matchedMemoryForEntry);
+              _entriesByKey.TryRemove(matchedMemoryForEntry.DedupeKey, out _);
+              Entries.Remove(matchedMemoryForEntry);
+              _entriesByKey[entry.DedupeKey] = entry;
+              InsertSorted(entry);
+              entriesToSave.Add((entry, matchedMemoryForEntry.DedupeKey, matchedMemoryForEntry.PlayedAt));
+              continue;
+            }
+
+            _entriesByKey[entry.DedupeKey] = entry;
             InsertSorted(entry);
-            addedEntries.Add(entry);
+            entriesToSave.Add((entry, null, null));
           }
         });
 
-        foreach (var entry in addedEntries)
-          _repository.SaveEntry(entry);
+        foreach (var (entry, oldDedupeKey, oldPlayedAt) in entriesToSave)
+          _repository.SaveEntry(entry, oldDedupeKey, oldPlayedAt);
 
         await _srPpEnricher.CalculateMissingSrPpAsync(uiDispatcher, Entries, _md5Map);
       }
@@ -175,23 +186,26 @@ namespace OsuMate.Services.PlayLog
           {
             if (ApplyHistoricalModeMetadata(persisted, historical))
               entriesToSave.Add(persisted);
+
             continue;
           }
 
-          var provisional = combinedByKey.Values.FirstOrDefault(entry =>
-            IsMatchingCompletedMemoryEntry(entry, historical)
-          );
-          if (provisional != null)
-          {
-            MergePersistedCalculation(historical, provisional);
-            combinedByKey.Remove(provisional.DedupeKey);
-            combinedByKey[historical.DedupeKey] = historical;
-            _repository.SaveEntry(historical, provisional.DedupeKey, provisional.PlayedAt);
-            continue;
-          }
-
+          var provisionalHistorical = FindMatchingCompletedMemoryEntry(combinedByKey.Values, historical);
           combinedByKey[historical.DedupeKey] = historical;
-          entriesToSave.Add(historical);
+          if (provisionalHistorical is not null)
+          {
+            MergePersistedCalculation(historical, provisionalHistorical);
+            combinedByKey.Remove(provisionalHistorical.DedupeKey);
+            _repository.SaveEntry(
+              historical,
+              provisionalHistorical.DedupeKey,
+              provisionalHistorical.PlayedAt
+            );
+          }
+          else
+          {
+            entriesToSave.Add(historical);
+          }
         }
 
         foreach (var entry in entriesToSave)
@@ -267,6 +281,17 @@ namespace OsuMate.Services.PlayLog
       }
 
       return changed;
+    }
+
+    private static PlayLogEntry? FindMatchingCompletedMemoryEntry(
+      IEnumerable<PlayLogEntry> entries,
+      PlayLogEntry historical
+    )
+    {
+      return entries.FirstOrDefault(entry =>
+        entry.DedupeKey != historical.DedupeKey
+        && IsMatchingCompletedMemoryEntry(entry, historical)
+      );
     }
 
     private static bool IsMatchingCompletedMemoryEntry(
