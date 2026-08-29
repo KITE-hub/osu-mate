@@ -3,34 +3,47 @@ using OsuMate.Services.Osu;
 
 namespace OsuMate.Services.PlayLog
 {
+  public readonly record struct BeatmapPlayStats(
+    double? BestPp,
+    DateTime? BestPpAchievedAt,
+    DateTime? LatestPlayedAt
+  );
+
   internal static class BestPpCalculator
   {
-    internal static double? GetBestPp(
+    internal static BeatmapPlayStats GetStats(
       IEnumerable<PlayLogEntry> entries,
       string beatmapMd5,
       IEnumerable<string> targetPlayerNames
     )
     {
       if (string.IsNullOrEmpty(beatmapMd5))
-        return null;
+        return default;
 
-      double? best = null;
+      double? bestPp = null;
+      DateTime? bestPpPlayedAt = null;
+      DateTime? latestPlayedAt = null;
+
       foreach (var entry in entries)
       {
         if (entry.BeatmapMd5 != beatmapMd5)
           continue;
         if (!entry.IsCompleted)
           continue;
-        if (entry.Pp is not { } pp)
-          continue;
         if (!TargetPlayerFilter.Matches(entry.PlayerName, targetPlayerNames))
           continue;
 
-        if (best == null || pp > best.Value)
-          best = pp;
+        if (entry.Pp is { } pp && (bestPp == null || pp > bestPp.Value))
+        {
+          bestPp = pp;
+          bestPpPlayedAt = entry.PlayedAt;
+        }
+
+        if (latestPlayedAt == null || entry.PlayedAt > latestPlayedAt.Value)
+          latestPlayedAt = entry.PlayedAt;
       }
 
-      return best;
+      return new BeatmapPlayStats(bestPp, bestPpPlayedAt, latestPlayedAt);
     }
   }
 }

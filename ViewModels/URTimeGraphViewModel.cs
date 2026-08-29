@@ -277,7 +277,7 @@ namespace OsuMate.ViewModels
         Background = OxyColors.Transparent,
         PlotAreaBackground = OxyColors.Transparent,
         TextColor = _theme.OxyTextColor,
-        DefaultFontSize = 12F,
+        DefaultFontSize = 11F,
         PlotAreaBorderColor = _theme.OxyBorderColor,
         Padding = new OxyThickness(1, 1, 1, 1),
         IsLegendVisible = false,

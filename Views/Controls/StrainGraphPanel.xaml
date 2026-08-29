@@ -18,7 +18,7 @@
     VerticalAlignment="Top"
   >
     <StackPanel Orientation="Horizontal">
-      <oxy:PlotView Model="{Binding PlotModel}" Background="Transparent" Height="125" Width="265" />
+      <oxy:PlotView Model="{Binding PlotModel}" Background="Transparent" Height="115" Width="265" />
       <StackPanel Orientation="Vertical" Margin="10 0 0 0" Width="80">
         <CheckBox
           Style="{StaticResource CheckBoxStyle}"

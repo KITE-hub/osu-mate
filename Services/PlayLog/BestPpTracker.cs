@@ -12,9 +12,9 @@ namespace OsuMate.Services.PlayLog
 
     private string _lastBeatmapMd5 = "";
 
-    public double? CachedBestPp { get; private set; }
+    public BeatmapPlayStats CachedStats { get; private set; }
 
-    public event Action<double?>? BestPpChanged;
+    public event Action<BeatmapPlayStats>? BestPpChanged;
 
     public BestPpTracker(
       PlayLogService playLogService,
@@ -65,13 +65,9 @@ namespace OsuMate.Services.PlayLog
     public void Refresh(string beatmapMd5)
     {
       _lastBeatmapMd5 = beatmapMd5;
-      var bestPp = BestPpCalculator.GetBestPp(
-        _playLogService.Entries,
-        beatmapMd5,
-        _targetPlayerNames
-      );
-      CachedBestPp = bestPp;
-      BestPpChanged?.Invoke(bestPp);
+      var stats = BestPpCalculator.GetStats(_playLogService.Entries, beatmapMd5, _targetPlayerNames);
+      CachedStats = stats;
+      BestPpChanged?.Invoke(stats);
     }
   }
 }

@@ -14,7 +14,7 @@
 
   <oxy:PlotView
     Model="{Binding PlotModel}"
-    Height="150"
+    Height="140"
     Width="290"
     Background="Transparent"
     HorizontalAlignment="Left"

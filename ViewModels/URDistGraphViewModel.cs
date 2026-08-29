@@ -225,7 +225,7 @@ namespace OsuMate.ViewModels
     {
       _segmentPool.Clear();
       for (int i = 0; i < MaxSegments; i++)
-        _segmentPool.Add(new LineSeries { StrokeThickness = 3 });
+        _segmentPool.Add(new LineSeries { StrokeThickness = 2 });
     }
 
     private int ApplySegments(List<CurvePoint> points)
@@ -282,7 +282,7 @@ namespace OsuMate.ViewModels
         PlotAreaBackground = OxyColors.Transparent,
         TextColor = _theme.OxyTextColor,
         DefaultFont = _theme.OxyFontFamily,
-        DefaultFontSize = 12F,
+        DefaultFontSize = 11F,
         PlotAreaBorderColor = _theme.OxyBorderColor,
         Padding = new OxyThickness(1, 1, 1, 1),
         IsLegendVisible = false,

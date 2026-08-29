@@ -293,6 +293,30 @@ namespace OsuMate.ViewModels
       }
     }
 
+    private string _latestPlayedAt = "-";
+
+    public string LatestPlayedAt
+    {
+      get => _latestPlayedAt;
+      set
+      {
+        _latestPlayedAt = value;
+        OnPropertyChanged();
+      }
+    }
+
+    private string _bestPpAchievedAt = "-";
+
+    public string BestPpAchievedAt
+    {
+      get => _bestPpAchievedAt;
+      set
+      {
+        _bestPpAchievedAt = value;
+        OnPropertyChanged();
+      }
+    }
+
     private string _accuracy = "-";
     public string Accuracy
     {
@@ -436,6 +460,13 @@ namespace OsuMate.ViewModels
     internal void UpdateBestPp(double? bestPp)
     {
       BestPp = bestPp.HasValue ? bestPp.Value.ToString("F2") : "-";
+    }
+
+    internal void UpdatePlayedAt(DateTime? latestPlayedAt, DateTime? bestPpPlayedAt)
+    {
+      static string Format(DateTime? d) => d.HasValue ? d.Value.ToString("yyyy-MM-dd") : "-";
+      LatestPlayedAt = Format(latestPlayedAt);
+      BestPpAchievedAt = Format(bestPpPlayedAt);
     }
 
     internal void UpdatePp(BeatmapData data, bool isPlaying, bool isResultScreen)

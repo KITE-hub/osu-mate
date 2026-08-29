@@ -189,8 +189,6 @@
                   <Run Text="Avg offset:" />
                   <LineBreak />
                   <Run Text="It displays the average offset in REAL TIME, not beatmap-relative time." />
-                  <LineBreak />
-                  <Run Text="It doesn't use robust average." />
                 </TextBlock>
               </ToolTip>
             </DockPanel.ToolTip>
@@ -220,8 +218,6 @@
                   <Run Text="It displays the unstable rate in the format of &quot;beatmap-relative time (real time)&quot;." />
                   <LineBreak />
                   <Run Text="Beatmap-relative time is the official UR." />
-                  <LineBreak />
-                  <Run Text="It doesn't use robust average." />
                 </TextBlock>
               </ToolTip>
             </DockPanel.ToolTip>
@@ -286,6 +282,27 @@
               Text="{Binding UniversalOffsetHelp}"
             />
           </DockPanel>
+          <Rectangle Height="1" Fill="{DynamicResource SeparatorBrush}" />
+            <DockPanel LastChildFill="False">
+              <TextBlock Style="{StaticResource TextPanelSubLabelStyle}" Text="Best pp achieved :" />
+              <TextBlock
+                DockPanel.Dock="Right"
+                HorizontalAlignment="Right"
+                Style="{StaticResource TextPanelValueStyle}"
+                FontSize="12"
+                Text="{Binding BestPpAchievedAt}"
+              />
+            </DockPanel>
+            <DockPanel LastChildFill="False">
+              <TextBlock Style="{StaticResource TextPanelSubLabelStyle}" Text="Latest played :" />
+              <TextBlock
+                DockPanel.Dock="Right"
+                HorizontalAlignment="Right"
+                Style="{StaticResource TextPanelValueStyle}"
+                FontSize="12"
+                Text="{Binding LatestPlayedAt}"
+              />
+            </DockPanel>
         </StackPanel>
       </ContentControl>
     </StackPanel>

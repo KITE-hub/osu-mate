@@ -214,7 +214,7 @@ namespace OsuMate.ViewModels
         Background = OxyColors.Transparent,
         PlotAreaBackground = OxyColors.Transparent,
         TextColor = _theme.OxyTextColor,
-        DefaultFontSize = 12F,
+        DefaultFontSize = 11F,
         PlotAreaBorderColor = _theme.OxyBorderColor,
         Padding = new OxyThickness(1, 1, 1, 1),
         IsLegendVisible = false,
@@ -249,7 +249,7 @@ namespace OsuMate.ViewModels
           new LineSeries
           {
             Color = GetBlue(),
-            StrokeThickness = 2,
+            StrokeThickness = 1.5,
             MarkerType = MarkerType.None,
             Tag = 0,
           },
@@ -259,7 +259,7 @@ namespace OsuMate.ViewModels
           new LineSeries
           {
             Color = GetGreen(),
-            StrokeThickness = 2,
+            StrokeThickness = 1.5,
             MarkerType = MarkerType.None,
             Tag = 1,
           },
@@ -269,7 +269,7 @@ namespace OsuMate.ViewModels
           new LineSeries
           {
             Color = GetYellow(),
-            StrokeThickness = 2,
+            StrokeThickness = 1.5,
             MarkerType = MarkerType.None,
             Tag = 2,
           },
@@ -279,7 +279,7 @@ namespace OsuMate.ViewModels
           new LineSeries
           {
             Color = GetRed(),
-            StrokeThickness = 2,
+            StrokeThickness = 1.5,
             MarkerType = MarkerType.None,
             Tag = 3,
           },
@@ -289,7 +289,7 @@ namespace OsuMate.ViewModels
           new LineSeries
           {
             Color = GetPink(),
-            StrokeThickness = 2,
+            StrokeThickness = 1.5,
             MarkerType = MarkerType.None,
             Tag = 4,
           },
@@ -310,7 +310,7 @@ namespace OsuMate.ViewModels
 
       _currentTimeLine = new LineSeries
       {
-        Color = _theme.OxyBorderColor,
+        Color = _theme.OxyTextColor,
         StrokeThickness = 2,
         MarkerType = MarkerType.None,
       };

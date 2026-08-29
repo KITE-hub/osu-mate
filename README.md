@@ -7,7 +7,7 @@ A companion desktop tool for **osu!** (Windows, C# / WPF).
 ## Features
 
 - **Real-time PP / difficulty display** while playing (built on `ppy.osu.Game` libraries)
-- **Trainer**: live AR/OD/HP/CS simulation and generation of speed-changed audio (rate/tempo, via NAudio + SoundTouch.Net)
+- **Trainer**: generation of speed-changed charts (via NAudio + SoundTouch.Net) and randomized charts (excluding osu!catch Mode)
 
   <details>
   <summary>Screenshot</summary>

@@ -97,9 +97,13 @@ namespace OsuMate.ViewModels
       _bestPpTracker.BestPpChanged += OnBestPpChanged;
     }
 
-    private void OnBestPpChanged(double? bestPp)
+    private void OnBestPpChanged(BeatmapPlayStats stats)
     {
-      void Apply() => Info.UpdateBestPp(bestPp);
+      void Apply()
+      {
+        Info.UpdateBestPp(stats.BestPp);
+        Info.UpdatePlayedAt(stats.LatestPlayedAt, stats.BestPpAchievedAt);
+      }
 
       var dispatcher = _uiDispatcher;
       if (dispatcher == null || dispatcher.CheckAccess())
@@ -150,7 +154,7 @@ namespace OsuMate.ViewModels
       bool isResultScreen = _memory.IsResultScreen;
       int gamemode = _ppService.CurrentGamemode;
       double speedMultiplier = _ppService.CurrentSpeedMultiplier;
-      double? bestPp = _bestPpTracker.CachedBestPp;
+      double? bestPp = _bestPpTracker.CachedStats.BestPp;
       int dataUpdateIntervalMs = _settings.DataUpdateIntervalMs;
 
       InGameOverlay.Update(
