@@ -152,7 +152,7 @@
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource AppFont}" />
     <Setter Property="FontSize" Value="16" />
-    <Setter Property="Padding" Value="0,8" />
+    <Setter Property="Padding" Value="0,6" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Template">
       <Setter.Value>
@@ -1113,7 +1113,7 @@
     <Setter Property="HasDropShadow" Value="False" />
     <Setter Property="Placement" Value="Mouse" />
     <Setter Property="HorizontalOffset" Value="12" />
-    
+
     <Setter Property="VerticalOffset" Value="10" />
     <Setter Property="Template">
       <Setter.Value>

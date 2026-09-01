@@ -14,6 +14,7 @@ namespace OsuMate.ViewModels
     public OverlaySettingsViewModel Overlay { get; }
 
     public URBarSettingsViewModel URBar { get; }
+    public KeyOverlaySettingsViewModel KeyOverlay { get; }
 
     public PositionSettingsViewModel Position { get; }
 
@@ -78,6 +79,18 @@ namespace OsuMate.ViewModels
       remove => URBar.OnApplyURBarSizeRequested -= value;
     }
 
+    public event Action? OnSaveKeyOverlayPositionRequested
+    {
+      add => KeyOverlay.OnSaveKeyOverlayPositionRequested += value;
+      remove => KeyOverlay.OnSaveKeyOverlayPositionRequested -= value;
+    }
+
+    public event Action? OnApplyKeyOverlayPositionRequested
+    {
+      add => KeyOverlay.OnApplyKeyOverlayPositionRequested += value;
+      remove => KeyOverlay.OnApplyKeyOverlayPositionRequested -= value;
+    }
+
     public void RequestSaveURBarPosition() => URBar.RequestSaveURBarPosition();
 
     public void RequestApplyURBarPosition() => URBar.RequestApplyURBarPosition();
@@ -85,6 +98,10 @@ namespace OsuMate.ViewModels
     public void RequestSaveURBarSize() => URBar.RequestSaveURBarSize();
 
     public void RequestApplyURBarSize() => URBar.RequestApplyURBarSize();
+
+    public void RequestSaveKeyOverlayPosition() => KeyOverlay.RequestSaveKeyOverlayPosition();
+
+    public void RequestApplyKeyOverlayPosition() => KeyOverlay.RequestApplyKeyOverlayPosition();
 
     private readonly RootConfig _root;
     private readonly GlobalConfig _globalConfig;
@@ -125,6 +142,9 @@ namespace OsuMate.ViewModels
       URBar = new URBarSettingsViewModel(() => _presetConfig, Save, DebouncedSave);
       URBar.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
+      KeyOverlay = new KeyOverlaySettingsViewModel(() => _presetConfig, Save, DebouncedSave);
+      KeyOverlay.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
+
       Position = new PositionSettingsViewModel(() => _presetConfig, Save);
       Position.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
@@ -155,12 +175,14 @@ namespace OsuMate.ViewModels
     {
       Overlay.NotifyPresetApplied();
       URBar.NotifyPresetApplied();
+      KeyOverlay.NotifyPresetApplied();
       Position.NotifyPresetApplied();
       OnPropertyChanged(nameof(SelectedPreset));
 
       RequestApplyOverlayPosition();
       RequestApplyURBarPosition();
       RequestApplyURBarSize();
+      RequestApplyKeyOverlayPosition();
     }
 
     public void AddTargetPlayerName(string name)
@@ -224,6 +246,57 @@ namespace OsuMate.ViewModels
       get => URBar.URBarEnabled;
       set => URBar.URBarEnabled = value;
     }
+    public bool KeyOverlayEnabled
+    {
+      get => KeyOverlay.KeyOverlayEnabled;
+      set => KeyOverlay.KeyOverlayEnabled = value;
+    }
+
+    public int KeyOverlayRotation
+    {
+      get => KeyOverlay.KeyOverlayRotation;
+      set => KeyOverlay.KeyOverlayRotation = value;
+    }
+
+    public double KeyOverlayHeight
+    {
+      get => KeyOverlay.KeyOverlayHeight;
+      set => KeyOverlay.KeyOverlayHeight = value;
+    }
+
+    public double KeyOverlayX
+    {
+      get => KeyOverlay.KeyOverlayX;
+      set => KeyOverlay.KeyOverlayX = value;
+    }
+
+    public double KeyOverlayY
+    {
+      get => KeyOverlay.KeyOverlayY;
+      set => KeyOverlay.KeyOverlayY = value;
+    }
+
+    public string KeyOverlayPositionText => KeyOverlay.KeyOverlayPositionText;
+    public string KeyOverlaySizeText => KeyOverlay.KeyOverlaySizeText;
+    public string KeyOverlayRotationLabel => KeyOverlay.KeyOverlayRotationLabel;
+    public double KeyOverlayBarSpeed
+    {
+      get => KeyOverlay.KeyOverlayBarSpeed;
+      set => KeyOverlay.KeyOverlayBarSpeed = value;
+    }
+    public double KeyOverlayBarRound
+    {
+      get => KeyOverlay.KeyOverlayBarRound;
+      set => KeyOverlay.KeyOverlayBarRound = value;
+    }
+    public double KeyOverlayLaneWidth
+    {
+      get => KeyOverlay.KeyOverlayLaneWidth;
+      set => KeyOverlay.KeyOverlayLaneWidth = value;
+    }
+
+    public void SetKeyOverlayPosition(double x, double y) => KeyOverlay.SetKeyOverlayPosition(x, y);
+
     public int URBarRotation
     {
       get => URBar.URBarRotation;

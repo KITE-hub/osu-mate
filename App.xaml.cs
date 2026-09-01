@@ -93,6 +93,7 @@ namespace OsuMate
       services.AddSingleton<Dispatcher>(_ => Dispatcher.CurrentDispatcher);
 
       services.AddSingleton<OsuMemoryService>();
+      services.AddSingleton<RawInputService>();
       services.AddSingleton<OsuProcessMonitorService>();
       services.AddSingleton<OsuLauncherService>();
       services.AddSingleton<PpCalculationService>();

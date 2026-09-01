@@ -124,6 +124,12 @@ namespace OsuMate.Views.Controls
     private void ApplyURBarPosition_Click(object sender, RoutedEventArgs e) =>
       Vm.RequestApplyURBarPosition();
 
+    private void SaveKeyOverlayPosition_Click(object sender, RoutedEventArgs e) =>
+      Vm.RequestSaveKeyOverlayPosition();
+
+    private void ApplyKeyOverlayPosition_Click(object sender, RoutedEventArgs e) =>
+      Vm.RequestApplyKeyOverlayPosition();
+
     private void SaveOverlayPosition_Click(object sender, RoutedEventArgs e) =>
       Vm.RequestSaveOverlayPosition();
 

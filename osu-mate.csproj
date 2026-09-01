@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>OsuMate</RootNamespace>
     <AssemblyName>osu-mate</AssemblyName>
     <AssemblyTitle>osu mate</AssemblyTitle>
@@ -17,6 +18,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Using Remove="System.Drawing" />
+    <Using Remove="System.Windows.Forms" />
     <PackageReference Include="Material.Icons.WPF" Version="3.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
     <PackageReference Include="ppy.osu.Game" Version="2026.702.1" />

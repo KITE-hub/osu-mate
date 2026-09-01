@@ -19,6 +19,7 @@ namespace OsuMate.ViewModels
     public URDistGraphViewModel URDistGraph { get; }
     public URBarViewModel URBar { get; } = new();
     public InGameOverlayViewModel InGameOverlay { get; } = new();
+    public KeyOverlayViewModel KeyOverlay { get; } = new();
 
     public event Action<bool>? IsPlayingChanged;
     public event Action<IntPtr>? OnOsuWindowFound;
@@ -38,6 +39,7 @@ namespace OsuMate.ViewModels
 
     private readonly Dispatcher _primaryDispatcher;
     private Dispatcher? _uiDispatcher;
+    private long _keyOverlaySequence;
 
     public void AttachUiDispatcher(Dispatcher dispatcher)
     {
@@ -74,6 +76,8 @@ namespace OsuMate.ViewModels
       _primaryDispatcher = primaryDispatcher;
       _ppService.OnCalculated += UpdateUI;
       _memory.OnMemoryRead += UpdateFastUI;
+      _memory.OnMemoryRead += UpdateKeyOverlay;
+      _memory.OnKeyInputChanged += UpdateKeyOverlay;
       _memory.OnOsuWindowFound += handle => OnOsuWindowFound?.Invoke(handle);
       StrainGraph = new(Theme.Current);
       URTimeGraph = new(Theme.Current);
@@ -199,10 +203,30 @@ namespace OsuMate.ViewModels
       });
     }
 
+    private void PublishKeyOverlaySnapshot(KeyOverlaySnapshot snapshot)
+    {
+      var version = Interlocked.Increment(ref _keyOverlaySequence);
+      KeyOverlay.Update(snapshot, version);
+    }
+
     private int _fastUiDispatchPending;
     private int _fastInfoDispatchPending;
 
     private readonly ModifiedHitErrorCache _modifiedHitErrorCache = new();
+
+    private void UpdateKeyOverlay()
+    {
+      var keyOverlayAddresses = _memory.GetBaseAddressSnapshot();
+      PublishKeyOverlaySnapshot(
+        _memory.GetKeyOverlaySnapshot(
+          _memory.CurrentOsuGamemode,
+          _ppService.CurrentManiaKeyCount,
+          keyOverlayAddresses.GeneralData.AudioTime,
+          _ppService.CurrentSpeedMultiplier,
+          keyOverlayAddresses.Player.IsReplay
+        )
+      );
+    }
 
     private void UpdateFastUI()
     {

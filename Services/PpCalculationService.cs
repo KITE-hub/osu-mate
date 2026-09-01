@@ -36,6 +36,7 @@ namespace OsuMate.Services
     internal string[] PrevMods { get; private set; } = [];
     internal double CurrentSpeedMultiplier { get; private set; } = 1.0;
     internal int CurrentGamemode { get; private set; }
+    internal int? CurrentManiaKeyCount { get; private set; }
     internal Dictionary<HitResult, double> CurrentHitWindows { get; private set; } = [];
     internal BeatmapData? LastCalculatedData { get; private set; }
 
@@ -219,6 +220,9 @@ namespace OsuMate.Services
         return false;
 
       _currentBeatmapGamemode = gamemode;
+      CurrentManiaKeyCount = gamemode == 3
+        ? BeatmapPathResolver.ReadManiaKeyCountFromFile(beatmapPath)
+        : null;
       _currentGamemode =
         _currentBeatmapGamemode == 0 ? _memory.CurrentOsuGamemode : _currentBeatmapGamemode;
       CurrentGamemode = _currentGamemode;
