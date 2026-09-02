@@ -12,7 +12,7 @@ namespace OsuMate.Services
     private readonly RawInputService _rawInput;
     private readonly Views.InGameOverlayWindow _overlayWindow;
     private readonly Views.URBarWindow _urBarWindow;
-    private readonly Views.KeyOverlayWindow _keyOverlayWindow;
+    private readonly KeyOverlayUiThread _keyOverlayThread;
     private Window? _mainWindow;
 
     private CancellationTokenSource? _overlayTrackingCts;
@@ -63,11 +63,13 @@ namespace OsuMate.Services
       _urBarWindow.PositionChanged += HandleURBarWindowPositionChanged;
       _urBarWindow.OnSizeChanged += HandleURBarWindowSizeChanged;
 
-      _keyOverlayWindow = new Views.KeyOverlayWindow(_mainViewModel.KeyOverlay);
-      _rawInput.Attach(_keyOverlayWindow);
+      _keyOverlayThread = new KeyOverlayUiThread(
+        _mainViewModel.KeyOverlay,
+        _rawInput
+      );
       ApplyKeyOverlaySettings();
-      _keyOverlayWindow.PositionChanged += HandleKeyOverlayWindowPositionChanged;
-      _keyOverlayWindow.FlowLengthChanged += length => _settingsVm.KeyOverlayHeight = length;
+      _keyOverlayThread.PositionChanged += HandleKeyOverlayWindowPositionChanged;
+      _keyOverlayThread.FlowLengthChanged += HandleKeyOverlayFlowLengthChanged;
 
       _settingsVm.OnSaveOverlayPositionRequested += HandleSaveOverlayPositionRequested;
       _settingsVm.OnApplyOverlayPositionRequested += HandleApplyOverlayPositionRequested;
@@ -111,7 +113,14 @@ namespace OsuMate.Services
 
     private void HandleKeyOverlayWindowPositionChanged(double left, double top)
     {
-      _keyOverlayPosition.CaptureFromScreen(left, top, TryGetOsuWindowRectOrNull());
+      Application.Current.Dispatcher.BeginInvoke(() =>
+        _keyOverlayPosition.CaptureFromScreen(left, top, TryGetOsuWindowRectOrNull())
+      );
+    }
+
+    private void HandleKeyOverlayFlowLengthChanged(double length)
+    {
+      Application.Current.Dispatcher.BeginInvoke(() => _settingsVm.KeyOverlayHeight = length);
     }
 
     private void HandleSaveOverlayPositionRequested()
@@ -204,6 +213,7 @@ namespace OsuMate.Services
           || e.PropertyName == nameof(SettingsViewModel.KeyOverlayBarSpeed)
           || e.PropertyName == nameof(SettingsViewModel.KeyOverlayBarRound)
           || e.PropertyName == nameof(SettingsViewModel.KeyOverlayLaneWidth)
+          || e.PropertyName == nameof(SettingsViewModel.DataUpdateIntervalMs)
         )
         {
           ApplyKeyOverlaySettings();
@@ -251,9 +261,9 @@ namespace OsuMate.Services
           _overlayWindow.SetDraggable(true);
           _urBarWindow.SetSettingsMode(true, _settingsVm.URBarWidth, _settingsVm.URBarHeight);
           _urBarWindow.Show();
-          _keyOverlayWindow.SetDraggable(true);
+          _keyOverlayThread.SetDraggable(true);
           ApplyKeyOverlaySettings();
-          _keyOverlayWindow.Show();
+          _keyOverlayThread.Show();
         }
       });
     }
@@ -270,8 +280,8 @@ namespace OsuMate.Services
 
           _overlayWindow.Hide();
           _urBarWindow.Hide();
-          _keyOverlayWindow.SetDraggable(false);
-          _keyOverlayWindow.Hide();
+          _keyOverlayThread.SetDraggable(false);
+          _keyOverlayThread.Hide();
         }
       });
     }
@@ -282,8 +292,8 @@ namespace OsuMate.Services
       {
         _overlayWindow?.Hide();
         _urBarWindow?.Hide();
-        _keyOverlayWindow?.Hide();
       });
+      _keyOverlayThread?.Hide();
     }
 
     private void OnIsPlayingChanged(bool isPlaying)
@@ -316,13 +326,13 @@ namespace OsuMate.Services
 
           if (_settingsVm.KeyOverlayEnabled)
           {
-            _keyOverlayWindow.SetDraggable(false);
+            _keyOverlayThread.SetDraggable(false);
             ApplyKeyOverlaySettings();
-            _keyOverlayWindow.Show();
+            _keyOverlayThread.Show();
           }
           else
           {
-            _keyOverlayWindow.Hide();
+            _keyOverlayThread.Hide();
           }
 
           if (_settingsVm.OverlayEnabled || _settingsVm.KeyOverlayEnabled)
@@ -332,7 +342,7 @@ namespace OsuMate.Services
         {
           _overlayWindow.Hide();
           _urBarWindow.Hide();
-          _keyOverlayWindow.Hide();
+          _keyOverlayThread.Hide();
 
           if (_isSettingsOpen)
           {
@@ -341,9 +351,9 @@ namespace OsuMate.Services
             _overlayWindow.SetDraggable(true);
             _urBarWindow.SetSettingsMode(true, _settingsVm.URBarWidth, _settingsVm.URBarHeight);
             _urBarWindow.Show();
-            _keyOverlayWindow.SetDraggable(true);
+            _keyOverlayThread.SetDraggable(true);
             ApplyKeyOverlaySettings();
-            _keyOverlayWindow.Show();
+            _keyOverlayThread.Show();
           }
           ShowMainWindow();
         }
@@ -407,8 +417,13 @@ namespace OsuMate.Services
     private void ApplyKeyOverlayPosition(Win32Interop.Win32Rect rect)
     {
       var (left, top) = _keyOverlayPosition.ToScreen(rect);
-      _keyOverlayWindow.Left = left;
-      _keyOverlayWindow.Top = top;
+      _keyOverlayThread.SetPosition(left, top);
+    }
+
+    private void SyncKeyOverlayPositionIfIdle(Win32Interop.Win32Rect rect)
+    {
+      var (left, top) = _keyOverlayPosition.ToScreen(rect);
+      _keyOverlayThread.ApplyPositionIfIdle(left, top);
     }
 
     private void HideMainWindow()
@@ -425,7 +440,7 @@ namespace OsuMate.Services
 
     private Task OnOsuWindowRectAvailableAsync(Win32Interop.Win32Rect rect)
     {
-      return Application
+      var primaryTask = Application
         .Current.Dispatcher.InvokeAsync(() =>
         {
           if (_suppressCount > 0)
@@ -434,10 +449,13 @@ namespace OsuMate.Services
             ApplyOverlayPosition(rect);
           if (_urBarWindow.IsVisible && !_urBarWindow.IsDragging && !_urBarWindow.IsResizing)
             ApplyURBarPosition(rect);
-          if (_keyOverlayWindow.IsVisible && !_keyOverlayWindow.IsDragging && !_keyOverlayWindow.IsResizing)
-            ApplyKeyOverlayPosition(rect);
         })
         .Task;
+
+      if (Volatile.Read(ref _suppressCount) == 0)
+        SyncKeyOverlayPositionIfIdle(rect);
+
+      return primaryTask;
     }
 
     public void Dispose()
@@ -447,6 +465,7 @@ namespace OsuMate.Services
       _overlayTrackingCts = null;
       _processMonitor.Dispose();
       _rawInput.Dispose();
+      _keyOverlayThread.Dispose();
     }
 
     private void OnOverlayEnabledChanged(bool enabled)
@@ -474,24 +493,25 @@ namespace OsuMate.Services
     {
       if (_isSettingsOpen && !_mainViewModel.IsPlaying)
       {
-        _keyOverlayWindow.SetDraggable(true);
+        _keyOverlayThread.SetDraggable(true);
         ApplyKeyOverlaySettings();
-        _keyOverlayWindow.Show();
+        _keyOverlayThread.Show();
       }
       else if (!enabled)
       {
-        _keyOverlayWindow.Hide();
+        _keyOverlayThread.Hide();
       }
     }
 
     private void ApplyKeyOverlaySettings()
     {
-      _keyOverlayWindow.UpdateSettings(
+      _keyOverlayThread.UpdateSettings(
         _settingsVm.KeyOverlayRotation,
         _settingsVm.KeyOverlayHeight,
         _settingsVm.KeyOverlayBarSpeed,
         _settingsVm.KeyOverlayBarRound,
-        _settingsVm.KeyOverlayLaneWidth
+        _settingsVm.KeyOverlayLaneWidth,
+        _settingsVm.DataUpdateIntervalMs
       );
     }
   }

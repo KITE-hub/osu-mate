@@ -21,6 +21,8 @@ namespace OsuMate
     {
       base.OnStartup(e);
 
+      Utils.TimerResolution.Begin(1);
+
       DispatcherUnhandledException += (s, args) =>
       {
         Utils.LogUtils.DebugLogger(
@@ -86,6 +88,12 @@ namespace OsuMate
       uiThread.SetApartmentState(ApartmentState.STA);
       uiThread.IsBackground = false;
       uiThread.Start();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+      Utils.TimerResolution.End();
+      base.OnExit(e);
     }
 
     private void ConfigureServices(IServiceCollection services)

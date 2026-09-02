@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -19,14 +18,12 @@ internal sealed class KeyOverlayRenderer
   private const double Gap = 4;
   private const double Margin = 4;
   private readonly Canvas _canvas;
-  private readonly Stopwatch _clock = Stopwatch.StartNew();
   private readonly List<List<BarState>> _bars = [];
   private readonly List<Stack<Rectangle>> _freeBars = [];
   private readonly List<Rectangle> _keyBackgrounds = [];
   private readonly List<TextBlock> _keyLabels = [];
   private readonly List<bool?> _lastPressedState = [];
   private KeyOverlaySnapshot _layout = KeyOverlaySnapshot.Empty;
-  private long _lastTick;
   private int _rotation;
   private double _speed = 600;
   private double _round = 4;
@@ -67,16 +64,12 @@ internal sealed class KeyOverlayRenderer
     return IsHorizontal ? new Size(flowLength, crossLength) : new Size(crossLength, flowLength);
   }
 
-  public void Render(KeyOverlaySnapshot snapshot)
+  public void Render(KeyOverlaySnapshot snapshot, double dt)
   {
     EnsureLayout(snapshot);
     if (snapshot.Keys.Length == 0)
       return;
 
-    var now = _clock.ElapsedTicks;
-    var dt = _lastTick == 0 ? 0 : (now - _lastTick) / (double)Stopwatch.Frequency;
-    _lastTick = now;
-    dt = Math.Clamp(dt, 0, 0.05);
     LayoutStaticElements();
     var styleChanged = _appliedStyleVersion != _styleVersion;
     var movement = _speed * dt;
@@ -192,7 +185,14 @@ internal sealed class KeyOverlayRenderer
     _lastLayoutRotation = int.MinValue;
     for (var i = 0; i < snapshot.Keys.Length; i++)
     {
-      var background = new Rectangle { Stroke = BorderBrush, StrokeThickness = 1, RadiusX = 4, RadiusY = 4 };
+      var background = new Rectangle
+      {
+        Stroke = BorderBrush,
+        StrokeThickness = 1,
+        RadiusX = 4,
+        RadiusY = 4,
+        CacheMode = new BitmapCache(),
+      };
       var label = new TextBlock
       {
         Text = snapshot.Keys[i].Label,
@@ -201,6 +201,7 @@ internal sealed class KeyOverlayRenderer
         FontFamily = new FontFamily("pack://application:,,,/Resources/Fonts/Oxanium/#Oxanium"),
         TextAlignment = TextAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
+        CacheMode = new BitmapCache(),
       };
       _canvas.Children.Add(background);
       _canvas.Children.Add(label);

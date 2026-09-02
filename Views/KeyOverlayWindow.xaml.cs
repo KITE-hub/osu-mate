@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using OsuMate.Utils;
 using OsuMate.ViewModels;
 using OsuMate.Views.Controls;
@@ -11,6 +13,11 @@ namespace OsuMate.Views
   {
     private readonly KeyOverlayViewModel _vm;
     private readonly KeyOverlayRenderer _renderer;
+    private readonly DispatcherTimer _renderTimer;
+    private readonly Stopwatch _frameClock = Stopwatch.StartNew();
+    private double _lastFrameTimestampSeconds;
+    private const double MaxFrameDeltaSeconds = 0.25;
+    private const int DefaultRenderIntervalMs = 33;
     private bool _isDraggable;
     private int _rotation;
     private double _flowLength = 700;
@@ -32,7 +39,12 @@ namespace OsuMate.Views
       InitializeComponent();
       _vm = vm;
       _renderer = new KeyOverlayRenderer(BarsCanvas);
-      CompositionTarget.Rendering += OnRendering;
+      _renderTimer = new DispatcherTimer(DispatcherPriority.Render)
+      {
+        Interval = TimeSpan.FromMilliseconds(DefaultRenderIntervalMs),
+      };
+      _renderTimer.Tick += OnRenderTick;
+      _renderTimer.Start();
     }
 
     public void SetDraggable(bool draggable)
@@ -45,18 +57,32 @@ namespace OsuMate.Views
       this.SetClickThrough(!draggable);
     }
 
-    public void UpdateSettings(int rotation, double flowLength, double speed, double round, double laneWidth)
+    public void UpdateSettings(
+      int rotation,
+      double flowLength,
+      double speed,
+      double round,
+      double laneWidth,
+      int renderIntervalMs
+    )
     {
       _rotation = (int)Math.Round((((rotation % 360) + 360) % 360) / 90.0) * 90 % 360;
       _flowLength = Math.Max(120, flowLength);
       _renderer.UpdateSettings(_rotation, speed, round, laneWidth);
+      _renderTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, renderIntervalMs));
       ApplySize(_vm.Snapshot.Keys.Length);
       UpdateResizeHandle();
     }
 
-    private void OnRendering(object? sender, EventArgs e)
+    private void OnRenderTick(object? sender, EventArgs e)
     {
+      var nowSeconds = _frameClock.Elapsed.TotalSeconds;
+      var elapsedSeconds = nowSeconds - _lastFrameTimestampSeconds;
+      _lastFrameTimestampSeconds = nowSeconds;
+
       if (!IsLoaded || !IsVisible)
+        return;
+      if (elapsedSeconds <= 0 || elapsedSeconds > MaxFrameDeltaSeconds)
         return;
 
       var snapshot = _vm.Snapshot;
@@ -65,7 +91,7 @@ namespace OsuMate.Views
         _laneCount = snapshot.Keys.Length;
         ApplySize(_laneCount);
       }
-      _renderer.Render(snapshot);
+      _renderer.Render(snapshot, elapsedSeconds);
     }
 
     private void ApplySize(int laneCount)
@@ -167,7 +193,8 @@ namespace OsuMate.Views
 
     protected override void OnClosed(EventArgs e)
     {
-      CompositionTarget.Rendering -= OnRendering;
+      _renderTimer.Stop();
+      _renderTimer.Tick -= OnRenderTick;
       base.OnClosed(e);
     }
   }

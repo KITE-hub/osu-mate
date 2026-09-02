@@ -29,7 +29,7 @@ namespace OsuMate.Services
     private Dictionary<string, string> _keyConfigValues = [];
 
     public event Action? OnMemoryRead;
-    public event Action? OnKeyInputChanged;
+    public event Action? OnKeyOverlayInputChanged;
     public event Action<IntPtr>? OnOsuWindowFound;
 
     public event Action<OsuMemoryStatus, OsuMemoryStatus>? OnStatusChanged;
@@ -72,8 +72,8 @@ namespace OsuMate.Services
     public OsuMemoryService(RawInputService rawInput)
     {
       _rawInput = rawInput;
+      _rawInput.PressedKeysChanged += () => OnKeyOverlayInputChanged?.Invoke();
       _replayKeyInput = new ReplayKeyInputSource(() => OsuDirectory, GetCurrentBeatmap);
-      _rawInput.InputChanged += () => OnKeyInputChanged?.Invoke();
       _hitErrorStore = new HitErrorSnapshotStore(_baseAddresses);
       _urTimelineStore = new UrTimelineStore(_baseAddresses);
     }
@@ -109,6 +109,37 @@ namespace OsuMate.Services
     internal (bool Reset, List<(double timeSec, double offsetMs)> NewItems) GetURTimelineSnapshot() =>
       _urTimelineStore.GetSnapshot();
 
+    private readonly record struct LaneBinding(Keys Key, Keys MouseFallback);
+
+    private sealed class ResolvedKeyLayout
+    {
+      public static readonly ResolvedKeyLayout Empty = new([], []);
+
+      public string[] Labels { get; }
+      public LaneBinding[] Bindings { get; }
+      public KeyOverlaySnapshot BlankSnapshot { get; }
+
+      public ResolvedKeyLayout(string[] labels, LaneBinding[] bindings)
+      {
+        Labels = labels;
+        Bindings = bindings;
+        if (labels.Length == 0)
+        {
+          BlankSnapshot = KeyOverlaySnapshot.Empty;
+          return;
+        }
+        var keys = new KeyOverlayKeyState[labels.Length];
+        for (var i = 0; i < labels.Length; i++)
+          keys[i] = new KeyOverlayKeyState(labels[i], false);
+        BlankSnapshot = new KeyOverlaySnapshot(keys);
+      }
+    }
+
+    private readonly object _layoutLock = new();
+    private ResolvedKeyLayout _resolvedLayout = ResolvedKeyLayout.Empty;
+    private int _resolvedGamemode = int.MinValue;
+    private int _resolvedManiaKeyCount = int.MinValue;
+
     internal KeyOverlaySnapshot GetKeyOverlaySnapshot(
       int gamemode,
       int? maniaKeyCount,
@@ -117,69 +148,95 @@ namespace OsuMate.Services
       bool isReplay
     )
     {
-      var snapshot = gamemode switch
+      var layout = ResolveLayout(gamemode, gamemode == 3 ? maniaKeyCount : null);
+      if (layout.Labels.Length == 0)
+        return KeyOverlaySnapshot.Empty;
+
+      if (isReplay)
+        return _replayKeyInput.GetSnapshot(layout.BlankSnapshot, gamemode, audioTime, speedMultiplier);
+
+      var keys = new KeyOverlayKeyState[layout.Labels.Length];
+      for (var i = 0; i < keys.Length; i++)
       {
-        0 => CreateSnapshot(
-          [GetConfiguredKeyName("keyOsuLeft", "Z"), GetConfiguredKeyName("keyOsuRight", "X")],
-          [
-            IsConfiguredKeyPressed("keyOsuLeft", "Z") || _rawInput.IsPressed(Keys.LButton),
-            IsConfiguredKeyPressed("keyOsuRight", "X") || _rawInput.IsPressed(Keys.RButton)
-          ]
-        ),
-        1 => CreateSnapshot(
-          [
-            GetConfiguredKeyName("keyTaikoInnerLeft", "X"),
-            GetConfiguredKeyName("keyTaikoInnerRight", "C"),
-            GetConfiguredKeyName("keyTaikoOuterLeft", "Z"),
-            GetConfiguredKeyName("keyTaikoOuterRight", "V")
-          ],
-          [
-            IsConfiguredKeyPressed("keyTaikoInnerLeft", "X"),
-            IsConfiguredKeyPressed("keyTaikoInnerRight", "C"),
-            IsConfiguredKeyPressed("keyTaikoOuterLeft", "Z"),
-            IsConfiguredKeyPressed("keyTaikoOuterRight", "V")
-          ]
-        ),
-        2 => CreateSnapshot(
-          [
-            GetConfiguredKeyName("keyFruitsDash", "LeftShift"),
-            GetConfiguredKeyName("keyFruitsLeft", "Left"),
-            GetConfiguredKeyName("keyFruitsRight", "Right")
-          ],
-          [
-            IsConfiguredKeyPressed("keyFruitsDash", "LeftShift"),
-            IsConfiguredKeyPressed("keyFruitsLeft", "Left"),
-            IsConfiguredKeyPressed("keyFruitsRight", "Right")
-          ]
-        ),
-        3 when maniaKeyCount is >= 1 and <= 18 => GetManiaKeyOverlaySnapshot(maniaKeyCount.Value),
-        _ => KeyOverlaySnapshot.Empty,
-      };
-      return isReplay
-        ? _replayKeyInput.GetSnapshot(snapshot, gamemode, audioTime, speedMultiplier)
-        : snapshot;
+        var binding = layout.Bindings[i];
+        var pressed = _rawInput.IsPressed(binding.Key) || _rawInput.IsPressed(binding.MouseFallback);
+        keys[i] = new KeyOverlayKeyState(layout.Labels[i], pressed);
+      }
+      return new KeyOverlaySnapshot(keys);
     }
 
-    private KeyOverlaySnapshot GetManiaKeyOverlaySnapshot(int keyCount)
+    private ResolvedKeyLayout ResolveLayout(int gamemode, int? maniaKeyCount)
     {
-      var keys = ReadManiaLayout(keyCount);
+      var configChanged = EnsureKeyConfigCache();
+      var maniaCount = maniaKeyCount ?? -1;
+
+      lock (_layoutLock)
+      {
+        if (!configChanged && _resolvedGamemode == gamemode && _resolvedManiaKeyCount == maniaCount)
+          return _resolvedLayout;
+
+        _resolvedGamemode = gamemode;
+        _resolvedManiaKeyCount = maniaCount;
+        _resolvedLayout = BuildLayout(gamemode, maniaKeyCount);
+        return _resolvedLayout;
+      }
+    }
+
+    private ResolvedKeyLayout BuildLayout(int gamemode, int? maniaKeyCount) =>
+      gamemode switch
+      {
+        0 => BuildFixedLayout(
+          ("keyOsuLeft", "Z", Keys.LButton),
+          ("keyOsuRight", "X", Keys.RButton)
+        ),
+        1 => BuildFixedLayout(
+          ("keyTaikoInnerLeft", "X", Keys.None),
+          ("keyTaikoInnerRight", "C", Keys.None),
+          ("keyTaikoOuterLeft", "Z", Keys.None),
+          ("keyTaikoOuterRight", "V", Keys.None)
+        ),
+        2 => BuildFixedLayout(
+          ("keyFruitsDash", "LeftShift", Keys.None),
+          ("keyFruitsLeft", "Left", Keys.None),
+          ("keyFruitsRight", "Right", Keys.None)
+        ),
+        3 when maniaKeyCount is >= 1 and <= 18 => BuildManiaLayout(maniaKeyCount.Value),
+        _ => ResolvedKeyLayout.Empty,
+      };
+
+    private ResolvedKeyLayout BuildFixedLayout(params (string ConfigKey, string Fallback, Keys MouseFallback)[] specs)
+    {
+      var labels = new string[specs.Length];
+      var bindings = new LaneBinding[specs.Length];
+      for (var i = 0; i < specs.Length; i++)
+      {
+        var name = GetConfiguredKeyNameLocked(specs[i].ConfigKey, specs[i].Fallback);
+        labels[i] = name;
+        bindings[i] = new LaneBinding(
+          TryParseKey(name, out var key) ? key : Keys.None,
+          specs[i].MouseFallback
+        );
+      }
+      return new ResolvedKeyLayout(labels, bindings);
+    }
+
+    private ResolvedKeyLayout BuildManiaLayout(int keyCount)
+    {
+      var keys = ReadManiaLayoutLocked(keyCount);
       if (keys.Length < keyCount)
         keys = GetFallbackManiaLayout(keyCount);
       else if (keys.Length > keyCount)
         keys = keys[..keyCount];
 
-      var states = new bool[keyCount];
-      for (int i = 0; i < keyCount; i++)
-      {
-        states[i] = TryParseKey(keys[i], out var key) && _rawInput.IsPressed(key);
-      }
+      var bindings = new LaneBinding[keyCount];
+      for (var i = 0; i < keyCount; i++)
+        bindings[i] = new LaneBinding(TryParseKey(keys[i], out var key) ? key : Keys.None, Keys.None);
 
-      return CreateSnapshot(keys, states);
+      return new ResolvedKeyLayout(keys, bindings);
     }
 
-    private string[] ReadManiaLayout(int keyCount)
+    private string[] ReadManiaLayoutLocked(int keyCount)
     {
-      EnsureKeyConfigCache();
       var prefix = $"ManiaLayouts{keyCount}K";
       lock (_keyConfigLock)
       {
@@ -189,17 +246,13 @@ namespace OsuMate.Services
       }
     }
 
-    private string GetConfiguredKeyName(string keyName, string fallback)
+    private string GetConfiguredKeyNameLocked(string keyName, string fallback)
     {
-      EnsureKeyConfigCache();
       lock (_keyConfigLock)
         return _keyConfigValues.TryGetValue(keyName, out var value) && !string.IsNullOrWhiteSpace(value)
           ? value
           : fallback;
     }
-
-    private bool IsConfiguredKeyPressed(string keyName, string fallback) =>
-      TryParseKey(GetConfiguredKeyName(keyName, fallback), out var key) && _rawInput.IsPressed(key);
 
     private static string[] GetFallbackManiaLayout(int keyCount)
     {
@@ -211,13 +264,13 @@ namespace OsuMate.Services
       return fallback[..Math.Min(keyCount, fallback.Length)];
     }
 
-    private void EnsureKeyConfigCache()
+    private bool EnsureKeyConfigCache()
     {
       var now = DateTime.UtcNow;
       lock (_keyConfigLock)
       {
         if (now - _keyConfigLastCheckedUtc < KeyConfigRecheckInterval)
-          return;
+          return false;
         _keyConfigLastCheckedUtc = now;
       }
 
@@ -226,11 +279,12 @@ namespace OsuMate.Services
       {
         lock (_keyConfigLock)
         {
+          var hadValues = _keyConfigValues.Count > 0 || !string.IsNullOrEmpty(_keyConfigPath);
           _keyConfigPath = string.Empty;
           _keyConfigLastWriteTimeUtc = default;
           _keyConfigValues = [];
+          return hadValues;
         }
-        return;
       }
 
       DateTime lastWriteTimeUtc;
@@ -241,14 +295,14 @@ namespace OsuMate.Services
       catch (Exception e)
       {
         LogUtils.DebugLogger($"OsuMemoryService.EnsureKeyConfigCache failed: {e.Message}", true);
-        return;
+        return false;
       }
 
       lock (_keyConfigLock)
       {
         if (string.Equals(_keyConfigPath, path, StringComparison.Ordinal)
             && _keyConfigLastWriteTimeUtc == lastWriteTimeUtc)
-          return;
+          return false;
 
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
         try
@@ -270,10 +324,12 @@ namespace OsuMate.Services
           _keyConfigPath = path;
           _keyConfigLastWriteTimeUtc = lastWriteTimeUtc;
           _keyConfigValues = values;
+          return true;
         }
         catch (Exception e)
         {
           LogUtils.DebugLogger($"OsuMemoryService.EnsureKeyConfigCache failed: {e.Message}", true);
+          return false;
         }
       }
     }
@@ -293,17 +349,6 @@ namespace OsuMate.Services
         LogUtils.DebugLogger($"OsuMemoryService.FindKeyConfigPath failed: {e.Message}", true);
         return string.Empty;
       }
-    }
-
-    private static KeyOverlaySnapshot CreateSnapshot(IReadOnlyList<string> labels, IReadOnlyList<bool> pressed)
-    {
-      if (labels.Count == 0 || labels.Count != pressed.Count)
-        return KeyOverlaySnapshot.Empty;
-
-      var items = new KeyOverlayKeyState[labels.Count];
-      for (int i = 0; i < labels.Count; i++)
-        items[i] = new KeyOverlayKeyState(labels[i], pressed[i]);
-      return new KeyOverlaySnapshot(items);
     }
 
     private static bool TryParseKey(string name, out Keys key)

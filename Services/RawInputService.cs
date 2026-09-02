@@ -24,7 +24,7 @@ public sealed class RawInputService : IDisposable
   private HwndSource? _source;
   private Window? _window;
 
-  public event Action? InputChanged;
+  public event Action? PressedKeysChanged;
 
   public void Attach(Window window)
   {
@@ -128,15 +128,9 @@ public sealed class RawInputService : IDisposable
 
   private void SetPressed(Keys key, bool pressed)
   {
-    if (pressed)
-    {
-      if (_pressedKeys.TryAdd(key, 0))
-        InputChanged?.Invoke();
-    }
-    else if (_pressedKeys.TryRemove(key, out _))
-    {
-      InputChanged?.Invoke();
-    }
+    var changed = pressed ? _pressedKeys.TryAdd(key, 0) : _pressedKeys.TryRemove(key, out _);
+    if (changed)
+      PressedKeysChanged?.Invoke();
   }
 
   private void Detach()

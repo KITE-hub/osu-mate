@@ -77,7 +77,7 @@ namespace OsuMate.ViewModels
       _ppService.OnCalculated += UpdateUI;
       _memory.OnMemoryRead += UpdateFastUI;
       _memory.OnMemoryRead += UpdateKeyOverlay;
-      _memory.OnKeyInputChanged += UpdateKeyOverlay;
+      _memory.OnKeyOverlayInputChanged += UpdateKeyOverlay;
       _memory.OnOsuWindowFound += handle => OnOsuWindowFound?.Invoke(handle);
       StrainGraph = new(Theme.Current);
       URTimeGraph = new(Theme.Current);

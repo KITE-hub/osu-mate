@@ -122,10 +122,6 @@ internal sealed class ReplayKeyInputSource
     catch (Exception e)
     {
       Volatile.Write(ref _frames, EmptyFrames);
-      _loadedPath = path;
-      _loadedLastWriteTimeUtc = lastWriteTimeUtc;
-      _loadedMode = mode;
-      _loadedLaneCount = laneCount;
       LogUtils.DebugLogger($"ReplayKeyInputSource.ReloadIfChanged failed: {e.Message}", true);
     }
     finally
