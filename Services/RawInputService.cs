@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Forms;
@@ -9,6 +10,8 @@ namespace OsuMate.Services;
 
 public sealed class RawInputService : IDisposable
 {
+  internal readonly record struct KeyTransition(Keys Key, bool IsDown, long TimestampTicks);
+
   private const int WmInput = 0x00ff;
   private const uint RidInput = 0x10000003;
   private const uint RimTypeMouse = 0;
@@ -21,6 +24,7 @@ public sealed class RawInputService : IDisposable
   private const ushort RiMouseRightButtonUp = 0x0008;
 
   private readonly ConcurrentDictionary<Keys, byte> _pressedKeys = [];
+  private readonly ConcurrentQueue<KeyTransition> _transitions = new();
   private HwndSource? _source;
   private Window? _window;
 
@@ -37,8 +41,6 @@ public sealed class RawInputService : IDisposable
     if (new WindowInteropHelper(window).Handle != IntPtr.Zero)
       AttachSource(window);
   }
-
-  public bool IsPressed(Keys key) => key != Keys.None && _pressedKeys.ContainsKey(key & Keys.KeyCode);
 
   private void Window_SourceInitialized(object? sender, EventArgs e)
   {
@@ -129,8 +131,16 @@ public sealed class RawInputService : IDisposable
   private void SetPressed(Keys key, bool pressed)
   {
     var changed = pressed ? _pressedKeys.TryAdd(key, 0) : _pressedKeys.TryRemove(key, out _);
-    if (changed)
-      PressedKeysChanged?.Invoke();
+    if (!changed)
+      return;
+    _transitions.Enqueue(new KeyTransition(key, pressed, Stopwatch.GetTimestamp()));
+    PressedKeysChanged?.Invoke();
+  }
+
+  internal void DrainTransitions(List<KeyTransition> destination)
+  {
+    while (_transitions.TryDequeue(out var transition))
+      destination.Add(transition);
   }
 
   private void Detach()
@@ -141,6 +151,7 @@ public sealed class RawInputService : IDisposable
     _source = null;
     _window = null;
     _pressedKeys.Clear();
+    while (_transitions.TryDequeue(out _)) { }
   }
 
   public void Dispose() => Detach();

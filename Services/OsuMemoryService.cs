@@ -140,29 +140,91 @@ namespace OsuMate.Services
     private int _resolvedGamemode = int.MinValue;
     private int _resolvedManiaKeyCount = int.MinValue;
 
-    internal KeyOverlaySnapshot GetKeyOverlaySnapshot(
+    private readonly object _liveTransitionLock = new();
+    private readonly List<RawInputService.KeyTransition> _rawTransitionBuffer = [];
+    private LaneBinding[] _liveTransitionBindings = [];
+    private int[] _liveTransitionHoldCount = [];
+    private bool[] _liveTransitionPressed = [];
+
+    internal KeyOverlaySnapshot DrainKeyOverlayUpdate(
       int gamemode,
       int? maniaKeyCount,
       double audioTime,
       double speedMultiplier,
-      bool isReplay
+      bool isReplay,
+      List<KeyOverlayTransition> transitions
     )
     {
       var layout = ResolveLayout(gamemode, gamemode == 3 ? maniaKeyCount : null);
       if (layout.Labels.Length == 0)
+      {
+        DiscardRawInputTransitions();
         return KeyOverlaySnapshot.Empty;
+      }
 
       if (isReplay)
-        return _replayKeyInput.GetSnapshot(layout.BlankSnapshot, gamemode, audioTime, speedMultiplier);
-
-      var keys = new KeyOverlayKeyState[layout.Labels.Length];
-      for (var i = 0; i < keys.Length; i++)
       {
-        var binding = layout.Bindings[i];
-        var pressed = _rawInput.IsPressed(binding.Key) || _rawInput.IsPressed(binding.MouseFallback);
-        keys[i] = new KeyOverlayKeyState(layout.Labels[i], pressed);
+        DiscardRawInputTransitions();
+        return _replayKeyInput.DrainTransitions(layout.BlankSnapshot, gamemode, audioTime, speedMultiplier, transitions);
       }
-      return new KeyOverlaySnapshot(keys);
+
+      return DrainLiveKeyOverlaySnapshot(layout, transitions);
+    }
+
+    private void DiscardRawInputTransitions()
+    {
+      lock (_liveTransitionLock)
+      {
+        _rawTransitionBuffer.Clear();
+        _rawInput.DrainTransitions(_rawTransitionBuffer);
+      }
+    }
+
+    private void EnsureLiveTransitionState(ResolvedKeyLayout layout)
+    {
+      if (ReferenceEquals(_liveTransitionBindings, layout.Bindings))
+        return;
+      _liveTransitionBindings = layout.Bindings;
+      _liveTransitionHoldCount = new int[layout.Bindings.Length];
+      _liveTransitionPressed = new bool[layout.Bindings.Length];
+    }
+
+    private KeyOverlaySnapshot DrainLiveKeyOverlaySnapshot(ResolvedKeyLayout layout, List<KeyOverlayTransition> transitions)
+    {
+      lock (_liveTransitionLock)
+      {
+        EnsureLiveTransitionState(layout);
+
+        _rawTransitionBuffer.Clear();
+        _rawInput.DrainTransitions(_rawTransitionBuffer);
+
+        var bindings = _liveTransitionBindings;
+        var holdCount = _liveTransitionHoldCount;
+        var pressed = _liveTransitionPressed;
+
+        foreach (var raw in _rawTransitionBuffer)
+        {
+          for (var lane = 0; lane < bindings.Length; lane++)
+          {
+            var binding = bindings[lane];
+            if (raw.Key != binding.Key && raw.Key != binding.MouseFallback)
+              continue;
+
+            holdCount[lane] = Math.Max(0, holdCount[lane] + (raw.IsDown ? 1 : -1));
+            var nowPressed = holdCount[lane] > 0;
+            if (nowPressed == pressed[lane])
+              continue;
+
+            pressed[lane] = nowPressed;
+            transitions.Add(new KeyOverlayTransition(lane, nowPressed, raw.TimestampTicks));
+          }
+        }
+
+        var keys = new KeyOverlayKeyState[layout.Labels.Length];
+        for (var i = 0; i < keys.Length; i++)
+          keys[i] = new KeyOverlayKeyState(layout.Labels[i], pressed[i]);
+        return new KeyOverlaySnapshot(keys);
+      }
     }
 
     private ResolvedKeyLayout ResolveLayout(int gamemode, int? maniaKeyCount)

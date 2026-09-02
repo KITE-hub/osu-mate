@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Threading;
 using OsuMate.Models;
 
@@ -5,26 +6,22 @@ namespace OsuMate.ViewModels
 {
   public sealed class KeyOverlayViewModel
   {
-    private sealed record VersionedSnapshot(long Version, KeyOverlaySnapshot Snapshot);
+    private readonly ConcurrentQueue<KeyOverlayTransition> _transitions = new();
+    private KeyOverlaySnapshot _layout = KeyOverlaySnapshot.Empty;
 
-    private static readonly VersionedSnapshot Initial = new(0, KeyOverlaySnapshot.Empty);
+    internal KeyOverlaySnapshot Layout => Volatile.Read(ref _layout);
 
-    private VersionedSnapshot _current = Initial;
-
-    internal KeyOverlaySnapshot Snapshot => Volatile.Read(ref _current).Snapshot;
-
-    internal void Update(KeyOverlaySnapshot snapshot, long version)
+    internal void Publish(KeyOverlaySnapshot layout, List<KeyOverlayTransition> transitions)
     {
-      VersionedSnapshot current;
-      do
-      {
-        current = Volatile.Read(ref _current);
-        if (version <= current.Version)
-          return;
-        if (snapshot.Equals(current.Snapshot))
-          return;
-      }
-      while (Interlocked.CompareExchange(ref _current, new VersionedSnapshot(version, snapshot), current) != current);
+      Volatile.Write(ref _layout, layout);
+      foreach (var transition in transitions)
+        _transitions.Enqueue(transition);
+    }
+
+    internal void DrainTransitions(List<KeyOverlayTransition> destination)
+    {
+      while (_transitions.TryDequeue(out var transition))
+        destination.Add(transition);
     }
   }
 }

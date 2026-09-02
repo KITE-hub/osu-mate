@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Threading;
@@ -32,6 +33,7 @@ internal sealed class ReplayKeyInputSource
 
   private static readonly TimeSpan ReloadInterval = TimeSpan.FromSeconds(1);
   private static readonly FrameState[] EmptyFrames = [];
+  private const double MaxBridgeReplayTimeMs = 2000;
 
   private readonly Func<string> _osuDirectory;
   private readonly Func<(string BeatmapPath, string BeatmapMd5)> _currentBeatmap;
@@ -47,6 +49,10 @@ internal sealed class ReplayKeyInputSource
   private int _loadedMode = -1;
   private int _loadedLaneCount;
 
+  private double? _lastReplayTimeMs;
+  private long _lastRealTicks;
+  private bool[] _lastPressed = [];
+
   public ReplayKeyInputSource(
     Func<string> osuDirectory,
     Func<(string BeatmapPath, string BeatmapMd5)> currentBeatmap
@@ -56,21 +62,90 @@ internal sealed class ReplayKeyInputSource
     _currentBeatmap = currentBeatmap;
   }
 
-  public KeyOverlaySnapshot GetSnapshot(KeyOverlaySnapshot layout, int mode, double audioTime, double speedMultiplier)
+  public KeyOverlaySnapshot DrainTransitions(
+    KeyOverlaySnapshot layout,
+    int mode,
+    double audioTime,
+    double speedMultiplier,
+    List<KeyOverlayTransition> transitions
+  )
   {
     if (layout.Keys.Length == 0)
       return layout;
 
     RequestReloadIfDue(mode, layout.Keys.Length);
 
+    var laneCount = layout.Keys.Length;
+    if (_lastPressed.Length != laneCount)
+      _lastPressed = new bool[laneCount];
+
+    var nowTicks = Stopwatch.GetTimestamp();
     var frames = Volatile.Read(ref _frames);
     if (frames.Length == 0)
-      return WithPressed(layout, new bool[layout.Keys.Length]);
+    {
+      ResetTo(new bool[laneCount], 0, nowTicks);
+      return WithPressed(layout, _lastPressed);
+    }
 
     var speedRate = 1 / Math.Max(speedMultiplier, 0.01);
     var replayTime = audioTime / speedRate;
-    var index = FindFrameIndex(frames, replayTime);
-    return WithPressed(layout, index < 0 ? new bool[layout.Keys.Length] : frames[index].Pressed);
+
+    if (
+      _lastReplayTimeMs is not { } previousReplayTime
+      || replayTime < previousReplayTime
+      || replayTime - previousReplayTime > MaxBridgeReplayTimeMs
+    )
+    {
+      var index = FindFrameIndex(frames, replayTime);
+      ResetTo(index < 0 ? new bool[laneCount] : frames[index].Pressed, replayTime, nowTicks);
+      return WithPressed(layout, _lastPressed);
+    }
+
+    var startIndex = FindFrameIndex(frames, previousReplayTime);
+    var endIndex = FindFrameIndex(frames, replayTime);
+    var previousRealTicks = _lastRealTicks;
+
+    for (var i = startIndex < 0 ? 0 : startIndex + 1; i <= endIndex; i++)
+    {
+      var frame = frames[i];
+      var eventTicks = InterpolateTicks(previousReplayTime, replayTime, previousRealTicks, nowTicks, frame.Time);
+      ApplyFramePressed(frame.Pressed, laneCount, eventTicks, transitions);
+    }
+
+    _lastReplayTimeMs = replayTime;
+    _lastRealTicks = nowTicks;
+    return WithPressed(layout, _lastPressed);
+  }
+
+  private void ApplyFramePressed(bool[] framePressed, int laneCount, long eventTicks, List<KeyOverlayTransition> transitions)
+  {
+    for (var lane = 0; lane < laneCount; lane++)
+    {
+      var isPressed = lane < framePressed.Length && framePressed[lane];
+      if (isPressed == _lastPressed[lane])
+        continue;
+      _lastPressed[lane] = isPressed;
+      transitions.Add(new KeyOverlayTransition(lane, isPressed, eventTicks));
+    }
+  }
+
+  private void ResetTo(bool[] pressed, double replayTime, long nowTicks)
+  {
+    var copyLength = Math.Min(pressed.Length, _lastPressed.Length);
+    Array.Copy(pressed, _lastPressed, copyLength);
+    if (_lastPressed.Length > copyLength)
+      Array.Clear(_lastPressed, copyLength, _lastPressed.Length - copyLength);
+    _lastReplayTimeMs = replayTime;
+    _lastRealTicks = nowTicks;
+  }
+
+  private static long InterpolateTicks(double fromReplayTime, double toReplayTime, long fromTicks, long toTicks, double frameTime)
+  {
+    var span = toReplayTime - fromReplayTime;
+    if (span <= 0)
+      return toTicks;
+    var t = Math.Clamp((frameTime - fromReplayTime) / span, 0, 1);
+    return fromTicks + (long)((toTicks - fromTicks) * t);
   }
 
   private void RequestReloadIfDue(int mode, int laneCount)

@@ -39,7 +39,6 @@ namespace OsuMate.ViewModels
 
     private readonly Dispatcher _primaryDispatcher;
     private Dispatcher? _uiDispatcher;
-    private long _keyOverlaySequence;
 
     public void AttachUiDispatcher(Dispatcher dispatcher)
     {
@@ -203,11 +202,8 @@ namespace OsuMate.ViewModels
       });
     }
 
-    private void PublishKeyOverlaySnapshot(KeyOverlaySnapshot snapshot)
-    {
-      var version = Interlocked.Increment(ref _keyOverlaySequence);
-      KeyOverlay.Update(snapshot, version);
-    }
+    private readonly object _keyOverlayLock = new();
+    private readonly List<KeyOverlayTransition> _keyOverlayTransitionBuffer = [];
 
     private int _fastUiDispatchPending;
     private int _fastInfoDispatchPending;
@@ -217,15 +213,19 @@ namespace OsuMate.ViewModels
     private void UpdateKeyOverlay()
     {
       var keyOverlayAddresses = _memory.GetBaseAddressSnapshot();
-      PublishKeyOverlaySnapshot(
-        _memory.GetKeyOverlaySnapshot(
+      lock (_keyOverlayLock)
+      {
+        _keyOverlayTransitionBuffer.Clear();
+        var layout = _memory.DrainKeyOverlayUpdate(
           _memory.CurrentOsuGamemode,
           _ppService.CurrentManiaKeyCount,
           keyOverlayAddresses.GeneralData.AudioTime,
           _ppService.CurrentSpeedMultiplier,
-          keyOverlayAddresses.Player.IsReplay
-        )
-      );
+          keyOverlayAddresses.Player.IsReplay,
+          _keyOverlayTransitionBuffer
+        );
+        KeyOverlay.Publish(layout, _keyOverlayTransitionBuffer);
+      }
     }
 
     private void UpdateFastUI()

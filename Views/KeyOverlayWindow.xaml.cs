@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using OsuMate.Models;
 using OsuMate.Utils;
 using OsuMate.ViewModels;
 using OsuMate.Views.Controls;
@@ -14,9 +15,7 @@ namespace OsuMate.Views
     private readonly KeyOverlayViewModel _vm;
     private readonly KeyOverlayRenderer _renderer;
     private readonly DispatcherTimer _renderTimer;
-    private readonly Stopwatch _frameClock = Stopwatch.StartNew();
-    private double _lastFrameTimestampSeconds;
-    private const double MaxFrameDeltaSeconds = 0.25;
+    private readonly List<KeyOverlayTransition> _transitionBuffer = [];
     private const int DefaultRenderIntervalMs = 33;
     private bool _isDraggable;
     private int _rotation;
@@ -70,28 +69,25 @@ namespace OsuMate.Views
       _flowLength = Math.Max(120, flowLength);
       _renderer.UpdateSettings(_rotation, speed, round, laneWidth);
       _renderTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, renderIntervalMs));
-      ApplySize(_vm.Snapshot.Keys.Length);
+      ApplySize(_vm.Layout.Keys.Length);
       UpdateResizeHandle();
     }
 
     private void OnRenderTick(object? sender, EventArgs e)
     {
-      var nowSeconds = _frameClock.Elapsed.TotalSeconds;
-      var elapsedSeconds = nowSeconds - _lastFrameTimestampSeconds;
-      _lastFrameTimestampSeconds = nowSeconds;
+      var layout = _vm.Layout;
+      _transitionBuffer.Clear();
+      _vm.DrainTransitions(_transitionBuffer);
 
       if (!IsLoaded || !IsVisible)
         return;
-      if (elapsedSeconds <= 0 || elapsedSeconds > MaxFrameDeltaSeconds)
-        return;
 
-      var snapshot = _vm.Snapshot;
-      if (_laneCount != snapshot.Keys.Length)
+      if (_laneCount != layout.Keys.Length)
       {
-        _laneCount = snapshot.Keys.Length;
+        _laneCount = layout.Keys.Length;
         ApplySize(_laneCount);
       }
-      _renderer.Render(snapshot, elapsedSeconds);
+      _renderer.Render(layout, _transitionBuffer, Stopwatch.GetTimestamp());
     }
 
     private void ApplySize(int laneCount)
@@ -127,7 +123,7 @@ namespace OsuMate.Views
           _ => _resizeStartMouse.X - resizeCurrent.X,
         };
         _flowLength = Math.Max(120, _resizeStartLength + delta);
-        ApplySize(_laneCount < 0 ? _vm.Snapshot.Keys.Length : _laneCount);
+        ApplySize(_laneCount < 0 ? _vm.Layout.Keys.Length : _laneCount);
         return;
       }
       if (!IsDragging)

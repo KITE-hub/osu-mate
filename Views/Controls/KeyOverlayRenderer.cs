@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -12,6 +13,9 @@ internal sealed class KeyOverlayRenderer
   {
     public Rectangle Element { get; } = element;
     public bool IsHeld { get; set; }
+    public long OpenTicks { get; set; }
+    public long CloseTicks { get; set; }
+    public double ClosedLength { get; set; }
   }
 
   private const double KeyLength = 44;
@@ -19,6 +23,7 @@ internal sealed class KeyOverlayRenderer
   private const double Margin = 4;
   private readonly Canvas _canvas;
   private readonly List<List<BarState>> _bars = [];
+  private readonly List<List<KeyOverlayTransition>> _laneEventBuckets = [];
   private readonly List<Stack<Rectangle>> _freeBars = [];
   private readonly List<Rectangle> _keyBackgrounds = [];
   private readonly List<TextBlock> _keyLabels = [];
@@ -64,7 +69,7 @@ internal sealed class KeyOverlayRenderer
     return IsHorizontal ? new Size(flowLength, crossLength) : new Size(crossLength, flowLength);
   }
 
-  public void Render(KeyOverlaySnapshot snapshot, double dt)
+  public void Render(KeyOverlaySnapshot snapshot, IReadOnlyList<KeyOverlayTransition> transitions, long nowTicks)
   {
     EnsureLayout(snapshot);
     if (snapshot.Keys.Length == 0)
@@ -72,9 +77,19 @@ internal sealed class KeyOverlayRenderer
 
     LayoutStaticElements();
     var styleChanged = _appliedStyleVersion != _styleVersion;
-    var movement = _speed * dt;
+
+    EnsureEventBuckets(snapshot.Keys.Length);
+    foreach (var bucket in _laneEventBuckets)
+      bucket.Clear();
+    foreach (var transition in transitions)
+    {
+      if ((uint)transition.LaneIndex < (uint)_laneEventBuckets.Count)
+        _laneEventBuckets[transition.LaneIndex].Add(transition);
+    }
+
     for (var i = 0; i < snapshot.Keys.Length; i++)
-      RenderLane(i, snapshot.Keys[i].IsPressed, movement, styleChanged);
+      RenderLane(i, snapshot.Keys[i].IsPressed, _laneEventBuckets[i], nowTicks, styleChanged);
+
     if (styleChanged)
       _appliedStyleVersion = _styleVersion;
   }
@@ -82,10 +97,20 @@ internal sealed class KeyOverlayRenderer
   private bool IsHorizontal => _rotation is 90 or 270;
   private bool IsReversed => _rotation is 180 or 270;
   private double FlowLength => IsHorizontal ? _canvas.ActualWidth : _canvas.ActualHeight;
+  private double SpawnFlow => IsReversed ? FlowLength - KeyLength - Gap - 1 : KeyLength + Gap;
 
-  private void RenderLane(int lane, bool isPressed, double movement, bool styleChanged)
+  private void RenderLane(int lane, bool isPressed, List<KeyOverlayTransition> events, long nowTicks, bool styleChanged)
   {
     var bars = _bars[lane];
+
+    foreach (var transition in events)
+      ApplyTransition(lane, bars, transition);
+
+    if (isPressed && (bars.Count == 0 || !bars[^1].IsHeld))
+      OpenBar(lane, bars, nowTicks);
+    else if (!isPressed && bars.Count > 0 && bars[^1].IsHeld)
+      CloseBar(bars[^1], nowTicks);
+
     if (!isPressed && bars.Count == 0)
     {
       if (_lastPressedState[lane] != false)
@@ -97,39 +122,22 @@ internal sealed class KeyOverlayRenderer
       return;
     }
 
-    var held = bars.Count > 0 && bars[^1].IsHeld;
-    if (isPressed && !held)
-    {
-      var element = RentBar(lane);
-      SetCross(element, lane);
-      SetFlow(element, IsReversed ? FlowLength - KeyLength - Gap - 1 : KeyLength + Gap);
-      SetFlowSize(element, 1);
-      SetCrossSize(element, _laneWidth);
-      element.RadiusX = _round;
-      element.RadiusY = _round;
-      bars.Add(new BarState(element) { IsHeld = true });
-    }
-    else if (!isPressed && held)
-      bars[^1].IsHeld = false;
-
-    if (_lastPressedState[lane] != isPressed)
-    {
-      _keyBackgrounds[lane].Fill = isPressed ? KeyPressedBrush : KeyIdleBrush;
-      _keyLabels[lane].Foreground = isPressed ? Brushes.White : LabelIdleBrush;
-      _lastPressedState[lane] = isPressed;
-    }
+    var spawnFlow = SpawnFlow;
+    var direction = IsReversed ? -1.0 : 1.0;
 
     foreach (var bar in bars)
     {
       if (bar.IsHeld)
       {
-        var size = GetFlowSize(bar.Element) + movement;
-        SetFlowSize(bar.Element, Math.Max(1, size));
+        var heldSeconds = TicksToSeconds(nowTicks - bar.OpenTicks);
+        SetFlow(bar.Element, spawnFlow);
+        SetFlowSize(bar.Element, Math.Max(1, _speed * heldSeconds));
       }
       else
       {
-        var flow = GetFlow(bar.Element) + (IsReversed ? -movement : movement);
-        SetFlow(bar.Element, flow);
+        var idleSeconds = TicksToSeconds(nowTicks - bar.CloseTicks);
+        SetFlow(bar.Element, spawnFlow + direction * _speed * idleSeconds);
+        SetFlowSize(bar.Element, bar.ClosedLength);
       }
       if (styleChanged)
       {
@@ -139,12 +147,51 @@ internal sealed class KeyOverlayRenderer
       }
     }
 
+    if (_lastPressedState[lane] != isPressed)
+    {
+      _keyBackgrounds[lane].Fill = isPressed ? KeyPressedBrush : KeyIdleBrush;
+      _keyLabels[lane].Foreground = isPressed ? Brushes.White : LabelIdleBrush;
+      _lastPressedState[lane] = isPressed;
+    }
+
     while (bars.Count > 0 && IsOutside(bars[0].Element))
     {
       ReturnBar(lane, bars[0].Element);
       bars.RemoveAt(0);
     }
   }
+
+  private void ApplyTransition(int lane, List<BarState> bars, KeyOverlayTransition transition)
+  {
+    if (transition.IsPressed)
+    {
+      if (bars.Count == 0 || !bars[^1].IsHeld)
+        OpenBar(lane, bars, transition.TimestampTicks);
+    }
+    else if (bars.Count > 0 && bars[^1].IsHeld)
+    {
+      CloseBar(bars[^1], transition.TimestampTicks);
+    }
+  }
+
+  private void OpenBar(int lane, List<BarState> bars, long openTicks)
+  {
+    var element = RentBar(lane);
+    SetCross(element, lane);
+    SetCrossSize(element, _laneWidth);
+    element.RadiusX = _round;
+    element.RadiusY = _round;
+    bars.Add(new BarState(element) { IsHeld = true, OpenTicks = openTicks });
+  }
+
+  private void CloseBar(BarState bar, long closeTicks)
+  {
+    bar.IsHeld = false;
+    bar.CloseTicks = closeTicks;
+    bar.ClosedLength = Math.Max(1, _speed * TicksToSeconds(closeTicks - bar.OpenTicks));
+  }
+
+  private static double TicksToSeconds(long ticks) => ticks / (double)Stopwatch.Frequency;
 
   private Rectangle RentBar(int lane)
   {
@@ -171,6 +218,12 @@ internal sealed class KeyOverlayRenderer
     ? GetFlow(element) + GetFlowSize(element) < 0
     : GetFlow(element) > FlowLength;
 
+  private void EnsureEventBuckets(int laneCount)
+  {
+    while (_laneEventBuckets.Count < laneCount)
+      _laneEventBuckets.Add([]);
+  }
+
   private void EnsureLayout(KeyOverlaySnapshot snapshot)
   {
     if (HasSameLabels(snapshot))
@@ -178,6 +231,7 @@ internal sealed class KeyOverlayRenderer
 
     _canvas.Children.Clear();
     _bars.Clear();
+    _laneEventBuckets.Clear();
     _freeBars.Clear();
     _keyBackgrounds.Clear();
     _keyLabels.Clear();
