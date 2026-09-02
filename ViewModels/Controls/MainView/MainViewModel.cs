@@ -220,7 +220,6 @@ namespace OsuMate.ViewModels
           _memory.CurrentOsuGamemode,
           _ppService.CurrentManiaKeyCount,
           keyOverlayAddresses.GeneralData.AudioTime,
-          _ppService.CurrentSpeedMultiplier,
           keyOverlayAddresses.Player.IsReplay,
           _keyOverlayTransitionBuffer
         );

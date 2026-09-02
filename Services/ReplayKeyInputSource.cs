@@ -52,6 +52,7 @@ internal sealed class ReplayKeyInputSource
   private double? _lastReplayTimeMs;
   private long _lastRealTicks;
   private bool[] _lastPressed = [];
+  private FrameState[] _lastFrames = EmptyFrames;
 
   public ReplayKeyInputSource(
     Func<string> osuDirectory,
@@ -66,7 +67,6 @@ internal sealed class ReplayKeyInputSource
     KeyOverlaySnapshot layout,
     int mode,
     double audioTime,
-    double speedMultiplier,
     List<KeyOverlayTransition> transitions
   )
   {
@@ -81,14 +81,19 @@ internal sealed class ReplayKeyInputSource
 
     var nowTicks = Stopwatch.GetTimestamp();
     var frames = Volatile.Read(ref _frames);
+    if (!ReferenceEquals(frames, _lastFrames))
+    {
+      _lastFrames = frames;
+      _lastReplayTimeMs = null;
+    }
+
     if (frames.Length == 0)
     {
       ResetTo(new bool[laneCount], 0, nowTicks);
       return WithPressed(layout, _lastPressed);
     }
 
-    var speedRate = 1 / Math.Max(speedMultiplier, 0.01);
-    var replayTime = audioTime / speedRate;
+    var replayTime = audioTime;
 
     if (
       _lastReplayTimeMs is not { } previousReplayTime

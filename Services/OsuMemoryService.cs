@@ -150,7 +150,6 @@ namespace OsuMate.Services
       int gamemode,
       int? maniaKeyCount,
       double audioTime,
-      double speedMultiplier,
       bool isReplay,
       List<KeyOverlayTransition> transitions
     )
@@ -165,7 +164,7 @@ namespace OsuMate.Services
       if (isReplay)
       {
         DiscardRawInputTransitions();
-        return _replayKeyInput.DrainTransitions(layout.BlankSnapshot, gamemode, audioTime, speedMultiplier, transitions);
+        return _replayKeyInput.DrainTransitions(layout.BlankSnapshot, gamemode, audioTime, transitions);
       }
 
       return DrainLiveKeyOverlaySnapshot(layout, transitions);
