@@ -28,8 +28,6 @@ public sealed class RawInputService : IDisposable
   private HwndSource? _source;
   private Window? _window;
 
-  public event Action? PressedKeysChanged;
-
   public void Attach(Window window)
   {
     if (ReferenceEquals(_window, window))
@@ -79,53 +77,69 @@ public sealed class RawInputService : IDisposable
   private IntPtr WndProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
   {
     if (message == WmInput)
+    {
       ProcessRawInput(lParam);
+      handled = true;
+    }
     return IntPtr.Zero;
   }
 
+  private readonly IntPtr _rawInputBuffer = Marshal.AllocHGlobal(256);
+
   private void ProcessRawInput(IntPtr rawInputHandle)
   {
-    uint size = 0;
-    if (GetRawInputData(rawInputHandle, RidInput, IntPtr.Zero, ref size, (uint)Marshal.SizeOf<RawInputHeader>()) != 0 || size == 0)
+    uint size = 256;
+    if (GetRawInputData(rawInputHandle, RidInput, _rawInputBuffer, ref size, (uint)Marshal.SizeOf<RawInputHeader>()) == uint.MaxValue || size == 0)
       return;
 
-    var buffer = Marshal.AllocHGlobal((int)size);
-    try
+    var type = Marshal.ReadInt32(_rawInputBuffer, 0);
+    var headerSize = IntPtr.Size == 8 ? 24 : 16;
+    if (type == RimTypeKeyboard)
     {
-      if (GetRawInputData(rawInputHandle, RidInput, buffer, ref size, (uint)Marshal.SizeOf<RawInputHeader>()) != size)
+      var vk = (Keys)(Marshal.ReadInt16(_rawInputBuffer, headerSize + 6) & 0xFF);
+      if (!_activeKeys.Contains(vk))
+        return;
+      var flags = Marshal.ReadInt16(_rawInputBuffer, headerSize + 2);
+      SetPressed(vk, (flags & RiKeyBreak) == 0);
+    }
+    else if (type == RimTypeMouse)
+    {
+      var active = _activeKeys;
+      if (!active.Contains(Keys.LButton) && !active.Contains(Keys.RButton))
         return;
 
-      var header = Marshal.PtrToStructure<RawInputHeader>(buffer);
-      var data = IntPtr.Add(buffer, Marshal.SizeOf<RawInputHeader>());
-      if (header.Type == RimTypeKeyboard)
-        ProcessKeyboard(Marshal.PtrToStructure<RawKeyboard>(data));
-      else if (header.Type == RimTypeMouse)
-        ProcessMouse(Marshal.PtrToStructure<RawMouse>(data));
+      var flags = Marshal.ReadInt16(_rawInputBuffer, headerSize + 4);
+      if (flags != 0)
+      {
+        if (active.Contains(Keys.LButton))
+        {
+          if ((flags & RiMouseLeftButtonDown) != 0)
+            SetPressed(Keys.LButton, true);
+          if ((flags & RiMouseLeftButtonUp) != 0)
+            SetPressed(Keys.LButton, false);
+        }
+        if (active.Contains(Keys.RButton))
+        {
+          if ((flags & RiMouseRightButtonDown) != 0)
+            SetPressed(Keys.RButton, true);
+          if ((flags & RiMouseRightButtonUp) != 0)
+            SetPressed(Keys.RButton, false);
+        }
+      }
     }
-    finally
+  }
+
+  private volatile HashSet<Keys> _activeKeys = [];
+
+  internal void SetActiveKeys(IEnumerable<Keys> keys)
+  {
+    var set = new HashSet<Keys>();
+    foreach (var k in keys)
     {
-      Marshal.FreeHGlobal(buffer);
+      if (k != Keys.None)
+        set.Add(k);
     }
-  }
-
-  private void ProcessKeyboard(RawKeyboard keyboard)
-  {
-    var key = (Keys)keyboard.VirtualKey & Keys.KeyCode;
-    if (key == Keys.None || key == Keys.Packet)
-      return;
-    SetPressed(key, (keyboard.Flags & RiKeyBreak) == 0);
-  }
-
-  private void ProcessMouse(RawMouse mouse)
-  {
-    if ((mouse.ButtonFlags & RiMouseLeftButtonDown) != 0)
-      SetPressed(Keys.LButton, true);
-    if ((mouse.ButtonFlags & RiMouseLeftButtonUp) != 0)
-      SetPressed(Keys.LButton, false);
-    if ((mouse.ButtonFlags & RiMouseRightButtonDown) != 0)
-      SetPressed(Keys.RButton, true);
-    if ((mouse.ButtonFlags & RiMouseRightButtonUp) != 0)
-      SetPressed(Keys.RButton, false);
+    _activeKeys = set;
   }
 
   private void SetPressed(Keys key, bool pressed)
@@ -134,7 +148,6 @@ public sealed class RawInputService : IDisposable
     if (!changed)
       return;
     _transitions.Enqueue(new KeyTransition(key, pressed, Stopwatch.GetTimestamp()));
-    PressedKeysChanged?.Invoke();
   }
 
   internal void DrainTransitions(List<KeyTransition> destination)
@@ -154,7 +167,11 @@ public sealed class RawInputService : IDisposable
     while (_transitions.TryDequeue(out _)) { }
   }
 
-  public void Dispose() => Detach();
+  public void Dispose()
+  {
+    Detach();
+    Marshal.FreeHGlobal(_rawInputBuffer);
+  }
 
   [StructLayout(LayoutKind.Sequential)]
   private struct RawInputDevice

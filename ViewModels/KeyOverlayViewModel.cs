@@ -10,6 +10,7 @@ namespace OsuMate.ViewModels
     private KeyOverlaySnapshot _layout = KeyOverlaySnapshot.Empty;
 
     internal KeyOverlaySnapshot Layout => Volatile.Read(ref _layout);
+    internal Action? RequestUpdate { get; set; }
 
     internal void Publish(KeyOverlaySnapshot layout, List<KeyOverlayTransition> transitions)
     {

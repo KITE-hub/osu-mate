@@ -29,7 +29,6 @@ namespace OsuMate.Services
     private Dictionary<string, string> _keyConfigValues = [];
 
     public event Action? OnMemoryRead;
-    public event Action? OnKeyOverlayInputChanged;
     public event Action<IntPtr>? OnOsuWindowFound;
 
     public event Action<OsuMemoryStatus, OsuMemoryStatus>? OnStatusChanged;
@@ -72,7 +71,6 @@ namespace OsuMate.Services
     public OsuMemoryService(RawInputService rawInput)
     {
       _rawInput = rawInput;
-      _rawInput.PressedKeysChanged += () => OnKeyOverlayInputChanged?.Invoke();
       _replayKeyInput = new ReplayKeyInputSource(() => OsuDirectory, GetCurrentBeatmap);
       _hitErrorStore = new HitErrorSnapshotStore(_baseAddresses);
       _urTimelineStore = new UrTimelineStore(_baseAddresses);
@@ -145,6 +143,7 @@ namespace OsuMate.Services
     private LaneBinding[] _liveTransitionBindings = [];
     private int[] _liveTransitionHoldCount = [];
     private bool[] _liveTransitionPressed = [];
+    private KeyOverlaySnapshot _cachedLiveSnapshot = KeyOverlaySnapshot.Empty;
 
     internal KeyOverlaySnapshot DrainKeyOverlayUpdate(
       int gamemode,
@@ -186,6 +185,15 @@ namespace OsuMate.Services
       _liveTransitionBindings = layout.Bindings;
       _liveTransitionHoldCount = new int[layout.Bindings.Length];
       _liveTransitionPressed = new bool[layout.Bindings.Length];
+      _cachedLiveSnapshot = layout.BlankSnapshot;
+
+      var activeKeys = new List<Keys>(layout.Bindings.Length * 2);
+      foreach (var b in layout.Bindings)
+      {
+        activeKeys.Add(b.Key);
+        activeKeys.Add(b.MouseFallback);
+      }
+      _rawInput.SetActiveKeys(activeKeys);
     }
 
     private KeyOverlaySnapshot DrainLiveKeyOverlaySnapshot(ResolvedKeyLayout layout, List<KeyOverlayTransition> transitions)
@@ -219,10 +227,14 @@ namespace OsuMate.Services
           }
         }
 
+        if (transitions.Count == 0 && _cachedLiveSnapshot.Keys.Length == layout.Labels.Length)
+          return _cachedLiveSnapshot;
+
         var keys = new KeyOverlayKeyState[layout.Labels.Length];
         for (var i = 0; i < keys.Length; i++)
           keys[i] = new KeyOverlayKeyState(layout.Labels[i], pressed[i]);
-        return new KeyOverlaySnapshot(keys);
+        _cachedLiveSnapshot = new KeyOverlaySnapshot(keys);
+        return _cachedLiveSnapshot;
       }
     }
 
@@ -328,6 +340,9 @@ namespace OsuMate.Services
     private bool EnsureKeyConfigCache()
     {
       var now = DateTime.UtcNow;
+      if (now - _keyConfigLastCheckedUtc < KeyConfigRecheckInterval)
+        return false;
+
       lock (_keyConfigLock)
       {
         if (now - _keyConfigLastCheckedUtc < KeyConfigRecheckInterval)
@@ -535,7 +550,6 @@ namespace OsuMate.Services
               _hitErrorStore.ReadPlayerMemory(_sreader);
               _sreader.TryRead(_baseAddresses.GeneralData);
               _sreader.TryRead(_baseAddresses.ResultsScreen);
-              _sreader.TryRead(_baseAddresses.KeyOverlay);
 
               var newStatus = _baseAddresses.GeneralData.OsuStatus;
               CurrentStatus = newStatus;

@@ -1,17 +1,33 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Shapes;
 using OsuMate.Models;
 
 namespace OsuMate.Views.Controls;
 
 internal sealed class KeyOverlayRenderer
 {
-  private sealed class BarState(Rectangle element)
+  private sealed class VisualHost : FrameworkElement
   {
-    public Rectangle Element { get; } = element;
+    private readonly DrawingVisual _visual = new();
+
+    public VisualHost()
+    {
+      IsHitTestVisible = false;
+      AddVisualChild(_visual);
+    }
+
+    protected override int VisualChildrenCount => 1;
+    protected override Visual GetVisualChild(int index) =>
+      index == 0 ? _visual : throw new ArgumentOutOfRangeException(nameof(index));
+
+    public DrawingContext RenderOpen() => _visual.RenderOpen();
+  }
+
+  private sealed class BarState
+  {
     public bool IsHeld { get; set; }
     public long OpenTicks { get; set; }
     public long CloseTicks { get; set; }
@@ -22,28 +38,31 @@ internal sealed class KeyOverlayRenderer
   private const double Gap = 4;
   private const double Margin = 4;
   private readonly Canvas _canvas;
+  private readonly VisualHost _host = new();
+  private readonly Stack<BarState> _barPool = new();
   private readonly List<List<BarState>> _bars = [];
   private readonly List<List<KeyOverlayTransition>> _laneEventBuckets = [];
-  private readonly List<Stack<Rectangle>> _freeBars = [];
-  private readonly List<Rectangle> _keyBackgrounds = [];
-  private readonly List<TextBlock> _keyLabels = [];
-  private readonly List<bool?> _lastPressedState = [];
+  private readonly List<FormattedText> _idleLabels = [];
+  private readonly List<FormattedText> _pressedLabels = [];
   private KeyOverlaySnapshot _layout = KeyOverlaySnapshot.Empty;
+  private double _lastDpi = double.NaN;
   private int _rotation;
   private double _speed = 600;
   private double _round = 4;
   private double _laneWidth = 64;
-  private int _lastLayoutRotation = int.MinValue;
-  private double _lastLayoutLaneWidth = double.NaN;
-  private double _lastLayoutFlowLength = double.NaN;
-  private int _styleVersion;
-  private int _appliedStyleVersion = -1;
 
   private static readonly Brush KeyPressedBrush = CreateFrozenBrush(110, 255, 255, 255);
   private static readonly Brush KeyIdleBrush = CreateFrozenBrush(28, 255, 255, 255);
   private static readonly Brush LabelIdleBrush = CreateFrozenBrush(180, 255, 255, 255);
   private static readonly Brush BarBrush = CreateFrozenBrush(145, 255, 255, 255);
   private static readonly Brush BorderBrush = CreateFrozenBrush(180, 255, 255, 255);
+  private static readonly Pen BorderPen = CreateFrozenPen(BorderBrush, 1);
+  private static readonly Typeface KeyTypeface = new(
+    new FontFamily("pack://application:,,,/Resources/Fonts/Oxanium/#Oxanium"),
+    FontStyles.Normal,
+    FontWeights.SemiBold,
+    FontStretches.Normal
+  );
 
   private static SolidColorBrush CreateFrozenBrush(byte a, byte r, byte g, byte b)
   {
@@ -52,7 +71,19 @@ internal sealed class KeyOverlayRenderer
     return brush;
   }
 
-  public KeyOverlayRenderer(Canvas canvas) => _canvas = canvas;
+  private static Pen CreateFrozenPen(Brush brush, double thickness)
+  {
+    var pen = new Pen(brush, thickness);
+    pen.Freeze();
+    return pen;
+  }
+
+  public KeyOverlayRenderer(Canvas canvas)
+  {
+    _canvas = canvas;
+    _canvas.Children.Clear();
+    _canvas.Children.Add(_host);
+  }
 
   public void UpdateSettings(int rotation, double speed, double round, double laneWidth)
   {
@@ -60,7 +91,6 @@ internal sealed class KeyOverlayRenderer
     _speed = Math.Clamp(speed, 50, 3000);
     _round = Math.Clamp(round, 0, 32);
     _laneWidth = Math.Clamp(laneWidth, 24, 160);
-    _styleVersion++;
   }
 
   public Size GetRequiredSize(int laneCount, double flowLength)
@@ -75,8 +105,9 @@ internal sealed class KeyOverlayRenderer
     if (snapshot.Keys.Length == 0)
       return;
 
-    LayoutStaticElements();
-    var styleChanged = _appliedStyleVersion != _styleVersion;
+    var flowLength = FlowLength;
+    if (flowLength <= 0)
+      return;
 
     EnsureEventBuckets(snapshot.Keys.Length);
     foreach (var bucket in _laneEventBuckets)
@@ -87,11 +118,15 @@ internal sealed class KeyOverlayRenderer
         _laneEventBuckets[transition.LaneIndex].Add(transition);
     }
 
-    for (var i = 0; i < snapshot.Keys.Length; i++)
-      RenderLane(i, snapshot.Keys[i].IsPressed, _laneEventBuckets[i], nowTicks, styleChanged);
+    var spawnFlow = SpawnFlow;
 
-    if (styleChanged)
-      _appliedStyleVersion = _styleVersion;
+    using var dc = _host.RenderOpen();
+
+    for (var lane = 0; lane < snapshot.Keys.Length; lane++)
+      RenderLaneBars(dc, lane, snapshot.Keys[lane].IsPressed, _laneEventBuckets[lane], nowTicks, spawnFlow, flowLength);
+
+    for (var lane = 0; lane < snapshot.Keys.Length; lane++)
+      RenderKey(dc, lane, snapshot.Keys[lane].IsPressed, flowLength);
   }
 
   private bool IsHorizontal => _rotation is 90 or 270;
@@ -99,7 +134,15 @@ internal sealed class KeyOverlayRenderer
   private double FlowLength => IsHorizontal ? _canvas.ActualWidth : _canvas.ActualHeight;
   private double SpawnFlow => IsReversed ? FlowLength - KeyLength - Gap : KeyLength + Gap;
 
-  private void RenderLane(int lane, bool isPressed, List<KeyOverlayTransition> events, long nowTicks, bool styleChanged)
+  private void RenderLaneBars(
+    DrawingContext dc,
+    int lane,
+    bool isPressed,
+    List<KeyOverlayTransition> events,
+    long nowTicks,
+    double spawnFlow,
+    double flowLength
+  )
   {
     var bars = _bars[lane];
 
@@ -107,65 +150,94 @@ internal sealed class KeyOverlayRenderer
       ApplyTransition(lane, bars, transition);
 
     if (isPressed && (bars.Count == 0 || !bars[^1].IsHeld))
-      OpenBar(lane, bars, nowTicks);
+      OpenBar(bars, nowTicks);
     else if (!isPressed && bars.Count > 0 && bars[^1].IsHeld)
       CloseBar(bars[^1], nowTicks);
 
-    if (!isPressed && bars.Count == 0)
+    var outsideCount = 0;
+    while (outsideCount < bars.Count && IsOutside(bars[outsideCount], spawnFlow, flowLength, nowTicks))
+      outsideCount++;
+
+    if (outsideCount > 0)
     {
-      if (_lastPressedState[lane] != false)
-      {
-        _keyBackgrounds[lane].Fill = KeyIdleBrush;
-        _keyLabels[lane].Foreground = LabelIdleBrush;
-        _lastPressedState[lane] = false;
-      }
-      return;
+      for (var i = 0; i < outsideCount; i++)
+        ReturnBar(bars[i]);
+      bars.RemoveRange(0, outsideCount);
     }
 
-    var spawnFlow = SpawnFlow;
-
-    foreach (var bar in bars)
+    var excess = bars.Count - 40;
+    if (excess > 0)
     {
+      for (var i = 0; i < excess; i++)
+        ReturnBar(bars[i]);
+      bars.RemoveRange(0, excess);
+    }
+
+    var cross = CrossPosition(lane);
+    var maxR = _laneWidth * 0.5;
+
+    for (var i = 0; i < bars.Count; i++)
+    {
+      var bar = bars[i];
       var length = bar.IsHeld
         ? Math.Max(1, _speed * TicksToSeconds(nowTicks - bar.OpenTicks))
         : bar.ClosedLength;
       var offset = bar.IsHeld
         ? 0.0
-        : _speed * TicksToSeconds(nowTicks - bar.CloseTicks);
+        : Math.Max(0.0, _speed * TicksToSeconds(nowTicks - bar.CloseTicks));
       var flow = IsReversed
         ? spawnFlow - offset - length
         : spawnFlow + offset;
 
-      SetFlow(bar.Element, flow);
-      SetFlowSize(bar.Element, length);
-      if (styleChanged)
-      {
-        SetCrossSize(bar.Element, _laneWidth);
-        bar.Element.RadiusX = _round;
-        bar.Element.RadiusY = _round;
-      }
-    }
+      var barRect = IsHorizontal
+        ? new Rect(flow, cross, length, _laneWidth)
+        : new Rect(cross, flow, _laneWidth, length);
 
-    if (_lastPressedState[lane] != isPressed)
-    {
-      _keyBackgrounds[lane].Fill = isPressed ? KeyPressedBrush : KeyIdleBrush;
-      _keyLabels[lane].Foreground = isPressed ? Brushes.White : LabelIdleBrush;
-      _lastPressedState[lane] = isPressed;
+      var r = Math.Min(_round, Math.Min(maxR, length * 0.5));
+      if (r < 1.0)
+        dc.DrawRectangle(BarBrush, null, barRect);
+      else
+        dc.DrawRoundedRectangle(BarBrush, null, barRect, r, r);
     }
+  }
 
-    while (bars.Count > 0 && IsOutside(bars[0].Element))
-    {
-      ReturnBar(lane, bars[0].Element);
-      bars.RemoveAt(0);
-    }
+  private void RenderKey(DrawingContext dc, int lane, bool isPressed, double flowLength)
+  {
+    var keyFlow = IsReversed ? Math.Max(0, flowLength - KeyLength) : 0;
+    var cross = CrossPosition(lane);
+
+    var keyRect = IsHorizontal
+      ? new Rect(keyFlow + 0.5, cross + 0.5, KeyLength - 1, _laneWidth - 1)
+      : new Rect(cross + 0.5, keyFlow + 0.5, _laneWidth - 1, KeyLength - 1);
+
+    var fill = isPressed ? KeyPressedBrush : KeyIdleBrush;
+    dc.DrawRoundedRectangle(fill, BorderPen, keyRect, 4, 4);
+
+    var label = isPressed ? _pressedLabels[lane] : _idleLabels[lane];
+    var textOrigin = IsHorizontal
+      ? new Point(keyFlow + (KeyLength - label.Width) / 2, cross + (_laneWidth - label.Height) / 2)
+      : new Point(cross + (_laneWidth - label.Width) / 2, keyFlow + (KeyLength - label.Height) / 2);
+
+    dc.DrawText(label, textOrigin);
   }
 
   private void ApplyTransition(int lane, List<BarState> bars, KeyOverlayTransition transition)
   {
     if (transition.IsPressed)
     {
+      if (bars.Count > 0 && !bars[^1].IsHeld)
+      {
+        var gapTicks = transition.TimestampTicks - bars[^1].CloseTicks;
+        if (gapTicks <= 0 || TicksToSeconds(gapTicks) * _speed < 1.5)
+        {
+          bars[^1].IsHeld = true;
+          bars[^1].CloseTicks = 0;
+          bars[^1].ClosedLength = 0;
+          return;
+        }
+      }
       if (bars.Count == 0 || !bars[^1].IsHeld)
-        OpenBar(lane, bars, transition.TimestampTicks);
+        OpenBar(bars, transition.TimestampTicks);
     }
     else if (bars.Count > 0 && bars[^1].IsHeld)
     {
@@ -173,49 +245,42 @@ internal sealed class KeyOverlayRenderer
     }
   }
 
-  private void OpenBar(int lane, List<BarState> bars, long openTicks)
+  private void OpenBar(List<BarState> bars, long openTicks)
   {
-    var element = RentBar(lane);
-    SetCross(element, lane);
-    SetCrossSize(element, _laneWidth);
-    element.RadiusX = _round;
-    element.RadiusY = _round;
-    bars.Add(new BarState(element) { IsHeld = true, OpenTicks = openTicks });
+    bars.Add(RentBar(openTicks));
   }
 
   private void CloseBar(BarState bar, long closeTicks)
   {
     bar.IsHeld = false;
     bar.CloseTicks = closeTicks;
-    bar.ClosedLength = Math.Max(1, _speed * TicksToSeconds(closeTicks - bar.OpenTicks));
+    bar.ClosedLength = Math.Max(1, _speed * Math.Max(0, TicksToSeconds(closeTicks - bar.OpenTicks)));
   }
 
   private static double TicksToSeconds(long ticks) => ticks / (double)Stopwatch.Frequency;
 
-  private Rectangle RentBar(int lane)
+  private BarState RentBar(long openTicks)
   {
-    var pool = _freeBars[lane];
-    if (pool.Count > 0)
+    if (_barPool.TryPop(out var bar))
     {
-      var reused = pool.Pop();
-      reused.Visibility = Visibility.Visible;
-      return reused;
+      bar.IsHeld = true;
+      bar.OpenTicks = openTicks;
+      bar.CloseTicks = 0;
+      bar.ClosedLength = 0;
+      return bar;
     }
-
-    var element = new Rectangle { Fill = BarBrush, RadiusX = _round, RadiusY = _round };
-    _canvas.Children.Add(element);
-    return element;
+    return new BarState { IsHeld = true, OpenTicks = openTicks };
   }
 
-  private void ReturnBar(int lane, Rectangle element)
+  private void ReturnBar(BarState bar) => _barPool.Push(bar);
+
+  private bool IsOutside(BarState bar, double spawnFlow, double flowLength, long nowTicks)
   {
-    element.Visibility = Visibility.Collapsed;
-    _freeBars[lane].Push(element);
+    if (bar.IsHeld)
+      return false;
+    var offset = _speed * TicksToSeconds(nowTicks - bar.CloseTicks);
+    return IsReversed ? spawnFlow - offset < 0 : spawnFlow + offset > flowLength;
   }
-
-  private bool IsOutside(Rectangle element) => IsReversed
-    ? GetFlow(element) + GetFlowSize(element) < 0
-    : GetFlow(element) > FlowLength;
 
   private void EnsureEventBuckets(int laneCount)
   {
@@ -223,48 +288,61 @@ internal sealed class KeyOverlayRenderer
       _laneEventBuckets.Add([]);
   }
 
+  private double GetDpi()
+  {
+    try
+    {
+      var source = PresentationSource.FromVisual(_canvas);
+      if (source?.CompositionTarget != null)
+        return VisualTreeHelper.GetDpi(_canvas).PixelsPerDip;
+    }
+    catch
+    {
+    }
+    return 1.0;
+  }
+
   private void EnsureLayout(KeyOverlaySnapshot snapshot)
   {
-    if (HasSameLabels(snapshot))
+    var dpi = GetDpi();
+    if (HasSameLabels(snapshot) && Math.Abs(_lastDpi - dpi) < 0.001)
       return;
 
-    _canvas.Children.Clear();
+    foreach (var laneBars in _bars)
+    {
+      foreach (var bar in laneBars)
+        ReturnBar(bar);
+      laneBars.Clear();
+    }
     _bars.Clear();
-    _laneEventBuckets.Clear();
-    _freeBars.Clear();
-    _keyBackgrounds.Clear();
-    _keyLabels.Clear();
-    _lastPressedState.Clear();
-    _lastLayoutRotation = int.MinValue;
+    _idleLabels.Clear();
+    _pressedLabels.Clear();
+
     for (var i = 0; i < snapshot.Keys.Length; i++)
     {
-      var background = new Rectangle
-      {
-        Stroke = BorderBrush,
-        StrokeThickness = 1,
-        RadiusX = 4,
-        RadiusY = 4,
-        CacheMode = new BitmapCache(),
-      };
-      var label = new TextBlock
-      {
-        Text = snapshot.Keys[i].Label,
-        FontSize = 14,
-        FontWeight = FontWeights.SemiBold,
-        FontFamily = new FontFamily("pack://application:,,,/Resources/Fonts/Oxanium/#Oxanium"),
-        TextAlignment = TextAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
-        CacheMode = new BitmapCache(),
-      };
-      _canvas.Children.Add(background);
-      _canvas.Children.Add(label);
-      _keyBackgrounds.Add(background);
-      _keyLabels.Add(label);
+      var text = snapshot.Keys[i].Label;
+      _idleLabels.Add(new FormattedText(
+        text,
+        CultureInfo.InvariantCulture,
+        FlowDirection.LeftToRight,
+        KeyTypeface,
+        14,
+        LabelIdleBrush,
+        dpi
+      ));
+      _pressedLabels.Add(new FormattedText(
+        text,
+        CultureInfo.InvariantCulture,
+        FlowDirection.LeftToRight,
+        KeyTypeface,
+        14,
+        Brushes.White,
+        dpi
+      ));
       _bars.Add([]);
-      _freeBars.Add(new Stack<Rectangle>());
-      _lastPressedState.Add(null);
     }
     _layout = snapshot;
+    _lastDpi = dpi;
   }
 
   private bool HasSameLabels(KeyOverlaySnapshot snapshot)
@@ -279,63 +357,5 @@ internal sealed class KeyOverlayRenderer
     return true;
   }
 
-  private void LayoutStaticElements()
-  {
-    var flowLength = FlowLength;
-    if (_lastLayoutRotation == _rotation && _lastLayoutLaneWidth == _laneWidth && _lastLayoutFlowLength == flowLength)
-      return;
-
-    for (var i = 0; i < _keyBackgrounds.Count; i++)
-    {
-      var flow = IsReversed ? Math.Max(0, flowLength - KeyLength) : 0;
-      SetCross(_keyBackgrounds[i], i);
-      SetCross(_keyLabels[i], i);
-      SetFlow(_keyBackgrounds[i], flow);
-      SetFlow(_keyLabels[i], flow);
-      SetCrossSize(_keyBackgrounds[i], _laneWidth);
-      SetCrossSize(_keyLabels[i], _laneWidth);
-      SetFlowSize(_keyBackgrounds[i], KeyLength);
-      SetFlowSize(_keyLabels[i], KeyLength);
-    }
-
-    _lastLayoutRotation = _rotation;
-    _lastLayoutLaneWidth = _laneWidth;
-    _lastLayoutFlowLength = flowLength;
-  }
-
   private double CrossPosition(int lane) => Margin + lane * (_laneWidth + Gap);
-  private void SetCross(FrameworkElement element, int lane)
-  {
-    if (IsHorizontal)
-      Canvas.SetTop(element, CrossPosition(lane));
-    else
-      Canvas.SetLeft(element, CrossPosition(lane));
-  }
-
-  private void SetFlow(FrameworkElement element, double value)
-  {
-    if (IsHorizontal)
-      Canvas.SetLeft(element, value);
-    else
-      Canvas.SetTop(element, value);
-  }
-
-  private double GetFlow(FrameworkElement element) => IsHorizontal ? Canvas.GetLeft(element) : Canvas.GetTop(element);
-  private void SetCrossSize(FrameworkElement element, double value)
-  {
-    if (IsHorizontal)
-      element.Height = value;
-    else
-      element.Width = value;
-  }
-
-  private void SetFlowSize(FrameworkElement element, double value)
-  {
-    if (IsHorizontal)
-      element.Width = value;
-    else
-      element.Height = value;
-  }
-
-  private double GetFlowSize(FrameworkElement element) => IsHorizontal ? element.Width : element.Height;
 }

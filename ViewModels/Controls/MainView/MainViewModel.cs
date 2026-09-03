@@ -75,8 +75,8 @@ namespace OsuMate.ViewModels
       _primaryDispatcher = primaryDispatcher;
       _ppService.OnCalculated += UpdateUI;
       _memory.OnMemoryRead += UpdateFastUI;
-      _memory.OnMemoryRead += UpdateKeyOverlay;
-      _memory.OnKeyOverlayInputChanged += UpdateKeyOverlay;
+      _memory.OnMemoryRead += UpdateKeyOverlayFromMemoryRead;
+      KeyOverlay.RequestUpdate = UpdateKeyOverlay;
       _memory.OnOsuWindowFound += handle => OnOsuWindowFound?.Invoke(handle);
       StrainGraph = new(Theme.Current);
       URTimeGraph = new(Theme.Current);
@@ -210,11 +210,22 @@ namespace OsuMate.ViewModels
 
     private readonly ModifiedHitErrorCache _modifiedHitErrorCache = new();
 
-    private void UpdateKeyOverlay()
+    private void UpdateKeyOverlayFromMemoryRead()
     {
       var keyOverlayAddresses = _memory.GetBaseAddressSnapshot();
-      lock (_keyOverlayLock)
+      if (!keyOverlayAddresses.Player.IsReplay)
+        return;
+      UpdateKeyOverlay();
+    }
+
+    private void UpdateKeyOverlay()
+    {
+      if (!Monitor.TryEnter(_keyOverlayLock))
+        return;
+
+      try
       {
+        var keyOverlayAddresses = _memory.GetBaseAddressSnapshot();
         _keyOverlayTransitionBuffer.Clear();
         var layout = _memory.DrainKeyOverlayUpdate(
           _memory.CurrentOsuGamemode,
@@ -224,6 +235,10 @@ namespace OsuMate.ViewModels
           _keyOverlayTransitionBuffer
         );
         KeyOverlay.Publish(layout, _keyOverlayTransitionBuffer);
+      }
+      finally
+      {
+        Monitor.Exit(_keyOverlayLock);
       }
     }
 

@@ -69,6 +69,8 @@ namespace OsuMate.Views
       if (!IsLoaded || !IsVisible)
         return;
 
+      _vm.RequestUpdate?.Invoke();
+
       var layout = _vm.Layout;
       _transitionBuffer.Clear();
       _vm.DrainTransitions(_transitionBuffer);
