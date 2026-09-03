@@ -97,7 +97,7 @@ internal sealed class KeyOverlayRenderer
   private bool IsHorizontal => _rotation is 90 or 270;
   private bool IsReversed => _rotation is 180 or 270;
   private double FlowLength => IsHorizontal ? _canvas.ActualWidth : _canvas.ActualHeight;
-  private double SpawnFlow => IsReversed ? FlowLength - KeyLength - Gap - 1 : KeyLength + Gap;
+  private double SpawnFlow => IsReversed ? FlowLength - KeyLength - Gap : KeyLength + Gap;
 
   private void RenderLane(int lane, bool isPressed, List<KeyOverlayTransition> events, long nowTicks, bool styleChanged)
   {
@@ -123,22 +123,21 @@ internal sealed class KeyOverlayRenderer
     }
 
     var spawnFlow = SpawnFlow;
-    var direction = IsReversed ? -1.0 : 1.0;
 
     foreach (var bar in bars)
     {
-      if (bar.IsHeld)
-      {
-        var heldSeconds = TicksToSeconds(nowTicks - bar.OpenTicks);
-        SetFlow(bar.Element, spawnFlow);
-        SetFlowSize(bar.Element, Math.Max(1, _speed * heldSeconds));
-      }
-      else
-      {
-        var idleSeconds = TicksToSeconds(nowTicks - bar.CloseTicks);
-        SetFlow(bar.Element, spawnFlow + direction * _speed * idleSeconds);
-        SetFlowSize(bar.Element, bar.ClosedLength);
-      }
+      var length = bar.IsHeld
+        ? Math.Max(1, _speed * TicksToSeconds(nowTicks - bar.OpenTicks))
+        : bar.ClosedLength;
+      var offset = bar.IsHeld
+        ? 0.0
+        : _speed * TicksToSeconds(nowTicks - bar.CloseTicks);
+      var flow = IsReversed
+        ? spawnFlow - offset - length
+        : spawnFlow + offset;
+
+      SetFlow(bar.Element, flow);
+      SetFlowSize(bar.Element, length);
       if (styleChanged)
       {
         SetCrossSize(bar.Element, _laneWidth);

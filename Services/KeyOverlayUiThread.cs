@@ -63,12 +63,11 @@ namespace OsuMate.Services
       double flowLength,
       double speed,
       double round,
-      double laneWidth,
-      int renderIntervalMs
+      double laneWidth
     ) =>
       _dispatcher.Invoke(
         () =>
-          _window.UpdateSettings(rotation, flowLength, speed, round, laneWidth, renderIntervalMs)
+          _window.UpdateSettings(rotation, flowLength, speed, round, laneWidth)
       );
 
     public void SetPosition(double left, double top) =>

@@ -213,7 +213,6 @@ namespace OsuMate.Services
           || e.PropertyName == nameof(SettingsViewModel.KeyOverlayBarSpeed)
           || e.PropertyName == nameof(SettingsViewModel.KeyOverlayBarRound)
           || e.PropertyName == nameof(SettingsViewModel.KeyOverlayLaneWidth)
-          || e.PropertyName == nameof(SettingsViewModel.DataUpdateIntervalMs)
         )
         {
           ApplyKeyOverlaySettings();
@@ -510,8 +509,7 @@ namespace OsuMate.Services
         _settingsVm.KeyOverlayHeight,
         _settingsVm.KeyOverlayBarSpeed,
         _settingsVm.KeyOverlayBarRound,
-        _settingsVm.KeyOverlayLaneWidth,
-        _settingsVm.DataUpdateIntervalMs
+        _settingsVm.KeyOverlayLaneWidth
       );
     }
   }

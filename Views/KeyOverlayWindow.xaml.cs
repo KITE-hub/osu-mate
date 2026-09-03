@@ -14,9 +14,7 @@ namespace OsuMate.Views
   {
     private readonly KeyOverlayViewModel _vm;
     private readonly KeyOverlayRenderer _renderer;
-    private readonly DispatcherTimer _renderTimer;
     private readonly List<KeyOverlayTransition> _transitionBuffer = [];
-    private const int DefaultRenderIntervalMs = 33;
     private bool _isDraggable;
     private int _rotation;
     private double _flowLength = 700;
@@ -38,12 +36,7 @@ namespace OsuMate.Views
       InitializeComponent();
       _vm = vm;
       _renderer = new KeyOverlayRenderer(BarsCanvas);
-      _renderTimer = new DispatcherTimer(DispatcherPriority.Render)
-      {
-        Interval = TimeSpan.FromMilliseconds(DefaultRenderIntervalMs),
-      };
-      _renderTimer.Tick += OnRenderTick;
-      _renderTimer.Start();
+      CompositionTarget.Rendering += OnRendering;
     }
 
     public void SetDraggable(bool draggable)
@@ -61,26 +54,24 @@ namespace OsuMate.Views
       double flowLength,
       double speed,
       double round,
-      double laneWidth,
-      int renderIntervalMs
+      double laneWidth
     )
     {
       _rotation = (int)Math.Round((((rotation % 360) + 360) % 360) / 90.0) * 90 % 360;
       _flowLength = Math.Max(120, flowLength);
       _renderer.UpdateSettings(_rotation, speed, round, laneWidth);
-      _renderTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, renderIntervalMs));
       ApplySize(_vm.Layout.Keys.Length);
       UpdateResizeHandle();
     }
 
-    private void OnRenderTick(object? sender, EventArgs e)
+    private void OnRendering(object? sender, EventArgs e)
     {
+      if (!IsLoaded || !IsVisible)
+        return;
+
       var layout = _vm.Layout;
       _transitionBuffer.Clear();
       _vm.DrainTransitions(_transitionBuffer);
-
-      if (!IsLoaded || !IsVisible)
-        return;
 
       if (_laneCount != layout.Keys.Length)
       {
@@ -189,8 +180,7 @@ namespace OsuMate.Views
 
     protected override void OnClosed(EventArgs e)
     {
-      _renderTimer.Stop();
-      _renderTimer.Tick -= OnRenderTick;
+      CompositionTarget.Rendering -= OnRendering;
       base.OnClosed(e);
     }
   }
