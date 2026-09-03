@@ -15,12 +15,9 @@ namespace OsuMate.Services
     public event Action<double, double>? PositionChanged;
     public event Action<double>? FlowLengthChanged;
 
-    public KeyOverlayUiThread(
-      KeyOverlayViewModel vm,
-      RawInputService rawInput
-    )
+    public KeyOverlayUiThread(KeyOverlayViewModel vm)
     {
-      _thread = new Thread(() => Run(vm, rawInput)) { IsBackground = true };
+      _thread = new Thread(() => Run(vm)) { IsBackground = true };
       _thread.SetApartmentState(ApartmentState.STA);
       _thread.Start();
       _ready.Wait();
@@ -31,14 +28,13 @@ namespace OsuMate.Services
         );
     }
 
-    private void Run(KeyOverlayViewModel vm, RawInputService rawInput)
+    private void Run(KeyOverlayViewModel vm)
     {
       try
       {
         _window = new Views.KeyOverlayWindow(vm);
         _window.PositionChanged += (left, top) => PositionChanged?.Invoke(left, top);
         _window.FlowLengthChanged += length => FlowLengthChanged?.Invoke(length);
-        rawInput.Attach(_window);
         _dispatcher = _window.Dispatcher;
       }
       catch (Exception ex)

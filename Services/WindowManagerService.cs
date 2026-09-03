@@ -63,10 +63,7 @@ namespace OsuMate.Services
       _urBarWindow.PositionChanged += HandleURBarWindowPositionChanged;
       _urBarWindow.OnSizeChanged += HandleURBarWindowSizeChanged;
 
-      _keyOverlayThread = new KeyOverlayUiThread(
-        _mainViewModel.KeyOverlay,
-        _rawInput
-      );
+      _keyOverlayThread = new KeyOverlayUiThread(_mainViewModel.KeyOverlay);
       ApplyKeyOverlaySettings();
       _keyOverlayThread.PositionChanged += HandleKeyOverlayWindowPositionChanged;
       _keyOverlayThread.FlowLengthChanged += HandleKeyOverlayFlowLengthChanged;

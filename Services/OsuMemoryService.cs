@@ -550,6 +550,7 @@ namespace OsuMate.Services
               _hitErrorStore.ReadPlayerMemory(_sreader);
               _sreader.TryRead(_baseAddresses.GeneralData);
               _sreader.TryRead(_baseAddresses.ResultsScreen);
+              _sreader.TryRead(_baseAddresses.KeyOverlay);
 
               var newStatus = _baseAddresses.GeneralData.OsuStatus;
               CurrentStatus = newStatus;

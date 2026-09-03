@@ -19,6 +19,7 @@ namespace OsuMate.Views
     private int _rotation;
     private double _flowLength = 700;
     private int _laneCount = -1;
+    private double _dpi = 1.0;
 
     public bool IsDragging { get; private set; }
     public bool IsResizing { get; private set; }
@@ -36,6 +37,8 @@ namespace OsuMate.Views
       InitializeComponent();
       _vm = vm;
       _renderer = new KeyOverlayRenderer(BarsCanvas);
+      _dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+      DpiChanged += (_, e) => _dpi = e.NewDpi.PixelsPerDip;
       CompositionTarget.Rendering += OnRendering;
     }
 
@@ -80,7 +83,7 @@ namespace OsuMate.Views
         _laneCount = layout.Keys.Length;
         ApplySize(_laneCount);
       }
-      _renderer.Render(layout, _transitionBuffer, Stopwatch.GetTimestamp());
+      _renderer.Render(layout, _transitionBuffer, Stopwatch.GetTimestamp(), _dpi);
     }
 
     private void ApplySize(int laneCount)

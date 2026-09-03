@@ -99,9 +99,9 @@ internal sealed class KeyOverlayRenderer
     return IsHorizontal ? new Size(flowLength, crossLength) : new Size(crossLength, flowLength);
   }
 
-  public void Render(KeyOverlaySnapshot snapshot, IReadOnlyList<KeyOverlayTransition> transitions, long nowTicks)
+  public void Render(KeyOverlaySnapshot snapshot, IReadOnlyList<KeyOverlayTransition> transitions, long nowTicks, double dpi)
   {
-    EnsureLayout(snapshot);
+    EnsureLayout(snapshot, dpi);
     if (snapshot.Keys.Length == 0)
       return;
 
@@ -288,23 +288,8 @@ internal sealed class KeyOverlayRenderer
       _laneEventBuckets.Add([]);
   }
 
-  private double GetDpi()
+  private void EnsureLayout(KeyOverlaySnapshot snapshot, double dpi)
   {
-    try
-    {
-      var source = PresentationSource.FromVisual(_canvas);
-      if (source?.CompositionTarget != null)
-        return VisualTreeHelper.GetDpi(_canvas).PixelsPerDip;
-    }
-    catch
-    {
-    }
-    return 1.0;
-  }
-
-  private void EnsureLayout(KeyOverlaySnapshot snapshot)
-  {
-    var dpi = GetDpi();
     if (HasSameLabels(snapshot) && Math.Abs(_lastDpi - dpi) < 0.001)
       return;
 
