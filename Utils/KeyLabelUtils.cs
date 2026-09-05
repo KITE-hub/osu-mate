@@ -1,0 +1,51 @@
+namespace OsuMate.Utils;
+
+internal static class KeyLabelUtils
+{
+  internal static string FormatKeyLabel(string label) => label switch
+  {
+    "Oemtilde" or "OemTilde" => "~",
+    "OemQuestion" or "Oemquestion" => "/",
+    "OemQuotes" or "Oemquotes" => "'",
+    "Oemplus" or "OemPlus" => "+",
+    "Oemcomma" or "OemComma" => ",",
+    "OemMinus" or "Oemminus" => "-",
+    "OemPeriod" or "Oemperiod" => ".",
+    "OemOpenBrackets" or "Oemopenbrackets" => "[",
+    "OemCloseBrackets" or "Oemclosebrackets" => "]",
+    "OemPipe" or "Oempipe" or "OemBackslash" => "\\",
+    "Oem1" or "OemSemicolon" or "Oemsemicolon" => ";",
+    "Oem2" => "/",
+    "Oem3" => "~",
+    "Oem4" => "[",
+    "Oem5" => "\\",
+    "Oem6" => "]",
+    "Oem7" => "'",
+    "D0" => "0",
+    "D1" => "1",
+    "D2" => "2",
+    "D3" => "3",
+    "D4" => "4",
+    "D5" => "5",
+    "D6" => "6",
+    "D7" => "7",
+    "D8" => "8",
+    "D9" => "9",
+    "NumPad0" => "0",
+    "NumPad1" => "1",
+    "NumPad2" => "2",
+    "NumPad3" => "3",
+    "NumPad4" => "4",
+    "NumPad5" => "5",
+    "NumPad6" => "6",
+    "NumPad7" => "7",
+    "NumPad8" => "8",
+    "NumPad9" => "9",
+    "Decimal" => ".",
+    "Add" => "+",
+    "Subtract" => "-",
+    "Multiply" => "*",
+    "Divide" => "/",
+    _ => label
+  };
+}

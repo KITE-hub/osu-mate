@@ -67,7 +67,11 @@ namespace OsuMate.Utils
       root.Global.TargetPlayerNames ??= [];
       root.Presets = root.Presets.Where(p => p != null).ToList();
       foreach (var preset in root.Presets)
+      {
         preset.Config ??= new PresetConfig();
+        if (preset.Config.KeyOverlayDurationMs <= 0)
+          preset.Config.KeyOverlayDurationMs = 1000;
+      }
       if (root.Presets.Count == 0)
         root.Presets.Add(new Preset { Name = "Default", Config = new PresetConfig() });
       if (root.Presets.All(p => p.Id != root.ActivePresetId))

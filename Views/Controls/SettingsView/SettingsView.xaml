@@ -845,6 +845,68 @@
           />
         </Grid>
 
+        <StackPanel
+          Orientation="Horizontal"
+          Height="22"
+          Margin="{StaticResource RowSpacing}"
+          VerticalAlignment="Center"
+        >
+          <TextBlock
+            Text="Flow Direction"
+            FontSize="12"
+            VerticalAlignment="Center"
+            Width="160"
+            Foreground="{DynamicResource TextBrush}"
+          />
+          <Button
+            Style="{StaticResource RotateButtonStyle}"
+            Margin="0"
+            VerticalAlignment="Center"
+            Click="KeyOverlayRotateLeft_Click"
+          >
+            <Polygon
+              Points="0,4 6,0 6,8"
+              Fill="{DynamicResource TextBrush}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+            />
+          </Button>
+          <Border
+            BorderBrush="{DynamicResource SeparatorBrush}"
+            BorderThickness="0,1,0,1"
+            Width="40"
+            Height="22"
+            VerticalAlignment="Center"
+          >
+            <TextBlock
+              Text="{Binding KeyOverlayRotationLabel}"
+              FontSize="12"
+              VerticalAlignment="Center"
+              HorizontalAlignment="Center"
+              Foreground="{DynamicResource TextBrush}"
+            />
+          </Border>
+          <Button
+            Style="{StaticResource RotateButtonStyle}"
+            Margin="0"
+            VerticalAlignment="Center"
+            Click="KeyOverlayRotateRight_Click"
+          >
+            <Polygon
+              Points="6,4 0,0 0,8"
+              Fill="{DynamicResource TextBrush}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+            />
+          </Button>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock Text="Lane Width" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
+          <Slider Minimum="25" Maximum="100" Value="{Binding KeyOverlayLaneWidth}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding KeyOverlayLaneWidth, StringFormat={}{0:F0}}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+        </StackPanel>
+
         <Grid Height="22" Margin="{StaticResource RowSpacing}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="160" />
@@ -853,7 +915,7 @@
           </Grid.ColumnDefinitions>
           <TextBlock
             Grid.Column="0"
-            Text="Size"
+            Text="Flow Length (drag edge)"
             FontSize="12"
             VerticalAlignment="Center"
             Foreground="{DynamicResource TextBrush}"
@@ -864,80 +926,24 @@
             Style="{StaticResource TextCaptionStyle}"
             VerticalAlignment="Center"
           />
+          <StackPanel Grid.Column="2" Orientation="Horizontal">
+            <Button
+              Content="Save"
+              Width="40"
+              FontSize="11"
+              Click="SaveKeyOverlayFlowLength_Click"
+              Margin="0,0,6,0"
+              Style="{StaticResource SettingsButtonStyle}"
+            />
+            <Button
+              Content="Apply"
+              Width="45"
+              FontSize="11"
+              Click="ApplyKeyOverlayFlowLength_Click"
+              Style="{StaticResource SettingsButtonStyle}"
+            />
+          </StackPanel>
         </Grid>
-
-        <Grid Height="22" Margin="{StaticResource RowSpacing}">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="160" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <TextBlock
-            Grid.Column="0"
-            Text="Flow Direction"
-            FontSize="12"
-            VerticalAlignment="Center"
-            Foreground="{DynamicResource TextBrush}"
-          />
-          <Slider
-            Grid.Column="1"
-            Minimum="0"
-            Maximum="270"
-            TickFrequency="90"
-            IsSnapToTickEnabled="True"
-            Value="{Binding KeyOverlayRotation}"
-            Style="{StaticResource SliderStyle}"
-            Width="140"
-            HorizontalAlignment="Left"
-          />
-          <TextBlock
-            Grid.Column="2"
-            Text="{Binding KeyOverlayRotationLabel}"
-            Style="{StaticResource TextCaptionStyle}"
-            VerticalAlignment="Center"
-          />
-        </Grid>
-
-        <Grid Height="22" Margin="{StaticResource RowSpacing}">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="160" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <TextBlock
-            Grid.Column="0"
-            Text="Flow Length"
-            FontSize="12"
-            VerticalAlignment="Center"
-            Foreground="{DynamicResource TextBrush}"
-          />
-          <TextBox
-            Grid.Column="1"
-            Text="{Binding KeyOverlayHeight, UpdateSourceTrigger=LostFocus}"
-            Style="{StaticResource ThemedTextBoxStyle}"
-            Width="60"
-            HorizontalAlignment="Left"
-            KeyDown="CommitOnEnter_KeyDown"
-          />
-        </Grid>
-
-        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
-          <TextBlock Text="Flow Speed" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
-          <Slider Minimum="50" Maximum="3000" Value="{Binding KeyOverlayBarSpeed}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding KeyOverlayBarSpeed, StringFormat={}{0:F0}}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
-        </StackPanel>
-
-        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
-          <TextBlock Text="Bar Round" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
-          <Slider Minimum="0" Maximum="32" Value="{Binding KeyOverlayBarRound}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding KeyOverlayBarRound, StringFormat={}{0:F0}}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
-        </StackPanel>
-
-        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
-          <TextBlock Text="Lane Width" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
-          <Slider Minimum="24" Maximum="160" Value="{Binding KeyOverlayLaneWidth}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding KeyOverlayLaneWidth, StringFormat={}{0:F0}}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
-        </StackPanel>
 
         <Grid Height="22" Margin="{StaticResource RowSpacing}">
           <Grid.ColumnDefinitions>
@@ -976,6 +982,76 @@
             />
           </StackPanel>
         </Grid>
+
+        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock Text="Flow Time" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
+          <Slider Minimum="200" Maximum="1500" Value="{Binding KeyOverlayDurationMs}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding KeyOverlayDurationMs, StringFormat={}{0:F0} ms}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock Text="Bar Round" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
+          <Slider Minimum="0" Maximum="32" Value="{Binding KeyOverlayBarRound}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding KeyOverlayBarRound, StringFormat={}{0:F0}}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+        </StackPanel>
+
+        <Grid Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock
+            Text="Show Beatmap Bars"
+            FontSize="12"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Left"
+            Foreground="{DynamicResource TextBrush}"
+          />
+          <CheckBox
+            IsChecked="{Binding KeyOverlayShowBeatmapBars}"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Right"
+            Style="{StaticResource ToggleSwitchStyle}"
+          />
+        </Grid>
+
+        <Grid Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock
+            Text="Beatmap Lane Position"
+            FontSize="12"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Left"
+            Foreground="{DynamicResource TextBrush}"
+          />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+            <TextBlock
+              Text="{Binding KeyOverlayBeatmapLanePositionLabel}"
+              FontSize="12"
+              VerticalAlignment="Center"
+              Margin="0,0,8,0"
+              Foreground="{DynamicResource TextBrush}"
+            />
+            <CheckBox
+              IsChecked="{Binding KeyOverlayBeatmapLaneAtEnd}"
+              VerticalAlignment="Center"
+              Style="{StaticResource ToggleSwitchStyle}"
+            />
+          </StackPanel>
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock Text="Input Bar Opacity" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
+          <Slider Minimum="0" Maximum="1" Value="{Binding KeyOverlayInputBarOpacity}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding KeyOverlayInputBarOpacity, StringFormat={}{0:F2}}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock Text="Beatmap Bar Opacity" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
+          <Slider Minimum="0" Maximum="1" Value="{Binding KeyOverlayBeatmapBarOpacity}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding KeyOverlayBeatmapBarOpacity, StringFormat={}{0:F2}}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock Text="Tap Bar Length" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
+          <Slider Minimum="10" Maximum="50" Value="{Binding KeyOverlayBeatmapTapLengthMs}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding KeyOverlayBeatmapTapLengthMs, StringFormat={}{0:F0} ms}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+        </StackPanel>
       </StackPanel>
 
       <StackPanel Margin="{StaticResource SectionSpacing}">

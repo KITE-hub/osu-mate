@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using OsuMate.Models;
 using OsuMate.Services;
+using OsuMate.Services.Key;
 using OsuMate.Services.PlayLog;
 using OsuMate.Services.Trainer;
 using OsuMate.ViewModels;

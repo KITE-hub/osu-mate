@@ -47,6 +47,18 @@ namespace OsuMate.Views.Controls
         vm.URBarRotation += 90;
     }
 
+    private void KeyOverlayRotateLeft_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+      if (DataContext is SettingsViewModel vm)
+        vm.KeyOverlayRotation -= 90;
+    }
+
+    private void KeyOverlayRotateRight_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+      if (DataContext is SettingsViewModel vm)
+        vm.KeyOverlayRotation += 90;
+    }
+
     private void GetAppPosition_Click(object sender, RoutedEventArgs e)
     {
       var window = Window.GetWindow(this);
@@ -129,6 +141,12 @@ namespace OsuMate.Views.Controls
 
     private void ApplyKeyOverlayPosition_Click(object sender, RoutedEventArgs e) =>
       Vm.RequestApplyKeyOverlayPosition();
+
+    private void SaveKeyOverlayFlowLength_Click(object sender, RoutedEventArgs e) =>
+      Vm.RequestSaveKeyOverlayFlowLength();
+
+    private void ApplyKeyOverlayFlowLength_Click(object sender, RoutedEventArgs e) =>
+      Vm.RequestApplyKeyOverlayFlowLength();
 
     private void SaveOverlayPosition_Click(object sender, RoutedEventArgs e) =>
       Vm.RequestSaveOverlayPosition();

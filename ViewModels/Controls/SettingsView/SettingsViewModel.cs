@@ -91,6 +91,18 @@ namespace OsuMate.ViewModels
       remove => KeyOverlay.OnApplyKeyOverlayPositionRequested -= value;
     }
 
+    public event Action? OnSaveKeyOverlayFlowLengthRequested
+    {
+      add => KeyOverlay.OnSaveKeyOverlayFlowLengthRequested += value;
+      remove => KeyOverlay.OnSaveKeyOverlayFlowLengthRequested -= value;
+    }
+
+    public event Action? OnApplyKeyOverlayFlowLengthRequested
+    {
+      add => KeyOverlay.OnApplyKeyOverlayFlowLengthRequested += value;
+      remove => KeyOverlay.OnApplyKeyOverlayFlowLengthRequested -= value;
+    }
+
     public void RequestSaveURBarPosition() => URBar.RequestSaveURBarPosition();
 
     public void RequestApplyURBarPosition() => URBar.RequestApplyURBarPosition();
@@ -102,6 +114,10 @@ namespace OsuMate.ViewModels
     public void RequestSaveKeyOverlayPosition() => KeyOverlay.RequestSaveKeyOverlayPosition();
 
     public void RequestApplyKeyOverlayPosition() => KeyOverlay.RequestApplyKeyOverlayPosition();
+
+    public void RequestSaveKeyOverlayFlowLength() => KeyOverlay.RequestSaveKeyOverlayFlowLength();
+
+    public void RequestApplyKeyOverlayFlowLength() => KeyOverlay.RequestApplyKeyOverlayFlowLength();
 
     private readonly RootConfig _root;
     private readonly GlobalConfig _globalConfig;
@@ -258,44 +274,73 @@ namespace OsuMate.ViewModels
       set => KeyOverlay.KeyOverlayRotation = value;
     }
 
-    public double KeyOverlayHeight
-    {
-      get => KeyOverlay.KeyOverlayHeight;
-      set => KeyOverlay.KeyOverlayHeight = value;
-    }
-
-    public double KeyOverlayX
-    {
-      get => KeyOverlay.KeyOverlayX;
-      set => KeyOverlay.KeyOverlayX = value;
-    }
-
-    public double KeyOverlayY
-    {
-      get => KeyOverlay.KeyOverlayY;
-      set => KeyOverlay.KeyOverlayY = value;
-    }
-
-    public string KeyOverlayPositionText => KeyOverlay.KeyOverlayPositionText;
-    public string KeyOverlaySizeText => KeyOverlay.KeyOverlaySizeText;
-    public string KeyOverlayRotationLabel => KeyOverlay.KeyOverlayRotationLabel;
-    public double KeyOverlayBarSpeed
-    {
-      get => KeyOverlay.KeyOverlayBarSpeed;
-      set => KeyOverlay.KeyOverlayBarSpeed = value;
-    }
-    public double KeyOverlayBarRound
-    {
-      get => KeyOverlay.KeyOverlayBarRound;
-      set => KeyOverlay.KeyOverlayBarRound = value;
-    }
     public double KeyOverlayLaneWidth
     {
       get => KeyOverlay.KeyOverlayLaneWidth;
       set => KeyOverlay.KeyOverlayLaneWidth = value;
     }
 
+    public double KeyOverlayHeight
+    {
+      get => KeyOverlay.KeyOverlayHeight;
+      set => KeyOverlay.KeyOverlayHeight = value;
+    }
+
+    public string KeyOverlayRotationLabel => KeyOverlay.KeyOverlayRotationLabel;
+    public string KeyOverlaySizeText => KeyOverlay.KeyOverlaySizeText;
+    public double KeyOverlayX
+    {
+      get => KeyOverlay.KeyOverlayX;
+      set => KeyOverlay.KeyOverlayX = value;
+    }
+    public double KeyOverlayY
+    {
+      get => KeyOverlay.KeyOverlayY;
+      set => KeyOverlay.KeyOverlayY = value;
+    }
+    public string KeyOverlayPositionText => KeyOverlay.KeyOverlayPositionText;
     public void SetKeyOverlayPosition(double x, double y) => KeyOverlay.SetKeyOverlayPosition(x, y);
+    public double KeyOverlayDurationMs
+    {
+      get => KeyOverlay.KeyOverlayDurationMs;
+      set => KeyOverlay.KeyOverlayDurationMs = value;
+    }
+    public double KeyOverlayBarRound
+    {
+      get => KeyOverlay.KeyOverlayBarRound;
+      set => KeyOverlay.KeyOverlayBarRound = value;
+    }
+    public bool KeyOverlayShowBeatmapBars
+    {
+      get => KeyOverlay.KeyOverlayShowBeatmapBars;
+      set => KeyOverlay.KeyOverlayShowBeatmapBars = value;
+    }
+    public int KeyOverlayBeatmapLanePosition
+    {
+      get => KeyOverlay.KeyOverlayBeatmapLanePosition;
+      set => KeyOverlay.KeyOverlayBeatmapLanePosition = value;
+    }
+    public bool KeyOverlayBeatmapLaneAtEnd
+    {
+      get => KeyOverlay.KeyOverlayBeatmapLaneAtEnd;
+      set => KeyOverlay.KeyOverlayBeatmapLaneAtEnd = value;
+    }
+    public string KeyOverlayBeatmapLanePositionLabel => KeyOverlay.KeyOverlayBeatmapLanePositionLabel;
+    public double KeyOverlayInputBarOpacity
+    {
+      get => KeyOverlay.KeyOverlayInputBarOpacity;
+      set => KeyOverlay.KeyOverlayInputBarOpacity = value;
+    }
+    public double KeyOverlayBeatmapBarOpacity
+    {
+      get => KeyOverlay.KeyOverlayBeatmapBarOpacity;
+      set => KeyOverlay.KeyOverlayBeatmapBarOpacity = value;
+    }
+    public double KeyOverlayBeatmapTapLengthMs
+    {
+      get => KeyOverlay.KeyOverlayBeatmapTapLengthMs;
+      set => KeyOverlay.KeyOverlayBeatmapTapLengthMs = value;
+    }
 
     public int URBarRotation
     {

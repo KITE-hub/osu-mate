@@ -6,10 +6,16 @@ namespace OsuMate.ViewModels
   {
     public event Action? OnSaveKeyOverlayPositionRequested;
     public event Action? OnApplyKeyOverlayPositionRequested;
+    public event Action? OnSaveKeyOverlayFlowLengthRequested;
+    public event Action? OnApplyKeyOverlayFlowLengthRequested;
 
     public void RequestSaveKeyOverlayPosition() => OnSaveKeyOverlayPositionRequested?.Invoke();
 
     public void RequestApplyKeyOverlayPosition() => OnApplyKeyOverlayPositionRequested?.Invoke();
+
+    public void RequestSaveKeyOverlayFlowLength() => OnSaveKeyOverlayFlowLengthRequested?.Invoke();
+
+    public void RequestApplyKeyOverlayFlowLength() => OnApplyKeyOverlayFlowLengthRequested?.Invoke();
 
     private readonly Func<PresetConfig> _presetConfig;
     private readonly Action _save;
@@ -53,6 +59,17 @@ namespace OsuMate.ViewModels
 
     public string KeyOverlayRotationLabel => $"{KeyOverlayRotation}°";
 
+    public double KeyOverlayLaneWidth
+    {
+      get => _presetConfig().KeyOverlayLaneWidth;
+      set
+      {
+        _presetConfig().KeyOverlayLaneWidth = Math.Clamp(value, 25, 100);
+        OnPropertyChanged();
+        _debouncedSave();
+      }
+    }
+
     public double KeyOverlayHeight
     {
       get => _presetConfig().KeyOverlayHeight;
@@ -64,6 +81,10 @@ namespace OsuMate.ViewModels
         _debouncedSave();
       }
     }
+
+    public string KeyOverlaySizeText => KeyOverlayRotation is 90 or 270
+      ? $"W: {(int)KeyOverlayHeight}"
+      : $"H: {(int)KeyOverlayHeight}";
 
     public double KeyOverlayX
     {
@@ -90,16 +111,23 @@ namespace OsuMate.ViewModels
     }
 
     public string KeyOverlayPositionText => $"X: {(int)KeyOverlayX}  Y: {(int)KeyOverlayY}";
-    public string KeyOverlaySizeText => KeyOverlayRotation is 90 or 270
-      ? $"W: {(int)KeyOverlayHeight}"
-      : $"H: {(int)KeyOverlayHeight}";
 
-    public double KeyOverlayBarSpeed
+    public void SetKeyOverlayPosition(double x, double y)
     {
-      get => _presetConfig().KeyOverlayBarSpeed;
+      _presetConfig().KeyOverlayX = x;
+      _presetConfig().KeyOverlayY = y;
+      OnPropertyChanged(nameof(KeyOverlayX));
+      OnPropertyChanged(nameof(KeyOverlayY));
+      OnPropertyChanged(nameof(KeyOverlayPositionText));
+      _save();
+    }
+
+    public double KeyOverlayDurationMs
+    {
+      get => _presetConfig().KeyOverlayDurationMs <= 0 ? 1000 : _presetConfig().KeyOverlayDurationMs;
       set
       {
-        _presetConfig().KeyOverlayBarSpeed = Math.Clamp(value, 50, 3000);
+        _presetConfig().KeyOverlayDurationMs = Math.Clamp(value, 200, 1500);
         OnPropertyChanged();
         _debouncedSave();
       }
@@ -116,40 +144,91 @@ namespace OsuMate.ViewModels
       }
     }
 
-    public double KeyOverlayLaneWidth
+    public bool KeyOverlayShowBeatmapBars
     {
-      get => _presetConfig().KeyOverlayLaneWidth;
+      get => _presetConfig().KeyOverlayShowBeatmapBars;
       set
       {
-        _presetConfig().KeyOverlayLaneWidth = Math.Clamp(value, 24, 160);
+        _presetConfig().KeyOverlayShowBeatmapBars = value;
+        OnPropertyChanged();
+        _save();
+      }
+    }
+
+    public int KeyOverlayBeatmapLanePosition
+    {
+      get => _presetConfig().KeyOverlayBeatmapLanePosition;
+      set
+      {
+        _presetConfig().KeyOverlayBeatmapLanePosition = value == 1 ? 1 : 0;
+        OnPropertyChanged();
+        OnPropertyChanged(nameof(KeyOverlayBeatmapLaneAtEnd));
+        OnPropertyChanged(nameof(KeyOverlayBeatmapLanePositionLabel));
+        _save();
+      }
+    }
+
+    public bool KeyOverlayBeatmapLaneAtEnd
+    {
+      get => KeyOverlayBeatmapLanePosition == 1;
+      set => KeyOverlayBeatmapLanePosition = value ? 1 : 0;
+    }
+
+    public string KeyOverlayBeatmapLanePositionLabel => KeyOverlayBeatmapLanePosition == 1 ? "Last Lane" : "First Lane";
+
+    public double KeyOverlayInputBarOpacity
+    {
+      get => _presetConfig().KeyOverlayInputBarOpacity;
+      set
+      {
+        _presetConfig().KeyOverlayInputBarOpacity = Math.Clamp(value, 0.0, 1.0);
         OnPropertyChanged();
         _debouncedSave();
       }
     }
 
-    public void SetKeyOverlayPosition(double x, double y)
+    public double KeyOverlayBeatmapBarOpacity
     {
-      _presetConfig().KeyOverlayX = x;
-      _presetConfig().KeyOverlayY = y;
-      OnPropertyChanged(nameof(KeyOverlayX));
-      OnPropertyChanged(nameof(KeyOverlayY));
-      OnPropertyChanged(nameof(KeyOverlayPositionText));
-      _save();
+      get => _presetConfig().KeyOverlayBeatmapBarOpacity;
+      set
+      {
+        _presetConfig().KeyOverlayBeatmapBarOpacity = Math.Clamp(value, 0.0, 1.0);
+        OnPropertyChanged();
+        _debouncedSave();
+      }
+    }
+
+    public double KeyOverlayBeatmapTapLengthMs
+    {
+      get => _presetConfig().KeyOverlayBeatmapTapLengthMs <= 0 ? 25 : _presetConfig().KeyOverlayBeatmapTapLengthMs;
+      set
+      {
+        _presetConfig().KeyOverlayBeatmapTapLengthMs = Math.Clamp(value, 10, 50);
+        OnPropertyChanged();
+        _debouncedSave();
+      }
     }
 
     public void NotifyPresetApplied()
     {
       OnPropertyChanged(nameof(KeyOverlayEnabled));
-      OnPropertyChanged(nameof(KeyOverlayHeight));
       OnPropertyChanged(nameof(KeyOverlayRotation));
       OnPropertyChanged(nameof(KeyOverlayRotationLabel));
+      OnPropertyChanged(nameof(KeyOverlayLaneWidth));
+      OnPropertyChanged(nameof(KeyOverlayHeight));
+      OnPropertyChanged(nameof(KeyOverlaySizeText));
       OnPropertyChanged(nameof(KeyOverlayX));
       OnPropertyChanged(nameof(KeyOverlayY));
       OnPropertyChanged(nameof(KeyOverlayPositionText));
-      OnPropertyChanged(nameof(KeyOverlaySizeText));
-      OnPropertyChanged(nameof(KeyOverlayBarSpeed));
+      OnPropertyChanged(nameof(KeyOverlayDurationMs));
       OnPropertyChanged(nameof(KeyOverlayBarRound));
-      OnPropertyChanged(nameof(KeyOverlayLaneWidth));
+      OnPropertyChanged(nameof(KeyOverlayShowBeatmapBars));
+      OnPropertyChanged(nameof(KeyOverlayBeatmapLanePosition));
+      OnPropertyChanged(nameof(KeyOverlayBeatmapLaneAtEnd));
+      OnPropertyChanged(nameof(KeyOverlayBeatmapLanePositionLabel));
+      OnPropertyChanged(nameof(KeyOverlayInputBarOpacity));
+      OnPropertyChanged(nameof(KeyOverlayBeatmapBarOpacity));
+      OnPropertyChanged(nameof(KeyOverlayBeatmapTapLengthMs));
     }
   }
 }

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Forms;
 using OsuMate.Models;
+using OsuMate.Services.Key;
 using OsuMate.Services.Osu;
 using OsuMate.Utils;
 using OsuMemoryDataProvider;
@@ -19,6 +20,7 @@ namespace OsuMate.Services
     private readonly OsuDirectoryResolver _directoryResolver = new();
     private readonly RawInputService _rawInput;
     private readonly ReplayKeyInputSource _replayKeyInput;
+    private bool _wasReplaySession;
     private readonly HitErrorSnapshotStore _hitErrorStore;
     private readonly UrTimelineStore _urTimelineStore;
     private static readonly TimeSpan KeyConfigRecheckInterval = TimeSpan.FromSeconds(1);
@@ -27,6 +29,8 @@ namespace OsuMate.Services
     private DateTime _keyConfigLastWriteTimeUtc;
     private DateTime _keyConfigLastCheckedUtc = DateTime.MinValue;
     private Dictionary<string, string> _keyConfigValues = [];
+    private bool _keyConfigReloading;
+    private volatile bool _keyConfigDirty;
 
     public event Action? OnMemoryRead;
     public event Action<IntPtr>? OnOsuWindowFound;
@@ -78,7 +82,7 @@ namespace OsuMate.Services
 
     internal OsuBaseAddresses GetBaseAddressSnapshot() => _baseAddresses;
 
-    private (string BeatmapPath, string BeatmapMd5) GetCurrentBeatmap()
+    internal (string BeatmapPath, string BeatmapMd5) GetCurrentBeatmap()
     {
       var beatmap = _baseAddresses.Beatmap;
       try
@@ -115,12 +119,21 @@ namespace OsuMate.Services
 
       public string[] Labels { get; }
       public LaneBinding[] Bindings { get; }
+      public BeatmapNoteType[]? Roles { get; }
+      public string[]? ReplayActions { get; }
       public KeyOverlaySnapshot BlankSnapshot { get; }
 
-      public ResolvedKeyLayout(string[] labels, LaneBinding[] bindings)
+      public ResolvedKeyLayout(
+        string[] labels,
+        LaneBinding[] bindings,
+        BeatmapNoteType[]? roles = null,
+        string[]? replayActions = null
+      )
       {
         Labels = labels;
         Bindings = bindings;
+        Roles = roles;
+        ReplayActions = replayActions;
         if (labels.Length == 0)
         {
           BlankSnapshot = KeyOverlaySnapshot.Empty;
@@ -128,7 +141,7 @@ namespace OsuMate.Services
         }
         var keys = new KeyOverlayKeyState[labels.Length];
         for (var i = 0; i < labels.Length; i++)
-          keys[i] = new KeyOverlayKeyState(labels[i], false);
+          keys[i] = new KeyOverlayKeyState(labels[i], false, roles?[i] ?? BeatmapNoteType.Normal);
         BlankSnapshot = new KeyOverlaySnapshot(keys);
       }
     }
@@ -137,6 +150,8 @@ namespace OsuMate.Services
     private ResolvedKeyLayout _resolvedLayout = ResolvedKeyLayout.Empty;
     private int _resolvedGamemode = int.MinValue;
     private int _resolvedManiaKeyCount = int.MinValue;
+    private bool _resolvedShowBeatmapBars;
+    private int _resolvedBeatmapLanePosition = int.MinValue;
 
     private readonly object _liveTransitionLock = new();
     private readonly List<RawInputService.KeyTransition> _rawTransitionBuffer = [];
@@ -150,20 +165,29 @@ namespace OsuMate.Services
       int? maniaKeyCount,
       double audioTime,
       bool isReplay,
-      List<KeyOverlayTransition> transitions
+      List<KeyOverlayTransition> transitions,
+      bool showBeatmapBars = false,
+      int beatmapLanePosition = 0
     )
     {
-      var layout = ResolveLayout(gamemode, gamemode == 3 ? maniaKeyCount : null);
+      var isReplaySession = isReplay && IsPlaying;
+      if (isReplaySession && !_wasReplaySession)
+        _replayKeyInput.NotifySessionStart();
+      _wasReplaySession = isReplaySession;
+
+      var layout = ResolveLayout(gamemode, gamemode == 3 ? maniaKeyCount : null, showBeatmapBars, beatmapLanePosition, IsPlaying);
       if (layout.Labels.Length == 0)
       {
         DiscardRawInputTransitions();
         return KeyOverlaySnapshot.Empty;
       }
 
-      if (isReplay)
+      var playerLaneOffset = showBeatmapBars && beatmapLanePosition == 0 && (gamemode == 0 || gamemode == 1) ? 1 : 0;
+
+      if (isReplaySession)
       {
         DiscardRawInputTransitions();
-        return _replayKeyInput.DrainTransitions(layout.BlankSnapshot, gamemode, audioTime, transitions);
+        return _replayKeyInput.DrainTransitions(layout.BlankSnapshot, gamemode, audioTime, transitions, playerLaneOffset, layout.ReplayActions);
       }
 
       return DrainLiveKeyOverlaySnapshot(layout, transitions);
@@ -232,42 +256,53 @@ namespace OsuMate.Services
 
         var keys = new KeyOverlayKeyState[layout.Labels.Length];
         for (var i = 0; i < keys.Length; i++)
-          keys[i] = new KeyOverlayKeyState(layout.Labels[i], pressed[i]);
+          keys[i] = new KeyOverlayKeyState(layout.Labels[i], pressed[i], layout.Roles?[i] ?? BeatmapNoteType.Normal);
         _cachedLiveSnapshot = new KeyOverlaySnapshot(keys);
         return _cachedLiveSnapshot;
       }
     }
 
-    private ResolvedKeyLayout ResolveLayout(int gamemode, int? maniaKeyCount)
+    private ResolvedKeyLayout ResolveLayout(
+      int gamemode,
+      int? maniaKeyCount,
+      bool showBeatmapBars,
+      int beatmapLanePosition,
+      bool isActiveSession
+    )
     {
-      var configChanged = EnsureKeyConfigCache();
+      var configChanged = EnsureKeyConfigCache(isActiveSession);
       var maniaCount = maniaKeyCount ?? -1;
 
       lock (_layoutLock)
       {
-        if (!configChanged && _resolvedGamemode == gamemode && _resolvedManiaKeyCount == maniaCount)
+        if (
+          !configChanged
+          && _resolvedGamemode == gamemode
+          && _resolvedManiaKeyCount == maniaCount
+          && _resolvedShowBeatmapBars == showBeatmapBars
+          && _resolvedBeatmapLanePosition == beatmapLanePosition
+        )
           return _resolvedLayout;
 
         _resolvedGamemode = gamemode;
         _resolvedManiaKeyCount = maniaCount;
-        _resolvedLayout = BuildLayout(gamemode, maniaKeyCount);
+        _resolvedShowBeatmapBars = showBeatmapBars;
+        _resolvedBeatmapLanePosition = beatmapLanePosition;
+        _resolvedLayout = BuildLayout(gamemode, maniaKeyCount, showBeatmapBars, beatmapLanePosition);
         return _resolvedLayout;
       }
     }
 
-    private ResolvedKeyLayout BuildLayout(int gamemode, int? maniaKeyCount) =>
+    private ResolvedKeyLayout BuildLayout(
+      int gamemode,
+      int? maniaKeyCount,
+      bool showBeatmapBars,
+      int beatmapLanePosition
+    ) =>
       gamemode switch
       {
-        0 => BuildFixedLayout(
-          ("keyOsuLeft", "Z", Keys.LButton),
-          ("keyOsuRight", "X", Keys.RButton)
-        ),
-        1 => BuildFixedLayout(
-          ("keyTaikoInnerLeft", "X", Keys.None),
-          ("keyTaikoInnerRight", "C", Keys.None),
-          ("keyTaikoOuterLeft", "Z", Keys.None),
-          ("keyTaikoOuterRight", "V", Keys.None)
-        ),
+        0 => BuildStandardLayout(showBeatmapBars, beatmapLanePosition),
+        1 => BuildTaikoLayout(showBeatmapBars, beatmapLanePosition),
         2 => BuildFixedLayout(
           ("keyFruitsDash", "LeftShift", Keys.None),
           ("keyFruitsLeft", "Left", Keys.None),
@@ -276,6 +311,95 @@ namespace OsuMate.Services
         3 when maniaKeyCount is >= 1 and <= 18 => BuildManiaLayout(maniaKeyCount.Value),
         _ => ResolvedKeyLayout.Empty,
       };
+
+    private ResolvedKeyLayout BuildStandardLayout(bool showBeatmapBars, int beatmapLanePosition)
+    {
+      var specs = new TaikoKeySpec[]
+      {
+        new("keyOsuLeft", "Z", Keys.LButton, BeatmapNoteType.Normal, null),
+        new("keyOsuRight", "X", Keys.RButton, BeatmapNoteType.Normal, null)
+      };
+      return BuildLayoutWithOptionalMapLane(specs, showBeatmapBars, beatmapLanePosition, reorderByPhysicalPosition: false);
+    }
+
+    private ResolvedKeyLayout BuildTaikoLayout(bool showBeatmapBars, int beatmapLanePosition)
+    {
+      var specs = new TaikoKeySpec[]
+      {
+        new("keyTaikoInnerLeft", "X", Keys.None, BeatmapNoteType.TaikoDon, "LeftCentre"),
+        new("keyTaikoInnerRight", "C", Keys.None, BeatmapNoteType.TaikoDon, "RightCentre"),
+        new("keyTaikoOuterLeft", "Z", Keys.None, BeatmapNoteType.TaikoKat, "LeftRim"),
+        new("keyTaikoOuterRight", "V", Keys.None, BeatmapNoteType.TaikoKat, "RightRim")
+      };
+      return BuildLayoutWithOptionalMapLane(specs, showBeatmapBars, beatmapLanePosition, reorderByPhysicalPosition: true);
+    }
+
+    private readonly record struct TaikoKeySpec(
+      string ConfigKey,
+      string Fallback,
+      Keys MouseFallback,
+      BeatmapNoteType Role,
+      string? ReplayAction
+    );
+
+    private ResolvedKeyLayout BuildLayoutWithOptionalMapLane(
+      TaikoKeySpec[] specs,
+      bool showBeatmapBars,
+      int beatmapLanePosition,
+      bool reorderByPhysicalPosition
+    )
+    {
+      var resolvedNames = new string[specs.Length];
+      var resolvedKeys = new Keys[specs.Length];
+      for (var i = 0; i < specs.Length; i++)
+      {
+        resolvedNames[i] = GetConfiguredKeyNameLocked(specs[i].ConfigKey, specs[i].Fallback);
+        resolvedKeys[i] = TryParseKey(resolvedNames[i], out var parsedKey) ? parsedKey : Keys.None;
+      }
+
+      var order = new int[specs.Length];
+      for (var i = 0; i < order.Length; i++)
+        order[i] = i;
+
+      if (reorderByPhysicalPosition)
+      {
+        Array.Sort(order, (a, b) =>
+        {
+          var positionA = KeyboardPhysicalLayoutUtils.GetPhysicalPosition(resolvedKeys[a]);
+          var positionB = KeyboardPhysicalLayoutUtils.GetPhysicalPosition(resolvedKeys[b]);
+          return positionA != positionB ? positionA.CompareTo(positionB) : a.CompareTo(b);
+        });
+      }
+
+      var addMapLane = showBeatmapBars;
+      var totalCount = specs.Length + (addMapLane ? 1 : 0);
+      var labels = new string[totalCount];
+      var bindings = new LaneBinding[totalCount];
+      var roles = new BeatmapNoteType[totalCount];
+      var replayActions = new string[totalCount];
+
+      var playerStart = addMapLane && beatmapLanePosition == 0 ? 1 : 0;
+      if (addMapLane)
+      {
+        var mapIndex = beatmapLanePosition == 0 ? 0 : totalCount - 1;
+        labels[mapIndex] = "MAP";
+        bindings[mapIndex] = new LaneBinding(Keys.None, Keys.None);
+        roles[mapIndex] = BeatmapNoteType.Normal;
+        replayActions[mapIndex] = string.Empty;
+      }
+
+      for (var i = 0; i < order.Length; i++)
+      {
+        var spec = specs[order[i]];
+        var targetIndex = playerStart + i;
+        labels[targetIndex] = resolvedNames[order[i]];
+        bindings[targetIndex] = new LaneBinding(resolvedKeys[order[i]], spec.MouseFallback);
+        roles[targetIndex] = spec.Role;
+        replayActions[targetIndex] = spec.ReplayAction ?? string.Empty;
+      }
+
+      return new ResolvedKeyLayout(labels, bindings, roles, replayActions);
+    }
 
     private ResolvedKeyLayout BuildFixedLayout(params (string ConfigKey, string Fallback, Keys MouseFallback)[] specs)
     {
@@ -337,48 +461,80 @@ namespace OsuMate.Services
       return fallback[..Math.Min(keyCount, fallback.Length)];
     }
 
-    private bool EnsureKeyConfigCache()
-    {
-      var now = DateTime.UtcNow;
-      if (now - _keyConfigLastCheckedUtc < KeyConfigRecheckInterval)
-        return false;
+    private bool _wasKeyConfigActiveSession;
 
+    private bool EnsureKeyConfigCache(bool isActiveSession)
+    {
+      var justBecameActive = isActiveSession && !_wasKeyConfigActiveSession;
+      _wasKeyConfigActiveSession = isActiveSession;
+
+      if (isActiveSession && !justBecameActive)
+        return ConsumeKeyConfigDirty();
+
+      var now = DateTime.UtcNow;
+      if (justBecameActive || now - _keyConfigLastCheckedUtc >= KeyConfigRecheckInterval)
+        RequestKeyConfigReload(now);
+
+      return ConsumeKeyConfigDirty();
+    }
+
+    private bool ConsumeKeyConfigDirty()
+    {
+      if (!_keyConfigDirty)
+        return false;
+      _keyConfigDirty = false;
+      return true;
+    }
+
+    private void RequestKeyConfigReload(DateTime now)
+    {
       lock (_keyConfigLock)
       {
-        if (now - _keyConfigLastCheckedUtc < KeyConfigRecheckInterval)
-          return false;
+        if (_keyConfigReloading)
+          return;
+        _keyConfigReloading = true;
         _keyConfigLastCheckedUtc = now;
       }
 
-      var path = FindKeyConfigPath();
-      if (!File.Exists(path))
-      {
-        lock (_keyConfigLock)
-        {
-          var hadValues = _keyConfigValues.Count > 0 || !string.IsNullOrEmpty(_keyConfigPath);
-          _keyConfigPath = string.Empty;
-          _keyConfigLastWriteTimeUtc = default;
-          _keyConfigValues = [];
-          return hadValues;
-        }
-      }
+      Task.Run(ReloadKeyConfig);
+    }
 
-      DateTime lastWriteTimeUtc;
+    private void ReloadKeyConfig()
+    {
       try
       {
-        lastWriteTimeUtc = File.GetLastWriteTimeUtc(path);
-      }
-      catch (Exception e)
-      {
-        LogUtils.DebugLogger($"OsuMemoryService.EnsureKeyConfigCache failed: {e.Message}", true);
-        return false;
-      }
+        var path = FindKeyConfigPath();
+        if (!File.Exists(path))
+        {
+          lock (_keyConfigLock)
+          {
+            var hadValues = _keyConfigValues.Count > 0 || !string.IsNullOrEmpty(_keyConfigPath);
+            _keyConfigPath = string.Empty;
+            _keyConfigLastWriteTimeUtc = default;
+            _keyConfigValues = [];
+            if (hadValues)
+              _keyConfigDirty = true;
+          }
+          return;
+        }
 
-      lock (_keyConfigLock)
-      {
-        if (string.Equals(_keyConfigPath, path, StringComparison.Ordinal)
-            && _keyConfigLastWriteTimeUtc == lastWriteTimeUtc)
-          return false;
+        DateTime lastWriteTimeUtc;
+        try
+        {
+          lastWriteTimeUtc = File.GetLastWriteTimeUtc(path);
+        }
+        catch (Exception e)
+        {
+          LogUtils.DebugLogger($"OsuMemoryService.ReloadKeyConfig failed: {e.Message}", true);
+          return;
+        }
+
+        lock (_keyConfigLock)
+        {
+          if (string.Equals(_keyConfigPath, path, StringComparison.Ordinal)
+              && _keyConfigLastWriteTimeUtc == lastWriteTimeUtc)
+            return;
+        }
 
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
         try
@@ -397,16 +553,23 @@ namespace OsuMate.Services
               values[key] = line[(separator + 1)..].Trim();
           }
 
-          _keyConfigPath = path;
-          _keyConfigLastWriteTimeUtc = lastWriteTimeUtc;
-          _keyConfigValues = values;
-          return true;
+          lock (_keyConfigLock)
+          {
+            _keyConfigPath = path;
+            _keyConfigLastWriteTimeUtc = lastWriteTimeUtc;
+            _keyConfigValues = values;
+          }
+          _keyConfigDirty = true;
         }
         catch (Exception e)
         {
-          LogUtils.DebugLogger($"OsuMemoryService.EnsureKeyConfigCache failed: {e.Message}", true);
-          return false;
+          LogUtils.DebugLogger($"OsuMemoryService.ReloadKeyConfig failed: {e.Message}", true);
         }
+      }
+      finally
+      {
+        lock (_keyConfigLock)
+          _keyConfigReloading = false;
       }
     }
 
@@ -550,7 +713,6 @@ namespace OsuMate.Services
               _hitErrorStore.ReadPlayerMemory(_sreader);
               _sreader.TryRead(_baseAddresses.GeneralData);
               _sreader.TryRead(_baseAddresses.ResultsScreen);
-              _sreader.TryRead(_baseAddresses.KeyOverlay);
 
               var newStatus = _baseAddresses.GeneralData.OsuStatus;
               CurrentStatus = newStatus;

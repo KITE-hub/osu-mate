@@ -11,7 +11,7 @@ using OsuMate.PPCalculation;
 using OsuMate.Services.Osu;
 using OsuMate.Utils;
 
-namespace OsuMate.Services;
+namespace OsuMate.Services.Key;
 
 internal sealed class ReplayKeyInputSource
 {
@@ -41,13 +41,19 @@ internal sealed class ReplayKeyInputSource
   private readonly object _reloadLock = new();
   private bool _isReloading;
   private DateTime _lastReloadAttemptUtc = DateTime.MinValue;
+  private int _sessionGeneration;
 
   private FrameState[] _frames = EmptyFrames;
 
+  private static readonly string[] DefaultTaikoActionOrder = ["LeftCentre", "RightCentre", "LeftRim", "RightRim"];
+
   private string _loadedPath = string.Empty;
+  private string _loadedBeatmapMd5 = string.Empty;
   private DateTime _loadedLastWriteTimeUtc;
   private int _loadedMode = -1;
   private int _loadedLaneCount;
+  private int _loadedPlayerLaneOffset;
+  private string _loadedTaikoActionOrderKey = string.Empty;
 
   private double? _lastReplayTimeMs;
   private long _lastRealTicks;
@@ -67,13 +73,15 @@ internal sealed class ReplayKeyInputSource
     KeyOverlaySnapshot layout,
     int mode,
     double audioTime,
-    List<KeyOverlayTransition> transitions
+    List<KeyOverlayTransition> transitions,
+    int playerLaneOffset = 0,
+    string[]? taikoActionOrder = null
   )
   {
     if (layout.Keys.Length == 0)
       return layout;
 
-    RequestReloadIfDue(mode, layout.Keys.Length);
+    RequestReloadIfDue(mode, layout.Keys.Length, playerLaneOffset, taikoActionOrder);
 
     var laneCount = layout.Keys.Length;
     if (_lastPressed.Length != laneCount)
@@ -105,6 +113,9 @@ internal sealed class ReplayKeyInputSource
       ResetTo(index < 0 ? new bool[laneCount] : frames[index].Pressed, replayTime, nowTicks);
       return WithPressed(layout, _lastPressed);
     }
+
+    if (replayTime == previousReplayTime)
+      return WithPressed(layout, _lastPressed);
 
     var startIndex = FindFrameIndex(frames, previousReplayTime);
     var endIndex = FindFrameIndex(frames, replayTime);
@@ -153,55 +164,83 @@ internal sealed class ReplayKeyInputSource
     return fromTicks + (long)((toTicks - fromTicks) * t);
   }
 
-  private void RequestReloadIfDue(int mode, int laneCount)
+  private void RequestReloadIfDue(int mode, int laneCount, int playerLaneOffset, string[]? taikoActionOrder)
   {
+    int generation;
     lock (_reloadLock)
     {
       if (_isReloading || DateTime.UtcNow - _lastReloadAttemptUtc < ReloadInterval)
         return;
       _isReloading = true;
       _lastReloadAttemptUtc = DateTime.UtcNow;
+      generation = _sessionGeneration;
     }
 
     var beatmap = _currentBeatmap();
-    Task.Run(() => ReloadIfChanged(beatmap.BeatmapPath, beatmap.BeatmapMd5, mode, laneCount));
+    var actionOrderKey = string.Join(',', taikoActionOrder ?? DefaultTaikoActionOrder);
+    Task.Run(() => ReloadIfChanged(generation, beatmap.BeatmapPath, beatmap.BeatmapMd5, mode, laneCount, playerLaneOffset, taikoActionOrder, actionOrderKey));
   }
 
-  private void ReloadIfChanged(string beatmapPath, string beatmapMd5, int mode, int laneCount)
+  private void ReloadIfChanged(
+    int generation,
+    string beatmapPath,
+    string beatmapMd5,
+    int mode,
+    int laneCount,
+    int playerLaneOffset,
+    string[]? taikoActionOrder,
+    string actionOrderKey
+  )
   {
-    var path = string.Empty;
-    var lastWriteTimeUtc = default(DateTime);
     try
     {
       if (string.IsNullOrWhiteSpace(beatmapMd5) || !File.Exists(beatmapPath))
       {
-        Volatile.Write(ref _frames, EmptyFrames);
-        _loadedPath = string.Empty;
+        CommitEmpty(generation);
         return;
       }
 
-      path = FindReplayPath(beatmapMd5);
-      if (string.IsNullOrEmpty(path))
+      var path = _loadedPath;
+      var needsSearch = string.IsNullOrEmpty(path) || beatmapMd5 != _loadedBeatmapMd5;
+      if (needsSearch)
       {
-        Volatile.Write(ref _frames, EmptyFrames);
-        _loadedPath = string.Empty;
-        return;
+        path = FindReplayPath(beatmapMd5);
+        if (string.IsNullOrEmpty(path))
+        {
+          CommitEmpty(generation);
+          return;
+        }
       }
 
-      lastWriteTimeUtc = File.GetLastWriteTimeUtc(path);
-      if (path == _loadedPath && lastWriteTimeUtc == _loadedLastWriteTimeUtc && mode == _loadedMode && laneCount == _loadedLaneCount)
+      var lastWriteTimeUtc = File.GetLastWriteTimeUtc(path);
+      if (
+        path == _loadedPath
+        && lastWriteTimeUtc == _loadedLastWriteTimeUtc
+        && mode == _loadedMode
+        && laneCount == _loadedLaneCount
+        && playerLaneOffset == _loadedPlayerLaneOffset
+        && actionOrderKey == _loadedTaikoActionOrderKey
+      )
         return;
 
-      var frames = LoadFrames(path, beatmapPath, mode, laneCount);
-      Volatile.Write(ref _frames, frames);
-      _loadedPath = path;
-      _loadedLastWriteTimeUtc = lastWriteTimeUtc;
-      _loadedMode = mode;
-      _loadedLaneCount = laneCount;
+      var frames = LoadFrames(path, beatmapPath, mode, laneCount, playerLaneOffset, taikoActionOrder);
+      lock (_reloadLock)
+      {
+        if (generation != _sessionGeneration)
+          return;
+        Volatile.Write(ref _frames, frames);
+        _loadedPath = path;
+        _loadedBeatmapMd5 = beatmapMd5;
+        _loadedLastWriteTimeUtc = lastWriteTimeUtc;
+        _loadedMode = mode;
+        _loadedLaneCount = laneCount;
+        _loadedPlayerLaneOffset = playerLaneOffset;
+        _loadedTaikoActionOrderKey = actionOrderKey;
+      }
     }
     catch (Exception e)
     {
-      Volatile.Write(ref _frames, EmptyFrames);
+      CommitEmpty(generation);
       LogUtils.DebugLogger($"ReplayKeyInputSource.ReloadIfChanged failed: {e.Message}", true);
     }
     finally
@@ -211,7 +250,30 @@ internal sealed class ReplayKeyInputSource
     }
   }
 
-  private static FrameState[] LoadFrames(string replayPath, string beatmapPath, int mode, int laneCount)
+  private void CommitEmpty(int generation)
+  {
+    lock (_reloadLock)
+    {
+      if (generation != _sessionGeneration)
+        return;
+      Volatile.Write(ref _frames, EmptyFrames);
+      _loadedPath = string.Empty;
+      _loadedBeatmapMd5 = string.Empty;
+    }
+  }
+
+  internal void NotifySessionStart()
+  {
+    lock (_reloadLock)
+    {
+      _loadedPath = string.Empty;
+      _loadedBeatmapMd5 = string.Empty;
+      _lastReloadAttemptUtc = DateTime.MinValue;
+      _sessionGeneration++;
+    }
+  }
+
+  private static FrameState[] LoadFrames(string replayPath, string beatmapPath, int mode, int laneCount, int playerLaneOffset, string[]? taikoActionOrder)
   {
     using var stream = File.OpenRead(replayPath);
     var score = new ReplayDecoder(beatmapPath).Parse(stream);
@@ -224,11 +286,13 @@ internal sealed class ReplayKeyInputSource
     {
       if (frame == null)
         continue;
-      result.Add(new FrameState(ReadDouble(frame, "Time"), ReadPressed(frame, mode, laneCount)));
+      result.Add(new FrameState(ReadDouble(frame, "Time"), ReadPressed(frame, mode, laneCount, playerLaneOffset, taikoActionOrder)));
     }
 
     return [.. result.OrderBy(frame => frame.Time)];
   }
+
+  private readonly Dictionary<string, (DateTime WriteTimeUtc, string Md5)> _replayMd5Cache = [];
 
   private string FindReplayPath(string beatmapMd5)
   {
@@ -241,9 +305,9 @@ internal sealed class ReplayKeyInputSource
       return candidates
         .Where(Directory.Exists)
         .SelectMany(path => Directory.EnumerateFiles(path, "*.osr", SearchOption.TopDirectoryOnly))
-        .Where(path => IsReplayForBeatmap(path, beatmapMd5))
         .OrderByDescending(File.GetLastWriteTimeUtc)
-        .FirstOrDefault() ?? string.Empty;
+        .FirstOrDefault(path => string.Equals(GetCachedReplayMd5(path), beatmapMd5, StringComparison.OrdinalIgnoreCase))
+        ?? string.Empty;
     }
     catch (Exception e)
     {
@@ -252,21 +316,30 @@ internal sealed class ReplayKeyInputSource
     }
   }
 
-  private static bool IsReplayForBeatmap(string path, string beatmapMd5)
+  private string GetCachedReplayMd5(string path)
+  {
+    var writeTimeUtc = File.GetLastWriteTimeUtc(path);
+    if (_replayMd5Cache.TryGetValue(path, out var cached) && cached.WriteTimeUtc == writeTimeUtc)
+      return cached.Md5;
+
+    var md5 = ReadReplayBeatmapMd5(path) ?? string.Empty;
+    _replayMd5Cache[path] = (writeTimeUtc, md5);
+    return md5;
+  }
+
+  private static string? ReadReplayBeatmapMd5(string path)
   {
     try
     {
       using var stream = File.OpenRead(path);
       if (stream.ReadByte() < 0)
-        return false;
+        return null;
       Span<byte> version = stackalloc byte[4];
-      if (stream.Read(version) != version.Length)
-        return false;
-      return string.Equals(ReadOsuString(stream), beatmapMd5, StringComparison.OrdinalIgnoreCase);
+      return stream.Read(version) != version.Length ? null : ReadOsuString(stream);
     }
     catch
     {
-      return false;
+      return null;
     }
   }
 
@@ -320,24 +393,25 @@ internal sealed class ReplayKeyInputSource
     return result;
   }
 
-  private static bool[] ReadPressed(object frame, int mode, int laneCount)
+  private static bool[] ReadPressed(object frame, int mode, int laneCount, int playerLaneOffset, string[]? taikoActionOrder)
   {
     var pressed = new bool[laneCount];
     switch (mode)
     {
       case 0:
-        pressed[0] = HasAction(frame, "LeftButton");
-        if (laneCount > 1)
-          pressed[1] = HasAction(frame, "RightButton");
+        if (playerLaneOffset < laneCount)
+          pressed[playerLaneOffset] = HasAction(frame, "LeftButton");
+        if (playerLaneOffset + 1 < laneCount)
+          pressed[playerLaneOffset + 1] = HasAction(frame, "RightButton");
         break;
       case 1:
-        pressed[0] = HasAction(frame, "LeftCentre");
-        if (laneCount > 1)
-          pressed[1] = HasAction(frame, "RightCentre");
-        if (laneCount > 2)
-          pressed[2] = HasAction(frame, "LeftRim");
-        if (laneCount > 3)
-          pressed[3] = HasAction(frame, "RightRim");
+        var actionOrder = taikoActionOrder ?? DefaultTaikoActionOrder;
+        for (var i = 0; i < actionOrder.Length; i++)
+        {
+          var laneIndex = playerLaneOffset + i;
+          if (laneIndex < laneCount)
+            pressed[laneIndex] = HasAction(frame, actionOrder[i]);
+        }
         break;
       case 2:
         pressed[0] = HasAction(frame, "Dash");
@@ -367,7 +441,7 @@ internal sealed class ReplayKeyInputSource
   {
     var keys = new KeyOverlayKeyState[layout.Keys.Length];
     for (var i = 0; i < keys.Length; i++)
-      keys[i] = new KeyOverlayKeyState(layout.Keys[i].Label, i < pressed.Length && pressed[i]);
+      keys[i] = new KeyOverlayKeyState(layout.Keys[i].Label, i < pressed.Length && pressed[i], layout.Keys[i].Role);
     return new KeyOverlaySnapshot(keys);
   }
 

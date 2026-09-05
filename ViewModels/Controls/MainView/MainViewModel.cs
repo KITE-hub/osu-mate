@@ -7,6 +7,7 @@ using OsuMate.Models;
 using OsuMate.Services;
 using OsuMate.Services.Osu;
 using OsuMate.Services.PlayLog;
+using OsuMate.Services.Key;
 
 namespace OsuMate.ViewModels
 {
@@ -76,6 +77,7 @@ namespace OsuMate.ViewModels
       _ppService.OnCalculated += UpdateUI;
       _memory.OnMemoryRead += UpdateFastUI;
       _memory.OnMemoryRead += UpdateKeyOverlayFromMemoryRead;
+      _memory.OnStatusChanged += HandleMemoryStatusChanged;
       KeyOverlay.RequestUpdate = UpdateKeyOverlay;
       _memory.OnOsuWindowFound += handle => OnOsuWindowFound?.Invoke(handle);
       StrainGraph = new(Theme.Current);
@@ -139,14 +141,17 @@ namespace OsuMate.ViewModels
 
     private readonly List<(double timeSec, double offsetMs)> _urTimelineAccumulated = [];
 
+    private void HandleMemoryStatusChanged(OsuMemoryDataProvider.OsuMemoryStatus previous, OsuMemoryDataProvider.OsuMemoryStatus current)
+    {
+      var isPlaying = current == OsuMemoryDataProvider.OsuMemoryStatus.Playing;
+      if (isPlaying == _previousIsPlaying)
+        return;
+      _previousIsPlaying = isPlaying;
+      IsPlayingChanged?.Invoke(isPlaying);
+    }
+
     private void UpdateUI(BeatmapData data, HitsResult hits)
     {
-      if (_memory.IsPlaying != _previousIsPlaying)
-      {
-        _previousIsPlaying = _memory.IsPlaying;
-        IsPlayingChanged?.Invoke(_memory.IsPlaying);
-      }
-
       _bestPpTracker.RefreshIfChanged(_ppService.CurrentBeatmapMd5);
 
       var baseAddresses = _memory.GetBaseAddressSnapshot();
@@ -204,6 +209,10 @@ namespace OsuMate.ViewModels
 
     private readonly object _keyOverlayLock = new();
     private readonly List<KeyOverlayTransition> _keyOverlayTransitionBuffer = [];
+    private readonly BeatmapOverlayService _beatmapOverlayService = new();
+    private bool _keyOverlayWasPlaying;
+    private double _keyOverlayLastAudioTime;
+    private string _keyOverlayLastBeatmapMd5 = string.Empty;
 
     private int _fastUiDispatchPending;
     private int _fastInfoDispatchPending;
@@ -227,14 +236,69 @@ namespace OsuMate.ViewModels
       {
         var keyOverlayAddresses = _memory.GetBaseAddressSnapshot();
         _keyOverlayTransitionBuffer.Clear();
+
+        var showBeatmapBars = _settings.KeyOverlay.KeyOverlayShowBeatmapBars;
+        var beatmapLanePos = _settings.KeyOverlay.KeyOverlayBeatmapLanePosition;
+        int gamemode = _memory.CurrentOsuGamemode;
+        var currentMap = _memory.GetCurrentBeatmap();
+        string beatmapPath = !string.IsNullOrEmpty(currentMap.BeatmapPath)
+          ? currentMap.BeatmapPath
+          : (_ppService.CurrentBeatmapPath ?? string.Empty);
+        string beatmapMd5 = !string.IsNullOrEmpty(currentMap.BeatmapMd5)
+          ? currentMap.BeatmapMd5
+          : (_ppService.CurrentBeatmapMd5 ?? string.Empty);
+        int? maniaKeyCount = _ppService.CurrentManiaKeyCount;
+
+        if (showBeatmapBars)
+          _beatmapOverlayService.UpdateCurrentBeatmap(beatmapPath, beatmapMd5, gamemode, maniaKeyCount);
+
         var layout = _memory.DrainKeyOverlayUpdate(
-          _memory.CurrentOsuGamemode,
-          _ppService.CurrentManiaKeyCount,
+          gamemode,
+          maniaKeyCount,
           keyOverlayAddresses.GeneralData.AudioTime,
           keyOverlayAddresses.Player.IsReplay,
-          _keyOverlayTransitionBuffer
+          _keyOverlayTransitionBuffer,
+          showBeatmapBars,
+          beatmapLanePos
         );
-        KeyOverlay.Publish(layout, _keyOverlayTransitionBuffer);
+
+        bool isPlaying = _memory.IsPlaying;
+        double audioTime = keyOverlayAddresses.GeneralData.AudioTime;
+
+        bool resetCounts = false;
+        if (isPlaying && !_keyOverlayWasPlaying)
+        {
+          resetCounts = true;
+        }
+        else if (isPlaying && audioTime < _keyOverlayLastAudioTime - 500)
+        {
+          resetCounts = true;
+        }
+        else if (beatmapMd5 != _keyOverlayLastBeatmapMd5)
+        {
+          resetCounts = true;
+          _keyOverlayLastBeatmapMd5 = beatmapMd5;
+        }
+
+        _keyOverlayWasPlaying = isPlaying;
+        _keyOverlayLastAudioTime = audioTime;
+
+        int beatmapLaneIndex = -1;
+        if (showBeatmapBars && (gamemode == 0 || gamemode == 1) && layout.Keys.Length > 0)
+        {
+          beatmapLaneIndex = beatmapLanePos == 0 ? 0 : layout.Keys.Length - 1;
+        }
+
+        var notes = showBeatmapBars ? _beatmapOverlayService.CurrentNotes : [];
+        var beatmapState = new BeatmapOverlayState(
+          notes,
+          audioTime,
+          gamemode,
+          beatmapLaneIndex,
+          showBeatmapBars
+        );
+
+        KeyOverlay.Publish(layout, _keyOverlayTransitionBuffer, isPlaying, resetCounts, beatmapState);
       }
       finally
       {

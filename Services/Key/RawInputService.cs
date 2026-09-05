@@ -5,7 +5,7 @@ using System.Threading;
 using System.Windows.Forms;
 using OsuMate.Utils;
 
-namespace OsuMate.Services;
+namespace OsuMate.Services.Key;
 
 public sealed class RawInputService : IDisposable
 {

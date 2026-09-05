@@ -40,6 +40,7 @@ namespace OsuMate.Services
     internal Dictionary<HitResult, double> CurrentHitWindows { get; private set; } = [];
     internal BeatmapData? LastCalculatedData { get; private set; }
 
+    internal string CurrentBeatmapPath => _preMapPath;
     internal string CurrentBeatmapMd5 { get; private set; } = string.Empty;
     internal event Action<BeatmapData, HitsResult>? OnCalculated;
     internal event Action<BeatmapData, List<float[]>, string[], double>? OnStrainDataUpdated;

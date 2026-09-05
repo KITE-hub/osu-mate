@@ -1,4 +1,5 @@
 using System.Windows;
+using OsuMate.Services.Key;
 using OsuMate.Utils;
 using OsuMate.ViewModels;
 
@@ -23,6 +24,7 @@ namespace OsuMate.Services
     private readonly RelativeWindowPosition _urBarPosition;
     private readonly RelativeWindowSize _urBarSize;
     private readonly RelativeWindowPosition _keyOverlayPosition;
+    private double _keyOverlayFlowLength;
 
     public WindowManagerService(
       MainViewModel mainViewModel,
@@ -43,6 +45,7 @@ namespace OsuMate.Services
         _settingsVm.KeyOverlayX,
         _settingsVm.KeyOverlayY
       );
+      _keyOverlayFlowLength = _settingsVm.KeyOverlayHeight;
 
       _overlayWindow = new Views.InGameOverlayWindow(_mainViewModel.InGameOverlay);
       _overlayWindow.PositionChanged += HandleOverlayWindowPositionChanged;
@@ -76,6 +79,8 @@ namespace OsuMate.Services
       _settingsVm.OnApplyURBarSizeRequested += HandleApplyURBarSizeRequested;
       _settingsVm.OnSaveKeyOverlayPositionRequested += HandleSaveKeyOverlayPositionRequested;
       _settingsVm.OnApplyKeyOverlayPositionRequested += HandleApplyKeyOverlayPositionRequested;
+      _settingsVm.OnSaveKeyOverlayFlowLengthRequested += HandleSaveKeyOverlayFlowLengthRequested;
+      _settingsVm.OnApplyKeyOverlayFlowLengthRequested += HandleApplyKeyOverlayFlowLengthRequested;
 
       _settingsVm.PropertyChanged += SettingsVm_PropertyChanged;
       _mainViewModel.IsPlayingChanged += OnIsPlayingChanged;
@@ -117,7 +122,13 @@ namespace OsuMate.Services
 
     private void HandleKeyOverlayFlowLengthChanged(double length)
     {
-      Application.Current.Dispatcher.BeginInvoke(() => _settingsVm.KeyOverlayHeight = length);
+      Application.Current.Dispatcher.BeginInvoke(() =>
+      {
+        _keyOverlayFlowLength = length;
+        _settingsVm.KeyOverlayHeight = length;
+        if (_settingsVm.KeyOverlayRotation is 180 or 270)
+          _settingsVm.SetKeyOverlayPosition(_keyOverlayPosition.X, _keyOverlayPosition.Y);
+      });
     }
 
     private void HandleSaveOverlayPositionRequested()
@@ -168,6 +179,20 @@ namespace OsuMate.Services
       PositionOverlaysToOsu();
     }
 
+    private void HandleSaveKeyOverlayFlowLengthRequested()
+    {
+      _settingsVm.KeyOverlayHeight = _keyOverlayFlowLength;
+      _settingsVm.SetKeyOverlayPosition(_keyOverlayPosition.X, _keyOverlayPosition.Y);
+      _settingsVm.Save();
+    }
+
+    private void HandleApplyKeyOverlayFlowLengthRequested()
+    {
+      _keyOverlayFlowLength = _settingsVm.KeyOverlayHeight;
+      ApplyKeyOverlaySettings();
+      PositionOverlaysToOsu();
+    }
+
     private void SettingsVm_PropertyChanged(
       object? sender,
       System.ComponentModel.PropertyChangedEventArgs e
@@ -207,9 +232,13 @@ namespace OsuMate.Services
         else if (
           e.PropertyName == nameof(SettingsViewModel.KeyOverlayHeight)
           || e.PropertyName == nameof(SettingsViewModel.KeyOverlayRotation)
-          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayBarSpeed)
+          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayDurationMs)
           || e.PropertyName == nameof(SettingsViewModel.KeyOverlayBarRound)
           || e.PropertyName == nameof(SettingsViewModel.KeyOverlayLaneWidth)
+          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayInputBarOpacity)
+          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayBeatmapBarOpacity)
+          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayBeatmapTapLengthMs)
+          || e.PropertyName == nameof(SettingsViewModel.FontFamily)
         )
         {
           ApplyKeyOverlaySettings();
@@ -504,9 +533,13 @@ namespace OsuMate.Services
       _keyOverlayThread.UpdateSettings(
         _settingsVm.KeyOverlayRotation,
         _settingsVm.KeyOverlayHeight,
-        _settingsVm.KeyOverlayBarSpeed,
+        _settingsVm.KeyOverlayDurationMs,
         _settingsVm.KeyOverlayBarRound,
-        _settingsVm.KeyOverlayLaneWidth
+        _settingsVm.KeyOverlayLaneWidth,
+        _settingsVm.FontFamily,
+        _settingsVm.KeyOverlayInputBarOpacity,
+        _settingsVm.KeyOverlayBeatmapBarOpacity,
+        _settingsVm.KeyOverlayBeatmapTapLengthMs
       );
     }
   }
