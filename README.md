@@ -2,9 +2,9 @@
 
 A companion desktop tool for **osu!** (Windows, C# / WPF).
 
-![Main window](.github/images/screenshot-main.png)
+![Main window](.github/images/screenshot-mainView.png)
 
-![Overview when playing](.github/images/screenshot-overview.png)
+![Overview when playing](.github/images/screenshot-playing.png)
 
 ## Features
 
@@ -42,7 +42,7 @@ A companion desktop tool for **osu!** (Windows, C# / WPF).
   <details>
   <summary>Screenshot</summary>
 
-  ![Trainer](.github/images/screenshot-trainer.png)
+  ![Trainer](.github/images/screenshot-trainerView.png)
 
   </details>
 
@@ -51,7 +51,7 @@ A companion desktop tool for **osu!** (Windows, C# / WPF).
   <details>
   <summary>Screenshot</summary>
 
-  ![Play Log](.github/images/screenshot-playLog.png)
+  ![Play Log](.github/images/screenshot-playLogView.png)
 
   </details>
 
