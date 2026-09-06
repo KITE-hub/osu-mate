@@ -255,8 +255,6 @@ namespace OsuMate.ViewModels
         var layout = _memory.DrainKeyOverlayUpdate(
           gamemode,
           maniaKeyCount,
-          keyOverlayAddresses.GeneralData.AudioTime,
-          keyOverlayAddresses.Player.IsReplay,
           _keyOverlayTransitionBuffer,
           showBeatmapBars,
           beatmapLanePos

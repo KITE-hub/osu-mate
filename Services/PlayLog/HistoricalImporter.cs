@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using OsuMate.Models;
+using OsuMate.Services.StableDb;
 using OsuMate.Utils;
 
 namespace OsuMate.Services.PlayLog
@@ -10,7 +11,6 @@ namespace OsuMate.Services.PlayLog
   {
     private readonly OsuMemoryService _memory;
     private readonly GlobalConfig _config;
-
     public HistoricalImporter(OsuMemoryService memory)
     {
       _memory = memory;
@@ -77,7 +77,7 @@ namespace OsuMate.Services.PlayLog
         LogUtils.DebugLogger($"HistoricalImporter: Reading DB from {osuDbPath}", true);
 
         var parsedMd5Map = OsuMate.Services.StableDb.OsuDbReader.ReadBeatmaps(osuDbPath);
-        var scores = OsuMate.Services.StableDb.ScoresDbReader.ReadScores(scoresDbPath);
+        var scores = ScoresDbReader.ReadScores(scoresDbPath);
         list.AddRange(BuildEntriesFromScores(scores, parsedMd5Map));
         md5Map = parsedMd5Map;
       }
@@ -90,7 +90,7 @@ namespace OsuMate.Services.PlayLog
     }
 
     private static List<PlayLogEntry> BuildEntriesFromScores(
-      List<OsuMate.Services.StableDb.ScoreRecord> scores,
+      IReadOnlyList<OsuMate.Services.StableDb.ScoreRecord> scores,
       Dictionary<string, OsuMate.Services.StableDb.BeatmapInfo>? md5Map
     )
     {

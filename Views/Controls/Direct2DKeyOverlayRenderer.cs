@@ -38,6 +38,16 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
   private const int MaxKeyBarsPerLane = 40;
   private const int MaxMapBarsPerLane = 128;
 
+  private const float TaikoDonR = 235f / 255f;
+  private const float TaikoDonG = 69f / 255f;
+  private const float TaikoDonB = 44f / 255f;
+  private const float TaikoKatR = 68f / 255f;
+  private const float TaikoKatG = 141f / 255f;
+  private const float TaikoKatB = 171f / 255f;
+
+  private static Color4 TaikoDonColour(float alpha) => new(TaikoDonR, TaikoDonG, TaikoDonB, alpha);
+  private static Color4 TaikoKatColour(float alpha) => new(TaikoKatR, TaikoKatG, TaikoKatB, alpha);
+
   private readonly Stack<BarState> _barPool = new();
   private readonly List<List<BarState>> _bars = [];
   private readonly List<List<KeyOverlayTransition>> _laneEventBuckets = [];
@@ -87,12 +97,12 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
     _labelPressedBrush = dc.CreateSolidColorBrush(new Color4(1f, 1f, 1f, 1f));
     _barBrush = dc.CreateSolidColorBrush(new Color4(1f, 1f, 1f, 0.5f));
     _borderBrush = dc.CreateSolidColorBrush(new Color4(1f, 1f, 1f, 180f / 255f));
-    _donBorderBrush = dc.CreateSolidColorBrush(new Color4(235f / 255f, 65f / 255f, 60f / 255f, 180f / 255f));
-    _katBorderBrush = dc.CreateSolidColorBrush(new Color4(55f / 255f, 150f / 255f, 240f / 255f, 180f / 255f));
+    _donBorderBrush = dc.CreateSolidColorBrush(TaikoDonColour(180f / 255f));
+    _katBorderBrush = dc.CreateSolidColorBrush(TaikoKatColour(180f / 255f));
     _dragBackgroundBrush = dc.CreateSolidColorBrush(new Color4(0f, 0f, 0f, 204f / 255f));
     _dragBorderBrush = dc.CreateSolidColorBrush(new Color4(1f, 1f, 1f, 1f));
-    _taikoDonBrush = dc.CreateSolidColorBrush(new Color4(235f / 255f, 65f / 255f, 60f / 255f, 0.5f));
-    _taikoKatBrush = dc.CreateSolidColorBrush(new Color4(55f / 255f, 150f / 255f, 240f / 255f, 0.5f));
+    _taikoDonBrush = dc.CreateSolidColorBrush(TaikoDonColour(0.5f));
+    _taikoKatBrush = dc.CreateSolidColorBrush(TaikoKatColour(0.5f));
     _standardMapBrush = dc.CreateSolidColorBrush(new Color4(255f / 255f, 205f / 255f, 60f / 255f, 0.5f));
     _maniaBeatmapBrush = dc.CreateSolidColorBrush(new Color4(60f / 255f, 185f / 255f, 245f / 255f, 0.5f));
     _textFormat = context.CreateKeyTextFormat(_fontFamily, 14f);
@@ -120,8 +130,8 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
     var inAlpha = (float)Math.Clamp(inputBarOpacity, 0.0, 1.0);
     var bmAlpha = (float)Math.Clamp(beatmapBarOpacity, 0.0, 1.0);
     _barBrush.Color = new Color4(1f, 1f, 1f, inAlpha);
-    _taikoDonBrush.Color = new Color4(235f / 255f, 65f / 255f, 60f / 255f, bmAlpha);
-    _taikoKatBrush.Color = new Color4(55f / 255f, 150f / 255f, 240f / 255f, bmAlpha);
+    _taikoDonBrush.Color = TaikoDonColour(bmAlpha);
+    _taikoKatBrush.Color = TaikoKatColour(bmAlpha);
     _standardMapBrush.Color = new Color4(255f / 255f, 205f / 255f, 60f / 255f, bmAlpha);
     _maniaBeatmapBrush.Color = new Color4(60f / 255f, 185f / 255f, 245f / 255f, bmAlpha);
 
