@@ -16,7 +16,6 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
 {
   private const int WS_POPUP = unchecked((int)0x80000000);
   private const int WS_EX_TOPMOST = 0x00000008;
-  private const int WS_EX_TOOLWINDOW = 0x00000080;
   private const int WS_EX_NOREDIRECTIONBITMAP = 0x00200000;
   private const int WS_EX_TRANSPARENT = 0x00000020;
 
@@ -62,6 +61,7 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
   private readonly WndProcDelegate _wndProc;
 
   private IntPtr _hwnd;
+  private IntPtr _ownerHwnd;
   private Direct2DContext _context = null!;
   private Direct2DKeyOverlayRenderer _renderer = null!;
   private Exception? _initException;
@@ -294,11 +294,26 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
 
     RegisterClassEx(ref wndClass);
 
+    _ownerHwnd = CreateWindowEx(
+      0,
+      "STATIC",
+      "",
+      WS_POPUP,
+      0,
+      0,
+      0,
+      0,
+      IntPtr.Zero,
+      IntPtr.Zero,
+      hInstance,
+      IntPtr.Zero
+    );
+
     var pxW = Math.Max(1, (int)Math.Round(_widthDip * _dpiScale));
     var pxH = Math.Max(1, (int)Math.Round(_heightDip * _dpiScale));
 
     _hwnd = CreateWindowEx(
-      WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOREDIRECTIONBITMAP | WS_EX_TRANSPARENT,
+      WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP | WS_EX_TRANSPARENT,
       className,
       "osu mate - Key Overlay",
       WS_POPUP,
@@ -306,7 +321,7 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
       0,
       pxW,
       pxH,
-      IntPtr.Zero,
+      _ownerHwnd,
       IntPtr.Zero,
       hInstance,
       IntPtr.Zero
@@ -582,6 +597,12 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
     Windows.TryRemove(_hwnd, out _);
     _renderer?.Dispose();
     _context?.Dispose();
+
+    if (_ownerHwnd != IntPtr.Zero)
+    {
+      DestroyWindow(_ownerHwnd);
+      _ownerHwnd = IntPtr.Zero;
+    }
   }
 
   public void Dispose()
@@ -666,7 +687,7 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
     IntPtr lpParam
   );
 
-  [DllImport("user32.dll")]
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
   private static extern IntPtr DefWindowProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
   [DllImport("user32.dll")]
