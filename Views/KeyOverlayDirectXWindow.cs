@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using OsuMate.Models;
 using OsuMate.Rendering;
+using OsuMate.Utils;
 using OsuMate.ViewModels;
 using OsuMate.Views.Controls;
 
@@ -80,6 +81,10 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
   private double _round = 4;
   private double _laneWidth = 64;
   private int _laneCount = -1;
+  private string? _fontFamily;
+  private double _inputBarOpacity = 0.5;
+  private double _beatmapBarOpacity = 0.5;
+  private double _beatmapTapLengthMs = 25;
 
   private double _widthDip = 120;
   private double _heightDip = 200;
@@ -114,7 +119,8 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
     };
     _thread.Start();
 
-    _initReady.Wait();
+    if (!_initReady.Wait(TimeSpan.FromSeconds(10)))
+      throw new TimeoutException("Timed out waiting for KeyOverlay DirectX window initialization");
     if (_initException != null)
       throw new InvalidOperationException("Failed to initialize KeyOverlay DirectX window", _initException);
   }
@@ -159,13 +165,17 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
   {
     _commandQueue.Enqueue(() =>
     {
-      _rotation = (int)Math.Round((((rotation % 360) + 360) % 360) / 90.0) * 90 % 360;
+      _rotation = MathUtils.SnapTo90Degrees(rotation);
       _flowLength = Math.Max(120.0, flowLength);
       _durationMs = Math.Clamp(durationMs, 100.0, 10000.0);
       _speed = Math.Max(1.0, (_flowLength - (Direct2DKeyOverlayRenderer.KeyLength + Direct2DKeyOverlayRenderer.Gap)) / (_durationMs / 1000.0));
       _round = round;
       _laneWidth = laneWidth;
-      _renderer.UpdateSettings(_rotation, _speed, _round, _laneWidth, fontFamily, inputBarOpacity, beatmapBarOpacity, beatmapTapLengthMs);
+      _fontFamily = fontFamily;
+      _inputBarOpacity = inputBarOpacity;
+      _beatmapBarOpacity = beatmapBarOpacity;
+      _beatmapTapLengthMs = beatmapTapLengthMs;
+      _renderer.UpdateSettings(_rotation, _speed, _round, _laneWidth, _fontFamily, _inputBarOpacity, _beatmapBarOpacity, _beatmapTapLengthMs);
       ApplySize();
     });
     PostMessage(_hwnd, WM_APP_COMMAND, IntPtr.Zero, IntPtr.Zero);
@@ -235,10 +245,11 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
       }
 
       _vm.RequestUpdate?.Invoke();
-      var layout = _vm.Layout;
-      var beatmapState = _vm.BeatmapState;
+      var snapshot = _vm.Snapshot;
+      var layout = snapshot.Layout;
+      var beatmapState = snapshot.BeatmapState;
+      var isPlayActive = snapshot.IsPlayActive;
       var resetCounts = _vm.DrainReset();
-      var isPlayActive = _vm.IsPlayActive;
       _transitionBuffer.Clear();
       _vm.DrainTransitions(_transitionBuffer);
 
@@ -425,7 +436,7 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
           var deltaDip = delta / _dpiScale;
           _flowLength = Math.Max(120.0, _resizeStartLength + deltaDip);
           _speed = Math.Max(1.0, (_flowLength - (Direct2DKeyOverlayRenderer.KeyLength + Direct2DKeyOverlayRenderer.Gap)) / (_durationMs / 1000.0));
-          _renderer.UpdateSettings(_rotation, _speed, _round, _laneWidth);
+          _renderer.UpdateSettings(_rotation, _speed, _round, _laneWidth, _fontFamily, _inputBarOpacity, _beatmapBarOpacity, _beatmapTapLengthMs);
 
           var effectiveLaneCount = _laneCount <= 0 ? 2 : _laneCount;
           var (w, h) = _renderer.GetRequiredSize(effectiveLaneCount, _flowLength);
@@ -584,7 +595,8 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
     if (_hwnd != IntPtr.Zero)
       PostMessage(_hwnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
 
-    _thread.Join(TimeSpan.FromSeconds(2));
+    if (!_thread.Join(TimeSpan.FromSeconds(2)))
+      LogUtils.DebugLogger("KeyOverlayDirectXWindow: render thread did not exit in time", true);
     _initReady.Dispose();
   }
 

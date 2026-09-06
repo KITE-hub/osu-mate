@@ -15,18 +15,23 @@ namespace OsuMate.ViewModels
     public static BeatmapOverlayState Empty { get; } = new([], 0, -1, -1, false);
   }
 
+  internal sealed record KeyOverlayPublishedState(
+    KeyOverlaySnapshot Layout,
+    BeatmapOverlayState BeatmapState,
+    bool IsPlayActive
+  )
+  {
+    public static KeyOverlayPublishedState Empty { get; } = new(KeyOverlaySnapshot.Empty, BeatmapOverlayState.Empty, false);
+  }
+
   public sealed class KeyOverlayViewModel
   {
     private readonly ConcurrentQueue<KeyOverlayTransition> _transitions = new();
-    private KeyOverlaySnapshot _layout = KeyOverlaySnapshot.Empty;
-    private BeatmapOverlayState _beatmapState = BeatmapOverlayState.Empty;
+    private KeyOverlayPublishedState _state = KeyOverlayPublishedState.Empty;
     private volatile bool _resetRequested;
-    private volatile bool _isPlayActive;
 
-    internal KeyOverlaySnapshot Layout => Volatile.Read(ref _layout);
-    internal BeatmapOverlayState BeatmapState => Volatile.Read(ref _beatmapState);
+    internal KeyOverlayPublishedState Snapshot => Volatile.Read(ref _state);
     internal Action? RequestUpdate { get; set; }
-    internal bool IsPlayActive => _isPlayActive;
 
     internal void Publish(
       KeyOverlaySnapshot layout,
@@ -36,9 +41,7 @@ namespace OsuMate.ViewModels
       BeatmapOverlayState beatmapState
     )
     {
-      Volatile.Write(ref _layout, layout);
-      Volatile.Write(ref _beatmapState, beatmapState);
-      _isPlayActive = isPlayActive;
+      Volatile.Write(ref _state, new KeyOverlayPublishedState(layout, beatmapState, isPlayActive));
       if (resetCounts)
         _resetRequested = true;
       foreach (var transition in transitions)

@@ -3,6 +3,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
 using osu.Game.Rulesets.Scoring;
+using OsuMemoryDataProvider.OsuMemoryModels;
 using OsuMate.Models;
 using OsuMate.Services;
 using OsuMate.Services.Osu;
@@ -143,6 +144,7 @@ namespace OsuMate.ViewModels
 
     private void HandleMemoryStatusChanged(OsuMemoryDataProvider.OsuMemoryStatus previous, OsuMemoryDataProvider.OsuMemoryStatus current)
     {
+      UpdateKeyOverlay();
       var isPlaying = current == OsuMemoryDataProvider.OsuMemoryStatus.Playing;
       if (isPlaying == _previousIsPlaying)
         return;
@@ -219,22 +221,28 @@ namespace OsuMate.ViewModels
 
     private readonly ModifiedHitErrorCache _modifiedHitErrorCache = new();
 
+    private const double SeekBackResetThresholdMs = 500;
+
     private void UpdateKeyOverlayFromMemoryRead()
     {
       var keyOverlayAddresses = _memory.GetBaseAddressSnapshot();
       if (!keyOverlayAddresses.Player.IsReplay)
         return;
-      UpdateKeyOverlay();
+      UpdateKeyOverlay(keyOverlayAddresses);
     }
 
     private void UpdateKeyOverlay()
+    {
+      UpdateKeyOverlay(_memory.GetBaseAddressSnapshot());
+    }
+
+    private void UpdateKeyOverlay(OsuBaseAddresses keyOverlayAddresses)
     {
       if (!Monitor.TryEnter(_keyOverlayLock))
         return;
 
       try
       {
-        var keyOverlayAddresses = _memory.GetBaseAddressSnapshot();
         _keyOverlayTransitionBuffer.Clear();
 
         var showBeatmapBars = _settings.KeyOverlay.KeyOverlayShowBeatmapBars;
@@ -264,11 +272,11 @@ namespace OsuMate.ViewModels
         double audioTime = keyOverlayAddresses.GeneralData.AudioTime;
 
         bool resetCounts = false;
-        if (isPlaying && !_keyOverlayWasPlaying)
+        if (isPlaying != _keyOverlayWasPlaying)
         {
           resetCounts = true;
         }
-        else if (isPlaying && audioTime < _keyOverlayLastAudioTime - 500)
+        else if (isPlaying && audioTime < _keyOverlayLastAudioTime - SeekBackResetThresholdMs)
         {
           resetCounts = true;
         }

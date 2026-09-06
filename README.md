@@ -4,26 +4,11 @@ A companion desktop tool for **osu!** (Windows, C# / WPF).
 
 ![Main window](.github/images/screenshot-main.png)
 
+![Overview when playing](.github/images/screenshot-overview.png)
+
 ## Features
 
 - **Real-time PP / difficulty display** while playing (built on `ppy.osu.Game` libraries)
-- **Trainer**: generation of speed-changed charts (via NAudio + SoundTouch.Net) and randomized charts (excluding osu!catch Mode)
-
-  <details>
-  <summary>Screenshot</summary>
-
-  ![Trainer](.github/images/screenshot-trainer.png)
-
-  </details>
-
-- **Play log**: local play history tracking and a GitHub-style contribution graph
-
-  <details>
-  <summary>Screenshot</summary>
-
-  ![Play Log](.github/images/screenshot-playLog.png)
-
-  </details>
 
 - **UR bar / UR graph**: visualize hit-timing deviation (unstable rate)
 
@@ -40,6 +25,33 @@ A companion desktop tool for **osu!** (Windows, C# / WPF).
   <summary>Screenshot</summary>
 
   ![In-game Overlay](.github/images/screenshot-inGameOverlay.png)
+
+  </details>
+
+- **key overlay**: real-time visualization of key inputs (and map)
+
+  <details>
+  <summary>Screenshot</summary>
+
+  ![Key Overlay](.github/images/screenshot-keyOverlay.png)
+
+  </details>
+
+- **Trainer**: generation of speed-changed charts (via NAudio + SoundTouch.Net) and randomized charts (excluding osu!catch Mode)
+
+  <details>
+  <summary>Screenshot</summary>
+
+  ![Trainer](.github/images/screenshot-trainer.png)
+
+  </details>
+
+- **Play log**: local play history tracking and a GitHub-style contribution graph
+
+  <details>
+  <summary>Screenshot</summary>
+
+  ![Play Log](.github/images/screenshot-playLog.png)
 
   </details>
 

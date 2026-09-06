@@ -44,7 +44,8 @@ public sealed class RawInputService : IDisposable
       Priority = ThreadPriority.AboveNormal,
     };
     _pumpThread.Start();
-    _ready.Wait();
+    if (!_ready.Wait(TimeSpan.FromSeconds(10)))
+      LogUtils.DebugLogger("RawInputService: pump thread did not signal ready in time", true);
   }
 
   private void RunPump()
@@ -130,13 +131,14 @@ public sealed class RawInputService : IDisposable
 
     var type = Marshal.ReadInt32(_rawInputBuffer, 0);
     var headerSize = IntPtr.Size == 8 ? 24 : 16;
+    var dataPtr = IntPtr.Add(_rawInputBuffer, headerSize);
     if (type == RimTypeKeyboard)
     {
-      var vk = (Keys)(Marshal.ReadInt16(_rawInputBuffer, headerSize + 6) & 0xFF);
+      var keyboard = Marshal.PtrToStructure<RawKeyboard>(dataPtr);
+      var vk = (Keys)(keyboard.VirtualKey & 0xFF);
       if (!_activeKeys.Contains(vk))
         return;
-      var flags = Marshal.ReadInt16(_rawInputBuffer, headerSize + 2);
-      SetPressed(vk, (flags & RiKeyBreak) == 0);
+      SetPressed(vk, (keyboard.Flags & RiKeyBreak) == 0);
     }
     else if (type == RimTypeMouse)
     {
@@ -144,7 +146,8 @@ public sealed class RawInputService : IDisposable
       if (!active.Contains(Keys.LButton) && !active.Contains(Keys.RButton))
         return;
 
-      var flags = Marshal.ReadInt16(_rawInputBuffer, headerSize + 4);
+      var mouse = Marshal.PtrToStructure<RawMouse>(dataPtr);
+      var flags = mouse.ButtonFlags;
       if (flags != 0)
       {
         if (active.Contains(Keys.LButton))
@@ -200,7 +203,12 @@ public sealed class RawInputService : IDisposable
 
     if (_pumpThreadId != 0)
       PostThreadMessage(_pumpThreadId, WmQuit, IntPtr.Zero, IntPtr.Zero);
-    _pumpThread.Join(TimeSpan.FromSeconds(2));
+
+    if (!_pumpThread.Join(TimeSpan.FromSeconds(2)))
+    {
+      LogUtils.DebugLogger("RawInputService: pump thread did not exit in time; skipping unmanaged cleanup to avoid use-after-free.", true);
+      return;
+    }
 
     if (_windowHandle != IntPtr.Zero)
       DestroyWindow(_windowHandle);

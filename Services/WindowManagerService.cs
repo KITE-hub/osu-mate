@@ -13,7 +13,7 @@ namespace OsuMate.Services
     private readonly RawInputService _rawInput;
     private readonly Views.InGameOverlayWindow _overlayWindow;
     private readonly Views.URBarWindow _urBarWindow;
-    private readonly KeyOverlayUiThread _keyOverlayThread;
+    private readonly KeyOverlayWindowController _keyOverlayThread;
     private Window? _mainWindow;
 
     private CancellationTokenSource? _overlayTrackingCts;
@@ -42,10 +42,10 @@ namespace OsuMate.Services
       _urBarPosition = new RelativeWindowPosition(_settingsVm.URBarX, _settingsVm.URBarY);
       _urBarSize = new RelativeWindowSize(_settingsVm.URBarWidth, _settingsVm.URBarHeight);
       _keyOverlayPosition = new RelativeWindowPosition(
-        _settingsVm.KeyOverlayX,
-        _settingsVm.KeyOverlayY
+        _settingsVm.KeyOverlay.KeyOverlayX,
+        _settingsVm.KeyOverlay.KeyOverlayY
       );
-      _keyOverlayFlowLength = _settingsVm.KeyOverlayHeight;
+      _keyOverlayFlowLength = _settingsVm.KeyOverlay.KeyOverlayHeight;
 
       _overlayWindow = new Views.InGameOverlayWindow(_mainViewModel.InGameOverlay);
       _overlayWindow.PositionChanged += HandleOverlayWindowPositionChanged;
@@ -66,7 +66,7 @@ namespace OsuMate.Services
       _urBarWindow.PositionChanged += HandleURBarWindowPositionChanged;
       _urBarWindow.OnSizeChanged += HandleURBarWindowSizeChanged;
 
-      _keyOverlayThread = new KeyOverlayUiThread(_mainViewModel.KeyOverlay);
+      _keyOverlayThread = new KeyOverlayWindowController(_mainViewModel.KeyOverlay);
       ApplyKeyOverlaySettings();
       _keyOverlayThread.PositionChanged += HandleKeyOverlayWindowPositionChanged;
       _keyOverlayThread.FlowLengthChanged += HandleKeyOverlayFlowLengthChanged;
@@ -77,12 +77,13 @@ namespace OsuMate.Services
       _settingsVm.OnApplyURBarPositionRequested += HandleApplyURBarPositionRequested;
       _settingsVm.OnSaveURBarSizeRequested += HandleSaveURBarSizeRequested;
       _settingsVm.OnApplyURBarSizeRequested += HandleApplyURBarSizeRequested;
-      _settingsVm.OnSaveKeyOverlayPositionRequested += HandleSaveKeyOverlayPositionRequested;
-      _settingsVm.OnApplyKeyOverlayPositionRequested += HandleApplyKeyOverlayPositionRequested;
-      _settingsVm.OnSaveKeyOverlayFlowLengthRequested += HandleSaveKeyOverlayFlowLengthRequested;
-      _settingsVm.OnApplyKeyOverlayFlowLengthRequested += HandleApplyKeyOverlayFlowLengthRequested;
+      _settingsVm.KeyOverlay.OnSaveKeyOverlayPositionRequested += HandleSaveKeyOverlayPositionRequested;
+      _settingsVm.KeyOverlay.OnApplyKeyOverlayPositionRequested += HandleApplyKeyOverlayPositionRequested;
+      _settingsVm.KeyOverlay.OnSaveKeyOverlayFlowLengthRequested += HandleSaveKeyOverlayFlowLengthRequested;
+      _settingsVm.KeyOverlay.OnApplyKeyOverlayFlowLengthRequested += HandleApplyKeyOverlayFlowLengthRequested;
 
       _settingsVm.PropertyChanged += SettingsVm_PropertyChanged;
+      _settingsVm.KeyOverlay.PropertyChanged += KeyOverlayVm_PropertyChanged;
       _mainViewModel.IsPlayingChanged += OnIsPlayingChanged;
       _mainViewModel.OnOsuWindowFound += OnOsuWindowFound;
 
@@ -125,9 +126,9 @@ namespace OsuMate.Services
       Application.Current.Dispatcher.BeginInvoke(() =>
       {
         _keyOverlayFlowLength = length;
-        _settingsVm.KeyOverlayHeight = length;
-        if (_settingsVm.KeyOverlayRotation is 180 or 270)
-          _settingsVm.SetKeyOverlayPosition(_keyOverlayPosition.X, _keyOverlayPosition.Y);
+        _settingsVm.KeyOverlay.KeyOverlayHeight = length;
+        if (_settingsVm.KeyOverlay.KeyOverlayRotation is 180 or 270)
+          _settingsVm.KeyOverlay.SetKeyOverlayPosition(_keyOverlayPosition.X, _keyOverlayPosition.Y);
       });
     }
 
@@ -170,25 +171,25 @@ namespace OsuMate.Services
 
     private void HandleSaveKeyOverlayPositionRequested()
     {
-      _settingsVm.SetKeyOverlayPosition(_keyOverlayPosition.X, _keyOverlayPosition.Y);
+      _settingsVm.KeyOverlay.SetKeyOverlayPosition(_keyOverlayPosition.X, _keyOverlayPosition.Y);
     }
 
     private void HandleApplyKeyOverlayPositionRequested()
     {
-      _keyOverlayPosition.SetValue(_settingsVm.KeyOverlayX, _settingsVm.KeyOverlayY);
+      _keyOverlayPosition.SetValue(_settingsVm.KeyOverlay.KeyOverlayX, _settingsVm.KeyOverlay.KeyOverlayY);
       PositionOverlaysToOsu();
     }
 
     private void HandleSaveKeyOverlayFlowLengthRequested()
     {
-      _settingsVm.KeyOverlayHeight = _keyOverlayFlowLength;
-      _settingsVm.SetKeyOverlayPosition(_keyOverlayPosition.X, _keyOverlayPosition.Y);
+      _settingsVm.KeyOverlay.KeyOverlayHeight = _keyOverlayFlowLength;
+      _settingsVm.KeyOverlay.SetKeyOverlayPosition(_keyOverlayPosition.X, _keyOverlayPosition.Y);
       _settingsVm.Save();
     }
 
     private void HandleApplyKeyOverlayFlowLengthRequested()
     {
-      _keyOverlayFlowLength = _settingsVm.KeyOverlayHeight;
+      _keyOverlayFlowLength = _settingsVm.KeyOverlay.KeyOverlayHeight;
       ApplyKeyOverlaySettings();
       PositionOverlaysToOsu();
     }
@@ -225,21 +226,7 @@ namespace OsuMate.Services
         {
           OnURBarEnabledChanged(_settingsVm.URBarEnabled);
         }
-        else if (e.PropertyName == nameof(SettingsViewModel.KeyOverlayEnabled))
-        {
-          OnKeyOverlayEnabledChanged(_settingsVm.KeyOverlayEnabled);
-        }
-        else if (
-          e.PropertyName == nameof(SettingsViewModel.KeyOverlayHeight)
-          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayRotation)
-          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayDurationMs)
-          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayBarRound)
-          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayLaneWidth)
-          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayInputBarOpacity)
-          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayBeatmapBarOpacity)
-          || e.PropertyName == nameof(SettingsViewModel.KeyOverlayBeatmapTapLengthMs)
-          || e.PropertyName == nameof(SettingsViewModel.FontFamily)
-        )
+        else if (e.PropertyName == nameof(SettingsViewModel.FontFamily))
         {
           ApplyKeyOverlaySettings();
         }
@@ -270,6 +257,33 @@ namespace OsuMate.Services
         else if (e.PropertyName == nameof(SettingsViewModel.OverlayEnabled))
         {
           OnOverlayEnabledChanged(_settingsVm.OverlayEnabled);
+        }
+      });
+    }
+
+    private void KeyOverlayVm_PropertyChanged(
+      object? sender,
+      System.ComponentModel.PropertyChangedEventArgs e
+    )
+    {
+      Application.Current.Dispatcher.Invoke(() =>
+      {
+        if (e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayEnabled))
+        {
+          OnKeyOverlayEnabledChanged(_settingsVm.KeyOverlay.KeyOverlayEnabled);
+        }
+        else if (
+          e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayHeight)
+          || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayRotation)
+          || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayDurationMs)
+          || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayBarRound)
+          || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayLaneWidth)
+          || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayInputBarOpacity)
+          || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayBeatmapBarOpacity)
+          || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayBeatmapTapLengthMs)
+        )
+        {
+          ApplyKeyOverlaySettings();
         }
       });
     }
@@ -349,7 +363,7 @@ namespace OsuMate.Services
             _urBarWindow.Hide();
           }
 
-          if (_settingsVm.KeyOverlayEnabled)
+          if (_settingsVm.KeyOverlay.KeyOverlayEnabled)
           {
             _keyOverlayThread.SetDraggable(false);
             ApplyKeyOverlaySettings();
@@ -360,7 +374,7 @@ namespace OsuMate.Services
             _keyOverlayThread.Hide();
           }
 
-          if (_settingsVm.OverlayEnabled || _settingsVm.KeyOverlayEnabled)
+          if (_settingsVm.OverlayEnabled || _settingsVm.KeyOverlay.KeyOverlayEnabled)
             HideMainWindow();
         }
         else
@@ -531,15 +545,15 @@ namespace OsuMate.Services
     private void ApplyKeyOverlaySettings()
     {
       _keyOverlayThread.UpdateSettings(
-        _settingsVm.KeyOverlayRotation,
-        _settingsVm.KeyOverlayHeight,
-        _settingsVm.KeyOverlayDurationMs,
-        _settingsVm.KeyOverlayBarRound,
-        _settingsVm.KeyOverlayLaneWidth,
+        _settingsVm.KeyOverlay.KeyOverlayRotation,
+        _settingsVm.KeyOverlay.KeyOverlayHeight,
+        _settingsVm.KeyOverlay.KeyOverlayDurationMs,
+        _settingsVm.KeyOverlay.KeyOverlayBarRound,
+        _settingsVm.KeyOverlay.KeyOverlayLaneWidth,
         _settingsVm.FontFamily,
-        _settingsVm.KeyOverlayInputBarOpacity,
-        _settingsVm.KeyOverlayBeatmapBarOpacity,
-        _settingsVm.KeyOverlayBeatmapTapLengthMs
+        _settingsVm.KeyOverlay.KeyOverlayInputBarOpacity,
+        _settingsVm.KeyOverlay.KeyOverlayBeatmapBarOpacity,
+        _settingsVm.KeyOverlay.KeyOverlayBeatmapTapLengthMs
       );
     }
   }

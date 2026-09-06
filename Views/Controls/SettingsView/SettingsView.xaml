@@ -829,7 +829,7 @@
           />
         </StackPanel>
       </StackPanel>
-      <StackPanel Margin="{StaticResource SectionSpacing}">
+      <StackPanel Margin="{StaticResource SectionSpacing}" DataContext="{Binding KeyOverlay}">
         <Grid Height="22" Margin="{StaticResource RowSpacing}">
           <TextBlock
             Text="Key Overlay"
@@ -985,7 +985,7 @@
 
         <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
           <TextBlock Text="Flow Time" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
-          <Slider Minimum="200" Maximum="1500" Value="{Binding KeyOverlayDurationMs}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
+          <Slider Minimum="200" Maximum="1500" Value="{Binding KeyOverlayDurationMs}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" TickFrequency="10" IsSnapToTickEnabled="True" />
           <TextBlock Text="{Binding KeyOverlayDurationMs, StringFormat={}{0:F0} ms}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
         </StackPanel>
 

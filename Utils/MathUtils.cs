@@ -41,4 +41,10 @@ internal static class MathUtils
     string sign = value > 0 ? "+" : "-";
     return sign + ((int)Math.Abs(value)).ToString();
   }
+
+  internal static int SnapTo90Degrees(int degrees)
+  {
+    var normalized = ((degrees % 360) + 360) % 360;
+    return (int)Math.Round(normalized / 90.0) * 90 % 360;
+  }
 }

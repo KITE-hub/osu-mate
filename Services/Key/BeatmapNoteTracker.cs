@@ -151,11 +151,15 @@ internal sealed class BeatmapNoteTracker
   {
     if (_pendingIsHold.Length >= laneCount)
       return;
-    _pendingIsHold = new bool[laneCount];
-    _pendingHoldEndTime = new double[laneCount];
-    _pendingTapCloseTicks = new long[laneCount];
-    Array.Fill(_pendingHoldEndTime, double.NaN);
-    Array.Fill(_pendingTapCloseTicks, long.MinValue);
+    var oldLength = _pendingIsHold.Length;
+    Array.Resize(ref _pendingIsHold, laneCount);
+    Array.Resize(ref _pendingHoldEndTime, laneCount);
+    Array.Resize(ref _pendingTapCloseTicks, laneCount);
+    for (var lane = oldLength; lane < laneCount; lane++)
+    {
+      _pendingHoldEndTime[lane] = double.NaN;
+      _pendingTapCloseTicks[lane] = long.MinValue;
+    }
   }
 
   private static long InterpolateTicks(double fromAudioTime, double toAudioTime, long fromTicks, long toTicks, double targetAudioTime)

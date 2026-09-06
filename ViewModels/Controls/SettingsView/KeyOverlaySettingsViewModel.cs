@@ -1,4 +1,5 @@
 using OsuMate.Models;
+using OsuMate.Utils;
 
 namespace OsuMate.ViewModels
 {
@@ -48,8 +49,7 @@ namespace OsuMate.ViewModels
       get => _presetConfig().KeyOverlayRotation;
       set
       {
-        var normalized = ((value % 360) + 360) % 360;
-        _presetConfig().KeyOverlayRotation = (int)Math.Round(normalized / 90.0) * 90 % 360;
+        _presetConfig().KeyOverlayRotation = MathUtils.SnapTo90Degrees(value);
         OnPropertyChanged();
         OnPropertyChanged(nameof(KeyOverlayRotationLabel));
         OnPropertyChanged(nameof(KeyOverlaySizeText));
@@ -127,7 +127,7 @@ namespace OsuMate.ViewModels
       get => _presetConfig().KeyOverlayDurationMs <= 0 ? 1000 : _presetConfig().KeyOverlayDurationMs;
       set
       {
-        _presetConfig().KeyOverlayDurationMs = Math.Clamp(value, 200, 1500);
+        _presetConfig().KeyOverlayDurationMs = Math.Round(Math.Clamp(value, 200, 1500) / 10) * 10;
         OnPropertyChanged();
         _debouncedSave();
       }

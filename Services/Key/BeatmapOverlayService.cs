@@ -16,6 +16,16 @@ using OsuMate.Utils;
 
 namespace OsuMate.Services.Key;
 
+internal sealed record BeatmapIdentity(string Path, string Md5, int Mode, int? ManiaKeyCount)
+{
+  public static BeatmapIdentity Empty { get; } = new(string.Empty, string.Empty, -1, null);
+}
+
+internal sealed record BeatmapOverlayData(BeatmapOverlayNote[] Notes, BeatmapIdentity Identity)
+{
+  public static BeatmapOverlayData Empty { get; } = new([], BeatmapIdentity.Empty);
+}
+
 public sealed class BeatmapOverlayService
 {
   private static readonly BeatmapOverlayNote[] EmptyNotes = [];
@@ -25,22 +35,14 @@ public sealed class BeatmapOverlayService
   private bool _isReloading;
   private DateTime _lastReloadAttemptUtc = DateTime.MinValue;
 
-  private BeatmapOverlayNote[] _notes = EmptyNotes;
-  private string _loadedPath = string.Empty;
-  private string _loadedMd5 = string.Empty;
-  private int _loadedMode = -1;
-  private int? _loadedManiaKeyCount;
+  private BeatmapOverlayData _data = BeatmapOverlayData.Empty;
 
-  public BeatmapOverlayNote[] CurrentNotes => Volatile.Read(ref _notes);
+  public BeatmapOverlayNote[] CurrentNotes => Volatile.Read(ref _data).Notes;
 
   public void UpdateCurrentBeatmap(string beatmapPath, string beatmapMd5, int mode, int? maniaKeyCount)
   {
-    if (
-      beatmapPath == _loadedPath
-      && beatmapMd5 == _loadedMd5
-      && mode == _loadedMode
-      && maniaKeyCount == _loadedManiaKeyCount
-    )
+    var identity = new BeatmapIdentity(beatmapPath, beatmapMd5, mode, maniaKeyCount);
+    if (identity == Volatile.Read(ref _data).Identity)
       return;
 
     lock (_reloadLock)
@@ -56,15 +58,12 @@ public sealed class BeatmapOverlayService
 
   private void ReloadNotes(string beatmapPath, string beatmapMd5, int mode, int? maniaKeyCount)
   {
+    var identity = new BeatmapIdentity(beatmapPath, beatmapMd5, mode, maniaKeyCount);
     try
     {
       if (string.IsNullOrWhiteSpace(beatmapPath) || !File.Exists(beatmapPath) || mode is not (0 or 1 or 3))
       {
-        Volatile.Write(ref _notes, EmptyNotes);
-        _loadedPath = beatmapPath;
-        _loadedMd5 = beatmapMd5;
-        _loadedMode = mode;
-        _loadedManiaKeyCount = maniaKeyCount;
+        Volatile.Write(ref _data, new BeatmapOverlayData(EmptyNotes, identity));
         return;
       }
 
@@ -118,15 +117,11 @@ public sealed class BeatmapOverlayService
       }
 
       var sorted = result.OrderBy(n => n.StartTime).ToArray();
-      Volatile.Write(ref _notes, sorted);
-      _loadedPath = beatmapPath;
-      _loadedMd5 = beatmapMd5;
-      _loadedMode = mode;
-      _loadedManiaKeyCount = maniaKeyCount;
+      Volatile.Write(ref _data, new BeatmapOverlayData(sorted, identity));
     }
     catch (Exception e)
     {
-      Volatile.Write(ref _notes, EmptyNotes);
+      Volatile.Write(ref _data, new BeatmapOverlayData(EmptyNotes, identity));
       LogUtils.DebugLogger($"BeatmapOverlayService.ReloadNotes failed: {e.Message}", true);
     }
     finally

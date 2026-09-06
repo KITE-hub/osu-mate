@@ -4,7 +4,7 @@ using OsuMate.Views;
 
 namespace OsuMate.Services.Key;
 
-public sealed class KeyOverlayUiThread : IDisposable
+public sealed class KeyOverlayWindowController : IDisposable
 {
   private readonly KeyOverlayDirectXWindow _window;
 
@@ -20,7 +20,7 @@ public sealed class KeyOverlayUiThread : IDisposable
     remove => _window.FlowLengthChanged -= value;
   }
 
-  public KeyOverlayUiThread(KeyOverlayViewModel vm)
+  public KeyOverlayWindowController(KeyOverlayViewModel vm)
   {
     _window = new KeyOverlayDirectXWindow(vm);
   }

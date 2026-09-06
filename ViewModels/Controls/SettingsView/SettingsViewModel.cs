@@ -79,30 +79,6 @@ namespace OsuMate.ViewModels
       remove => URBar.OnApplyURBarSizeRequested -= value;
     }
 
-    public event Action? OnSaveKeyOverlayPositionRequested
-    {
-      add => KeyOverlay.OnSaveKeyOverlayPositionRequested += value;
-      remove => KeyOverlay.OnSaveKeyOverlayPositionRequested -= value;
-    }
-
-    public event Action? OnApplyKeyOverlayPositionRequested
-    {
-      add => KeyOverlay.OnApplyKeyOverlayPositionRequested += value;
-      remove => KeyOverlay.OnApplyKeyOverlayPositionRequested -= value;
-    }
-
-    public event Action? OnSaveKeyOverlayFlowLengthRequested
-    {
-      add => KeyOverlay.OnSaveKeyOverlayFlowLengthRequested += value;
-      remove => KeyOverlay.OnSaveKeyOverlayFlowLengthRequested -= value;
-    }
-
-    public event Action? OnApplyKeyOverlayFlowLengthRequested
-    {
-      add => KeyOverlay.OnApplyKeyOverlayFlowLengthRequested += value;
-      remove => KeyOverlay.OnApplyKeyOverlayFlowLengthRequested -= value;
-    }
-
     public void RequestSaveURBarPosition() => URBar.RequestSaveURBarPosition();
 
     public void RequestApplyURBarPosition() => URBar.RequestApplyURBarPosition();
@@ -111,21 +87,13 @@ namespace OsuMate.ViewModels
 
     public void RequestApplyURBarSize() => URBar.RequestApplyURBarSize();
 
-    public void RequestSaveKeyOverlayPosition() => KeyOverlay.RequestSaveKeyOverlayPosition();
-
-    public void RequestApplyKeyOverlayPosition() => KeyOverlay.RequestApplyKeyOverlayPosition();
-
-    public void RequestSaveKeyOverlayFlowLength() => KeyOverlay.RequestSaveKeyOverlayFlowLength();
-
-    public void RequestApplyKeyOverlayFlowLength() => KeyOverlay.RequestApplyKeyOverlayFlowLength();
-
     private readonly RootConfig _root;
     private readonly GlobalConfig _globalConfig;
     private readonly OsuMemoryService _memory;
     private readonly PresetManager _presetManager;
 
-    private PresetConfig _presetConfig => _presetManager.ActiveConfig;
-    private System.Threading.Timer? _saveTimer;
+    private PresetConfig PresetConfig => _presetManager.ActiveConfig;
+    private readonly System.Threading.Timer _saveTimer;
     private System.Windows.Threading.Dispatcher? _uiDispatcher;
 
     public void AttachUiDispatcher(System.Windows.Threading.Dispatcher dispatcher)
@@ -152,16 +120,36 @@ namespace OsuMate.ViewModels
 
       _presetManager = new PresetManager(_root);
 
-      Overlay = new OverlaySettingsViewModel(() => _presetConfig, Save, DebouncedSave);
+      _saveTimer = new System.Threading.Timer(
+        _ =>
+          _uiDispatcher?.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Background,
+            new Action(() =>
+            {
+              try
+              {
+                Save();
+              }
+              catch (Exception e)
+              {
+                LogUtils.DebugLogger("SettingsViewModel.DebouncedSave failed: " + e.Message, true);
+              }
+            })
+          ),
+        null,
+        Timeout.Infinite,
+        Timeout.Infinite
+      );
+
+      Overlay = new OverlaySettingsViewModel(() => PresetConfig, Save, DebouncedSave);
       Overlay.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
-      URBar = new URBarSettingsViewModel(() => _presetConfig, Save, DebouncedSave);
+      URBar = new URBarSettingsViewModel(() => PresetConfig, Save, DebouncedSave);
       URBar.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
-      KeyOverlay = new KeyOverlaySettingsViewModel(() => _presetConfig, Save, DebouncedSave);
-      KeyOverlay.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
+      KeyOverlay = new KeyOverlaySettingsViewModel(() => PresetConfig, Save, DebouncedSave);
 
-      Position = new PositionSettingsViewModel(() => _presetConfig, Save);
+      Position = new PositionSettingsViewModel(() => PresetConfig, Save);
       Position.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
       _presetManager.ActivePresetChanged += ApplyPresetConfig;
@@ -198,7 +186,7 @@ namespace OsuMate.ViewModels
       RequestApplyOverlayPosition();
       RequestApplyURBarPosition();
       RequestApplyURBarSize();
-      RequestApplyKeyOverlayPosition();
+      KeyOverlay.RequestApplyKeyOverlayPosition();
     }
 
     public void AddTargetPlayerName(string name)
@@ -261,85 +249,6 @@ namespace OsuMate.ViewModels
     {
       get => URBar.URBarEnabled;
       set => URBar.URBarEnabled = value;
-    }
-    public bool KeyOverlayEnabled
-    {
-      get => KeyOverlay.KeyOverlayEnabled;
-      set => KeyOverlay.KeyOverlayEnabled = value;
-    }
-
-    public int KeyOverlayRotation
-    {
-      get => KeyOverlay.KeyOverlayRotation;
-      set => KeyOverlay.KeyOverlayRotation = value;
-    }
-
-    public double KeyOverlayLaneWidth
-    {
-      get => KeyOverlay.KeyOverlayLaneWidth;
-      set => KeyOverlay.KeyOverlayLaneWidth = value;
-    }
-
-    public double KeyOverlayHeight
-    {
-      get => KeyOverlay.KeyOverlayHeight;
-      set => KeyOverlay.KeyOverlayHeight = value;
-    }
-
-    public string KeyOverlayRotationLabel => KeyOverlay.KeyOverlayRotationLabel;
-    public string KeyOverlaySizeText => KeyOverlay.KeyOverlaySizeText;
-    public double KeyOverlayX
-    {
-      get => KeyOverlay.KeyOverlayX;
-      set => KeyOverlay.KeyOverlayX = value;
-    }
-    public double KeyOverlayY
-    {
-      get => KeyOverlay.KeyOverlayY;
-      set => KeyOverlay.KeyOverlayY = value;
-    }
-    public string KeyOverlayPositionText => KeyOverlay.KeyOverlayPositionText;
-    public void SetKeyOverlayPosition(double x, double y) => KeyOverlay.SetKeyOverlayPosition(x, y);
-    public double KeyOverlayDurationMs
-    {
-      get => KeyOverlay.KeyOverlayDurationMs;
-      set => KeyOverlay.KeyOverlayDurationMs = value;
-    }
-    public double KeyOverlayBarRound
-    {
-      get => KeyOverlay.KeyOverlayBarRound;
-      set => KeyOverlay.KeyOverlayBarRound = value;
-    }
-    public bool KeyOverlayShowBeatmapBars
-    {
-      get => KeyOverlay.KeyOverlayShowBeatmapBars;
-      set => KeyOverlay.KeyOverlayShowBeatmapBars = value;
-    }
-    public int KeyOverlayBeatmapLanePosition
-    {
-      get => KeyOverlay.KeyOverlayBeatmapLanePosition;
-      set => KeyOverlay.KeyOverlayBeatmapLanePosition = value;
-    }
-    public bool KeyOverlayBeatmapLaneAtEnd
-    {
-      get => KeyOverlay.KeyOverlayBeatmapLaneAtEnd;
-      set => KeyOverlay.KeyOverlayBeatmapLaneAtEnd = value;
-    }
-    public string KeyOverlayBeatmapLanePositionLabel => KeyOverlay.KeyOverlayBeatmapLanePositionLabel;
-    public double KeyOverlayInputBarOpacity
-    {
-      get => KeyOverlay.KeyOverlayInputBarOpacity;
-      set => KeyOverlay.KeyOverlayInputBarOpacity = value;
-    }
-    public double KeyOverlayBeatmapBarOpacity
-    {
-      get => KeyOverlay.KeyOverlayBeatmapBarOpacity;
-      set => KeyOverlay.KeyOverlayBeatmapBarOpacity = value;
-    }
-    public double KeyOverlayBeatmapTapLengthMs
-    {
-      get => KeyOverlay.KeyOverlayBeatmapTapLengthMs;
-      set => KeyOverlay.KeyOverlayBeatmapTapLengthMs = value;
     }
 
     public int URBarRotation
@@ -584,32 +493,12 @@ namespace OsuMate.ViewModels
 
     private void DebouncedSave()
     {
-      _saveTimer?.Dispose();
-      _saveTimer = new System.Threading.Timer(
-        _ =>
-          _uiDispatcher?.BeginInvoke(
-            System.Windows.Threading.DispatcherPriority.Background,
-            new Action(() =>
-            {
-              try
-              {
-                Save();
-              }
-              catch (Exception e)
-              {
-                LogUtils.DebugLogger("SettingsViewModel.DebouncedSave failed: " + e.Message, true);
-              }
-            })
-          ),
-        null,
-        500,
-        Timeout.Infinite
-      );
+      _saveTimer.Change(500, Timeout.Infinite);
     }
 
     public void Save()
     {
-      _presetConfig.InGameOverlayPriority = Overlay.ToPriorityString();
+      PresetConfig.InGameOverlayPriority = Overlay.ToPriorityString();
       _globalConfig.LogColumnPriority = LogColumnSettings.ToLogColumnPriorityString();
       _presetManager.Save();
     }
