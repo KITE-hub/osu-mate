@@ -28,7 +28,7 @@ A companion desktop tool for **osu!** (Windows, C# / WPF).
 
   </details>
 
-- **key overlay**: real-time visualization of key inputs (and map)
+- **key overlay**: real-time visualization of key inputs
 
   <details>
   <summary>Screenshot</summary>
@@ -37,7 +37,7 @@ A companion desktop tool for **osu!** (Windows, C# / WPF).
 
   </details>
 
-- **Trainer**: generation of speed-changed charts (via NAudio + SoundTouch.Net) and randomized charts (excluding osu!catch Mode)
+- **Trainer**: generation of speed-changed charts (via NAudio + SoundTouch.Net), randomized charts (excluding osu!catch Mode) and No SV charts (excluding osu!standard & osu!catch Mode)
 
   <details>
   <summary>Screenshot</summary>
