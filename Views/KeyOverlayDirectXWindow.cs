@@ -83,8 +83,6 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
   private int _laneCount = -1;
   private string? _fontFamily;
   private double _inputBarOpacity = 0.5;
-  private double _beatmapBarOpacity = 0.5;
-  private double _beatmapTapLengthMs = 25;
 
   private double _widthDip = 120;
   private double _heightDip = 200;
@@ -158,9 +156,7 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
     double round,
     double laneWidth,
     string? fontFamily = null,
-    double inputBarOpacity = 0.5,
-    double beatmapBarOpacity = 0.5,
-    double beatmapTapLengthMs = 25
+    double inputBarOpacity = 0.5
   )
   {
     _commandQueue.Enqueue(() =>
@@ -173,9 +169,7 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
       _laneWidth = laneWidth;
       _fontFamily = fontFamily;
       _inputBarOpacity = inputBarOpacity;
-      _beatmapBarOpacity = beatmapBarOpacity;
-      _beatmapTapLengthMs = beatmapTapLengthMs;
-      _renderer.UpdateSettings(_rotation, _speed, _round, _laneWidth, _fontFamily, _inputBarOpacity, _beatmapBarOpacity, _beatmapTapLengthMs);
+      _renderer.UpdateSettings(_rotation, _speed, _round, _laneWidth, _fontFamily, _inputBarOpacity);
       ApplySize();
     });
     PostMessage(_hwnd, WM_APP_COMMAND, IntPtr.Zero, IntPtr.Zero);
@@ -247,7 +241,6 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
       _vm.RequestUpdate?.Invoke();
       var snapshot = _vm.Snapshot;
       var layout = snapshot.Layout;
-      var beatmapState = snapshot.BeatmapState;
       var isPlayActive = snapshot.IsPlayActive;
       var resetCounts = _vm.DrainReset();
       _transitionBuffer.Clear();
@@ -269,8 +262,7 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
         _heightDip,
         _isDraggable,
         isPlayActive,
-        resetCounts,
-        beatmapState
+        resetCounts
       );
 
       _context.Present();
@@ -451,7 +443,7 @@ public sealed class KeyOverlayDirectXWindow : IDisposable
           var deltaDip = delta / _dpiScale;
           _flowLength = Math.Max(120.0, _resizeStartLength + deltaDip);
           _speed = Math.Max(1.0, (_flowLength - (Direct2DKeyOverlayRenderer.KeyLength + Direct2DKeyOverlayRenderer.Gap)) / (_durationMs / 1000.0));
-          _renderer.UpdateSettings(_rotation, _speed, _round, _laneWidth, _fontFamily, _inputBarOpacity, _beatmapBarOpacity, _beatmapTapLengthMs);
+          _renderer.UpdateSettings(_rotation, _speed, _round, _laneWidth, _fontFamily, _inputBarOpacity);
 
           var effectiveLaneCount = _laneCount <= 0 ? 2 : _laneCount;
           var (w, h) = _renderer.GetRequiredSize(effectiveLaneCount, _flowLength);

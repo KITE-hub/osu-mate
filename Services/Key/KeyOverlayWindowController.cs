@@ -38,10 +38,8 @@ public sealed class KeyOverlayWindowController : IDisposable
     double round,
     double laneWidth,
     string? fontFamily = null,
-    double inputBarOpacity = 0.5,
-    double beatmapBarOpacity = 0.5,
-    double beatmapTapLengthMs = 25
-  ) => _window.UpdateSettings(rotation, flowLength, durationMs, round, laneWidth, fontFamily, inputBarOpacity, beatmapBarOpacity, beatmapTapLengthMs);
+    double inputBarOpacity = 0.5
+  ) => _window.UpdateSettings(rotation, flowLength, durationMs, round, laneWidth, fontFamily, inputBarOpacity);
 
   public void SetPosition(double left, double top) => _window.SetPosition(left, top);
 

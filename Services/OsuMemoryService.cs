@@ -116,13 +116,13 @@ namespace OsuMate.Services
 
       public string[] Labels { get; }
       public LaneBinding[] Bindings { get; }
-      public BeatmapNoteType[]? Roles { get; }
+      public KeyOverlayRole[]? Roles { get; }
       public KeyOverlaySnapshot BlankSnapshot { get; }
 
       public ResolvedKeyLayout(
         string[] labels,
         LaneBinding[] bindings,
-        BeatmapNoteType[]? roles = null
+        KeyOverlayRole[]? roles = null
       )
       {
         Labels = labels;
@@ -135,7 +135,7 @@ namespace OsuMate.Services
         }
         var keys = new KeyOverlayKeyState[labels.Length];
         for (var i = 0; i < labels.Length; i++)
-          keys[i] = new KeyOverlayKeyState(labels[i], false, roles?[i] ?? BeatmapNoteType.Normal);
+          keys[i] = new KeyOverlayKeyState(labels[i], false, roles?[i] ?? KeyOverlayRole.Normal);
         BlankSnapshot = new KeyOverlaySnapshot(keys);
       }
     }
@@ -144,8 +144,6 @@ namespace OsuMate.Services
     private ResolvedKeyLayout _resolvedLayout = ResolvedKeyLayout.Empty;
     private int _resolvedGamemode = int.MinValue;
     private int _resolvedManiaKeyCount = int.MinValue;
-    private bool _resolvedShowBeatmapBars;
-    private int _resolvedBeatmapLanePosition = int.MinValue;
 
     private readonly object _liveTransitionLock = new();
     private readonly List<RawInputService.KeyTransition> _rawTransitionBuffer = [];
@@ -157,12 +155,10 @@ namespace OsuMate.Services
     internal KeyOverlaySnapshot DrainKeyOverlayUpdate(
       int gamemode,
       int? maniaKeyCount,
-      List<KeyOverlayTransition> transitions,
-      bool showBeatmapBars = false,
-      int beatmapLanePosition = 0
+      List<KeyOverlayTransition> transitions
     )
     {
-      var layout = ResolveLayout(gamemode, gamemode == 3 ? maniaKeyCount : null, showBeatmapBars, beatmapLanePosition, IsPlaying);
+      var layout = ResolveLayout(gamemode, gamemode == 3 ? maniaKeyCount : null, IsPlaying);
       if (layout.Labels.Length == 0)
       {
         DiscardRawInputTransitions();
@@ -235,7 +231,7 @@ namespace OsuMate.Services
 
         var keys = new KeyOverlayKeyState[layout.Labels.Length];
         for (var i = 0; i < keys.Length; i++)
-          keys[i] = new KeyOverlayKeyState(layout.Labels[i], pressed[i], layout.Roles?[i] ?? BeatmapNoteType.Normal);
+          keys[i] = new KeyOverlayKeyState(layout.Labels[i], pressed[i], layout.Roles?[i] ?? KeyOverlayRole.Normal);
         _cachedLiveSnapshot = new KeyOverlaySnapshot(keys);
         return _cachedLiveSnapshot;
       }
@@ -244,8 +240,6 @@ namespace OsuMate.Services
     private ResolvedKeyLayout ResolveLayout(
       int gamemode,
       int? maniaKeyCount,
-      bool showBeatmapBars,
-      int beatmapLanePosition,
       bool isActiveSession
     )
     {
@@ -258,30 +252,24 @@ namespace OsuMate.Services
           !configChanged
           && _resolvedGamemode == gamemode
           && _resolvedManiaKeyCount == maniaCount
-          && _resolvedShowBeatmapBars == showBeatmapBars
-          && _resolvedBeatmapLanePosition == beatmapLanePosition
         )
           return _resolvedLayout;
 
         _resolvedGamemode = gamemode;
         _resolvedManiaKeyCount = maniaCount;
-        _resolvedShowBeatmapBars = showBeatmapBars;
-        _resolvedBeatmapLanePosition = beatmapLanePosition;
-        _resolvedLayout = BuildLayout(gamemode, maniaKeyCount, showBeatmapBars, beatmapLanePosition);
+        _resolvedLayout = BuildLayout(gamemode, maniaKeyCount);
         return _resolvedLayout;
       }
     }
 
     private ResolvedKeyLayout BuildLayout(
       int gamemode,
-      int? maniaKeyCount,
-      bool showBeatmapBars,
-      int beatmapLanePosition
+      int? maniaKeyCount
     ) =>
       gamemode switch
       {
-        0 => BuildStandardLayout(showBeatmapBars, beatmapLanePosition),
-        1 => BuildTaikoLayout(showBeatmapBars, beatmapLanePosition),
+        0 => BuildStandardLayout(),
+        1 => BuildTaikoLayout(),
         2 => BuildFixedLayout(
           ("keyFruitsDash", "LeftShift", Keys.None),
           ("keyFruitsLeft", "Left", Keys.None),
@@ -291,39 +279,37 @@ namespace OsuMate.Services
         _ => ResolvedKeyLayout.Empty,
       };
 
-    private ResolvedKeyLayout BuildStandardLayout(bool showBeatmapBars, int beatmapLanePosition)
+    private ResolvedKeyLayout BuildStandardLayout()
     {
       var specs = new TaikoKeySpec[]
       {
-        new("keyOsuLeft", "Z", Keys.LButton, BeatmapNoteType.Normal),
-        new("keyOsuRight", "X", Keys.RButton, BeatmapNoteType.Normal)
+        new("keyOsuLeft", "Z", Keys.LButton, KeyOverlayRole.Normal),
+        new("keyOsuRight", "X", Keys.RButton, KeyOverlayRole.Normal)
       };
-      return BuildLayoutWithOptionalMapLane(specs, showBeatmapBars, beatmapLanePosition, reorderByPhysicalPosition: false);
+      return BuildLayoutFromSpecs(specs, reorderByPhysicalPosition: false);
     }
 
-    private ResolvedKeyLayout BuildTaikoLayout(bool showBeatmapBars, int beatmapLanePosition)
+    private ResolvedKeyLayout BuildTaikoLayout()
     {
       var specs = new TaikoKeySpec[]
       {
-        new("keyTaikoInnerLeft", "X", Keys.None, BeatmapNoteType.TaikoDon),
-        new("keyTaikoInnerRight", "C", Keys.None, BeatmapNoteType.TaikoDon),
-        new("keyTaikoOuterLeft", "Z", Keys.None, BeatmapNoteType.TaikoKat),
-        new("keyTaikoOuterRight", "V", Keys.None, BeatmapNoteType.TaikoKat)
+        new("keyTaikoInnerLeft", "X", Keys.None, KeyOverlayRole.TaikoDon),
+        new("keyTaikoInnerRight", "C", Keys.None, KeyOverlayRole.TaikoDon),
+        new("keyTaikoOuterLeft", "Z", Keys.None, KeyOverlayRole.TaikoKat),
+        new("keyTaikoOuterRight", "V", Keys.None, KeyOverlayRole.TaikoKat)
       };
-      return BuildLayoutWithOptionalMapLane(specs, showBeatmapBars, beatmapLanePosition, reorderByPhysicalPosition: true);
+      return BuildLayoutFromSpecs(specs, reorderByPhysicalPosition: true);
     }
 
     private readonly record struct TaikoKeySpec(
       string ConfigKey,
       string Fallback,
       Keys MouseFallback,
-      BeatmapNoteType Role
+      KeyOverlayRole Role
     );
 
-    private ResolvedKeyLayout BuildLayoutWithOptionalMapLane(
+    private ResolvedKeyLayout BuildLayoutFromSpecs(
       TaikoKeySpec[] specs,
-      bool showBeatmapBars,
-      int beatmapLanePosition,
       bool reorderByPhysicalPosition
     )
     {
@@ -349,28 +335,16 @@ namespace OsuMate.Services
         });
       }
 
-      var addMapLane = showBeatmapBars;
-      var totalCount = specs.Length + (addMapLane ? 1 : 0);
-      var labels = new string[totalCount];
-      var bindings = new LaneBinding[totalCount];
-      var roles = new BeatmapNoteType[totalCount];
-
-      var playerStart = addMapLane && beatmapLanePosition == 0 ? 1 : 0;
-      if (addMapLane)
-      {
-        var mapIndex = beatmapLanePosition == 0 ? 0 : totalCount - 1;
-        labels[mapIndex] = "MAP";
-        bindings[mapIndex] = new LaneBinding(Keys.None, Keys.None);
-        roles[mapIndex] = BeatmapNoteType.Normal;
-      }
+      var labels = new string[specs.Length];
+      var bindings = new LaneBinding[specs.Length];
+      var roles = new KeyOverlayRole[specs.Length];
 
       for (var i = 0; i < order.Length; i++)
       {
         var spec = specs[order[i]];
-        var targetIndex = playerStart + i;
-        labels[targetIndex] = resolvedNames[order[i]];
-        bindings[targetIndex] = new LaneBinding(resolvedKeys[order[i]], spec.MouseFallback);
-        roles[targetIndex] = spec.Role;
+        labels[i] = resolvedNames[order[i]];
+        bindings[i] = new LaneBinding(resolvedKeys[order[i]], spec.MouseFallback);
+        roles[i] = spec.Role;
       }
 
       return new ResolvedKeyLayout(labels, bindings, roles);

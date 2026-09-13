@@ -17,11 +17,7 @@ namespace OsuMate.Models
     public double KeyOverlayY { get; set; } = 150;
     public double KeyOverlayDurationMs { get; set; } = 700;
     public double KeyOverlayBarRound { get; set; } = 2;
-    public bool KeyOverlayShowBeatmapBars { get; set; } = true;
-    public int KeyOverlayBeatmapLanePosition { get; set; } = 0;
     public double KeyOverlayInputBarOpacity { get; set; } = 0.5;
-    public double KeyOverlayBeatmapBarOpacity { get; set; } = 0.5;
-    public double KeyOverlayBeatmapTapLengthMs { get; set; } = 25;
 
     public bool URBarEnabled { get; set; } = true;
     public int URBarRotation { get; set; } = 0;

@@ -1,6 +1,6 @@
 namespace OsuMate.Models
 {
-  internal sealed record KeyOverlayKeyState(string Label, bool IsPressed, BeatmapNoteType Role = BeatmapNoteType.Normal);
+  internal sealed record KeyOverlayKeyState(string Label, bool IsPressed, KeyOverlayRole Role = KeyOverlayRole.Normal);
 
   internal sealed record KeyOverlaySnapshot(KeyOverlayKeyState[] Keys)
   {

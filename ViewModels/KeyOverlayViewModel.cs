@@ -4,24 +4,12 @@ using OsuMate.Models;
 
 namespace OsuMate.ViewModels
 {
-  public sealed record BeatmapOverlayState(
-    BeatmapOverlayNote[] Notes,
-    double AudioTime,
-    int Mode,
-    int BeatmapLaneIndex,
-    bool ShowBeatmapBars
-  )
-  {
-    public static BeatmapOverlayState Empty { get; } = new([], 0, -1, -1, false);
-  }
-
   internal sealed record KeyOverlayPublishedState(
     KeyOverlaySnapshot Layout,
-    BeatmapOverlayState BeatmapState,
     bool IsPlayActive
   )
   {
-    public static KeyOverlayPublishedState Empty { get; } = new(KeyOverlaySnapshot.Empty, BeatmapOverlayState.Empty, false);
+    public static KeyOverlayPublishedState Empty { get; } = new(KeyOverlaySnapshot.Empty, false);
   }
 
   public sealed class KeyOverlayViewModel
@@ -37,11 +25,10 @@ namespace OsuMate.ViewModels
       KeyOverlaySnapshot layout,
       List<KeyOverlayTransition> transitions,
       bool isPlayActive,
-      bool resetCounts,
-      BeatmapOverlayState beatmapState
+      bool resetCounts
     )
     {
-      Volatile.Write(ref _state, new KeyOverlayPublishedState(layout, beatmapState, isPlayActive));
+      Volatile.Write(ref _state, new KeyOverlayPublishedState(layout, isPlayActive));
       if (resetCounts)
         _resetRequested = true;
       foreach (var transition in transitions)

@@ -211,7 +211,6 @@ namespace OsuMate.ViewModels
 
     private readonly object _keyOverlayLock = new();
     private readonly List<KeyOverlayTransition> _keyOverlayTransitionBuffer = [];
-    private readonly BeatmapOverlayService _beatmapOverlayService = new();
     private bool _keyOverlayWasPlaying;
     private double _keyOverlayLastAudioTime;
     private string _keyOverlayLastBeatmapMd5 = string.Empty;
@@ -245,27 +244,17 @@ namespace OsuMate.ViewModels
       {
         _keyOverlayTransitionBuffer.Clear();
 
-        var showBeatmapBars = _settings.KeyOverlay.KeyOverlayShowBeatmapBars;
-        var beatmapLanePos = _settings.KeyOverlay.KeyOverlayBeatmapLanePosition;
         int gamemode = _memory.CurrentOsuGamemode;
         var currentMap = _memory.GetCurrentBeatmap();
-        string beatmapPath = !string.IsNullOrEmpty(currentMap.BeatmapPath)
-          ? currentMap.BeatmapPath
-          : (_ppService.CurrentBeatmapPath ?? string.Empty);
         string beatmapMd5 = !string.IsNullOrEmpty(currentMap.BeatmapMd5)
           ? currentMap.BeatmapMd5
           : (_ppService.CurrentBeatmapMd5 ?? string.Empty);
         int? maniaKeyCount = _ppService.CurrentManiaKeyCount;
 
-        if (showBeatmapBars)
-          _beatmapOverlayService.UpdateCurrentBeatmap(beatmapPath, beatmapMd5, gamemode, maniaKeyCount);
-
         var layout = _memory.DrainKeyOverlayUpdate(
           gamemode,
           maniaKeyCount,
-          _keyOverlayTransitionBuffer,
-          showBeatmapBars,
-          beatmapLanePos
+          _keyOverlayTransitionBuffer
         );
 
         bool isPlaying = _memory.IsPlaying;
@@ -289,22 +278,7 @@ namespace OsuMate.ViewModels
         _keyOverlayWasPlaying = isPlaying;
         _keyOverlayLastAudioTime = audioTime;
 
-        int beatmapLaneIndex = -1;
-        if (showBeatmapBars && (gamemode == 0 || gamemode == 1) && layout.Keys.Length > 0)
-        {
-          beatmapLaneIndex = beatmapLanePos == 0 ? 0 : layout.Keys.Length - 1;
-        }
-
-        var notes = showBeatmapBars ? _beatmapOverlayService.CurrentNotes : [];
-        var beatmapState = new BeatmapOverlayState(
-          notes,
-          audioTime,
-          gamemode,
-          beatmapLaneIndex,
-          showBeatmapBars
-        );
-
-        KeyOverlay.Publish(layout, _keyOverlayTransitionBuffer, isPlaying, resetCounts, beatmapState);
+        KeyOverlay.Publish(layout, _keyOverlayTransitionBuffer, isPlaying, resetCounts);
       }
       finally
       {

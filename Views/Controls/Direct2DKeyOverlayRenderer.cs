@@ -29,14 +29,12 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
     public long OpenTicks { get; set; }
     public long CloseTicks { get; set; }
     public double ClosedLength { get; set; }
-    public BeatmapNoteType NoteType { get; set; }
   }
 
   internal const double KeyLength = 48;
   internal const double Gap = 4;
   private const double Margin = 4;
   private const int MaxKeyBarsPerLane = 40;
-  private const int MaxMapBarsPerLane = 128;
 
   private const float TaikoDonR = 235f / 255f;
   private const float TaikoDonG = 69f / 255f;
@@ -65,25 +63,16 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
   private readonly ID2D1SolidColorBrush _katBorderBrush;
   private readonly ID2D1SolidColorBrush _dragBackgroundBrush;
   private readonly ID2D1SolidColorBrush _dragBorderBrush;
-  private readonly ID2D1SolidColorBrush _taikoDonBrush;
-  private readonly ID2D1SolidColorBrush _taikoKatBrush;
-  private readonly ID2D1SolidColorBrush _standardMapBrush;
-  private readonly ID2D1SolidColorBrush _maniaBeatmapBrush;
   private readonly Direct2DContext _context;
   private string _fontFamily = "Oxanium";
   private IDWriteTextFormat _textFormat;
   private IDWriteTextFormat _countFormat;
   private IDWriteTextFormat _kpsFormat;
-  private readonly BeatmapNoteTracker _beatmapNoteTracker = new();
-  private readonly List<List<BarState>> _mapBars = [];
-  private readonly List<List<BeatmapNoteTransition>> _mapEventBuckets = [];
-  private readonly List<BeatmapNoteTransition> _mapTransitionBuffer = [];
 
   private int _rotation;
   private double _speed = 600;
   private double _round = 4;
   private double _laneWidth = 64;
-  private double _beatmapTapLengthMs = 25;
   private bool _disposed;
 
   public Direct2DKeyOverlayRenderer(Direct2DContext context)
@@ -101,10 +90,6 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
     _katBorderBrush = dc.CreateSolidColorBrush(TaikoKatColour(180f / 255f));
     _dragBackgroundBrush = dc.CreateSolidColorBrush(new Color4(0f, 0f, 0f, 204f / 255f));
     _dragBorderBrush = dc.CreateSolidColorBrush(new Color4(1f, 1f, 1f, 1f));
-    _taikoDonBrush = dc.CreateSolidColorBrush(TaikoDonColour(0.5f));
-    _taikoKatBrush = dc.CreateSolidColorBrush(TaikoKatColour(0.5f));
-    _standardMapBrush = dc.CreateSolidColorBrush(new Color4(255f / 255f, 205f / 255f, 60f / 255f, 0.5f));
-    _maniaBeatmapBrush = dc.CreateSolidColorBrush(new Color4(60f / 255f, 185f / 255f, 245f / 255f, 0.5f));
     _textFormat = context.CreateKeyTextFormat(_fontFamily, 14f);
     _countFormat = context.CreateKeyTextFormat(_fontFamily, 10f);
     _kpsFormat = context.CreateKeyTextFormat(_fontFamily, 9f);
@@ -116,24 +101,16 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
     double round,
     double laneWidth,
     string? fontFamily = null,
-    double inputBarOpacity = 0.5,
-    double beatmapBarOpacity = 0.5,
-    double beatmapTapLengthMs = 25
+    double inputBarOpacity = 0.5
   )
   {
     _rotation = ((rotation % 360) + 360) % 360;
     _speed = Math.Clamp(speed, 50, 1500);
     _round = Math.Clamp(round, 0, 32);
     _laneWidth = Math.Clamp(laneWidth, 25, 100);
-    _beatmapTapLengthMs = Math.Clamp(beatmapTapLengthMs, 10, 50);
 
     var inAlpha = (float)Math.Clamp(inputBarOpacity, 0.0, 1.0);
-    var bmAlpha = (float)Math.Clamp(beatmapBarOpacity, 0.0, 1.0);
     _barBrush.Color = new Color4(1f, 1f, 1f, inAlpha);
-    _taikoDonBrush.Color = TaikoDonColour(bmAlpha);
-    _taikoKatBrush.Color = TaikoKatColour(bmAlpha);
-    _standardMapBrush.Color = new Color4(255f / 255f, 205f / 255f, 60f / 255f, bmAlpha);
-    _maniaBeatmapBrush.Color = new Color4(60f / 255f, 185f / 255f, 245f / 255f, bmAlpha);
 
     if (!string.IsNullOrWhiteSpace(fontFamily) && !string.Equals(_fontFamily, fontFamily, StringComparison.OrdinalIgnoreCase))
     {
@@ -181,8 +158,7 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
     double actualHeight,
     bool isDraggable,
     bool isPlayActive,
-    bool resetCounts,
-    BeatmapOverlayState beatmapState
+    bool resetCounts
   )
   {
     dc.BeginDraw();
@@ -228,58 +204,12 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
         }
 
         var spawnFlow = SpawnFlow(flowLength);
-        var isMania = beatmapState.Mode == 3;
-
-        if (beatmapState.ShowBeatmapBars && isPlayActive && beatmapState.Notes.Length > 0)
-        {
-          EnsureMapLanes(snapshot.Keys.Length);
-          _mapTransitionBuffer.Clear();
-          _beatmapNoteTracker.Update(
-            beatmapState.Notes,
-            beatmapState.AudioTime,
-            nowTicks,
-            snapshot.Keys.Length,
-            isMania,
-            beatmapState.BeatmapLaneIndex,
-            _beatmapTapLengthMs,
-            resetCounts,
-            _mapTransitionBuffer
-          );
-
-          for (var i = 0; i < _mapEventBuckets.Count; i++)
-            _mapEventBuckets[i].Clear();
-          for (var i = 0; i < _mapTransitionBuffer.Count; i++)
-          {
-            var tr = _mapTransitionBuffer[i];
-            if ((uint)tr.LaneIndex < (uint)_mapEventBuckets.Count)
-              _mapEventBuckets[tr.LaneIndex].Add(tr);
-          }
-
-          if (isMania)
-          {
-            for (var lane = 0; lane < snapshot.Keys.Length; lane++)
-              RenderMapLaneBars(dc, lane, isMania, _mapEventBuckets[lane], nowTicks, spawnFlow, flowLength);
-          }
-          else if ((uint)beatmapState.BeatmapLaneIndex < (uint)snapshot.Keys.Length)
-          {
-            RenderMapLaneBars(dc, beatmapState.BeatmapLaneIndex, isMania, _mapEventBuckets[beatmapState.BeatmapLaneIndex], nowTicks, spawnFlow, flowLength);
-          }
-        }
-        else
-        {
-          _beatmapNoteTracker.Reset();
-          CloseAllHeldMapBars(nowTicks);
-        }
 
         for (var lane = 0; lane < snapshot.Keys.Length; lane++)
-        {
-          if (beatmapState.ShowBeatmapBars && lane == beatmapState.BeatmapLaneIndex)
-            continue;
           RenderLaneBars(dc, lane, snapshot.Keys[lane].IsPressed, _laneEventBuckets[lane], nowTicks, spawnFlow, flowLength);
-        }
 
         for (var lane = 0; lane < snapshot.Keys.Length; lane++)
-          RenderKey(dc, lane, snapshot.Keys[lane].Label, snapshot.Keys[lane].IsPressed, snapshot.Keys[lane].Role, flowLength, nowTicks, beatmapState.ShowBeatmapBars && lane == beatmapState.BeatmapLaneIndex);
+          RenderKey(dc, lane, snapshot.Keys[lane].Label, snapshot.Keys[lane].IsPressed, snapshot.Keys[lane].Role, flowLength, nowTicks);
       }
     }
 
@@ -359,111 +289,14 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
     }
   }
 
-  private void CloseAllHeldMapBars(long nowTicks)
-  {
-    for (var lane = 0; lane < _mapBars.Count; lane++)
-    {
-      var bars = _mapBars[lane];
-      if (bars.Count > 0 && bars[^1].IsHeld)
-        CloseBar(bars[^1], nowTicks);
-    }
-  }
-
-  private void ApplyMapTransition(List<BarState> bars, BeatmapNoteTransition transition)
-  {
-    if (transition.IsPressed)
-    {
-      var bar = RentBar(transition.TimestampTicks);
-      bar.NoteType = transition.NoteType;
-      bars.Add(bar);
-    }
-    else if (bars.Count > 0 && bars[^1].IsHeld)
-    {
-      CloseBar(bars[^1], transition.TimestampTicks);
-    }
-  }
-
-  private void RenderMapLaneBars(
-    ID2D1DeviceContext dc,
-    int lane,
-    bool isMania,
-    List<BeatmapNoteTransition> events,
-    long nowTicks,
-    double spawnFlow,
-    double flowLength
-  )
-  {
-    var bars = _mapBars[lane];
-
-    for (var i = 0; i < events.Count; i++)
-      ApplyMapTransition(bars, events[i]);
-
-    var outsideCount = 0;
-    while (outsideCount < bars.Count && IsOutside(bars[outsideCount], spawnFlow, flowLength, nowTicks))
-      outsideCount++;
-
-    if (outsideCount > 0)
-    {
-      for (var i = 0; i < outsideCount; i++)
-        ReturnBar(bars[i]);
-      bars.RemoveRange(0, outsideCount);
-    }
-
-    var excess = bars.Count - MaxMapBarsPerLane;
-    if (excess > 0)
-    {
-      for (var i = 0; i < excess; i++)
-        ReturnBar(bars[i]);
-      bars.RemoveRange(0, excess);
-    }
-
-    var cross = (float)CrossPosition(lane);
-    var maxR = (float)(_laneWidth * 0.5);
-
-    for (var i = 0; i < bars.Count; i++)
-    {
-      var bar = bars[i];
-      var length = (float)(bar.IsHeld
-        ? Math.Max(2.0, _speed * TicksToSeconds(nowTicks - bar.OpenTicks))
-        : bar.ClosedLength);
-      var offset = (float)(bar.IsHeld
-        ? 0.0
-        : Math.Max(0.0, _speed * TicksToSeconds(nowTicks - bar.CloseTicks)));
-      var flow = (float)(IsReversed
-        ? spawnFlow - offset - length
-        : spawnFlow + offset);
-
-      if (flow + length < 0 || flow > flowLength)
-        continue;
-
-      var barRect = IsHorizontal
-        ? new Rect(flow, cross, length, (float)_laneWidth)
-        : new Rect(cross, flow, (float)_laneWidth, length);
-
-      var brush = bar.NoteType switch
-      {
-        BeatmapNoteType.TaikoDon => _taikoDonBrush,
-        BeatmapNoteType.TaikoKat => _taikoKatBrush,
-        _ => isMania ? _maniaBeatmapBrush : _standardMapBrush
-      };
-
-      var r = (float)Math.Min(_round, Math.Min(maxR, length * 0.5));
-      if (r < 1.0f)
-        dc.FillRectangle(barRect, brush);
-      else
-        dc.FillRoundedRectangle(CreateRoundedRect(barRect, r, r), brush);
-    }
-  }
-
   private void RenderKey(
     ID2D1DeviceContext dc,
     int lane,
     string label,
     bool isPressed,
-    BeatmapNoteType role,
+    KeyOverlayRole role,
     double flowLength,
-    long nowTicks,
-    bool isMapLane = false
+    long nowTicks
   )
   {
     var keyFlow = (float)(IsReversed ? Math.Max(0.0, flowLength - KeyLength) : 0.0);
@@ -473,11 +306,11 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
       ? new Rect(keyFlow + 0.5f, cross + 0.5f, (float)(KeyLength - 1), (float)(_laneWidth - 1))
       : new Rect(cross + 0.5f, keyFlow + 0.5f, (float)(_laneWidth - 1), (float)(KeyLength - 1));
 
-    var fill = isPressed && !isMapLane ? _keyPressedBrush : _keyIdleBrush;
+    var fill = isPressed ? _keyPressedBrush : _keyIdleBrush;
     var border = role switch
     {
-      BeatmapNoteType.TaikoDon => _donBorderBrush,
-      BeatmapNoteType.TaikoKat => _katBorderBrush,
+      KeyOverlayRole.TaikoDon => _donBorderBrush,
+      KeyOverlayRole.TaikoKat => _katBorderBrush,
       _ => _borderBrush
     };
     var rounded = CreateRoundedRect(keyRect, 4, 4);
@@ -486,13 +319,6 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
 
     var w = keyRect.Right - keyRect.Left;
     var h = keyRect.Bottom - keyRect.Top;
-
-    if (isMapLane)
-    {
-      var mapLabelRect = new Rect(keyRect.Left, keyRect.Top + h * 0.42f - 8f, w, 16f);
-      dc.DrawText("MAP", _textFormat, mapLabelRect, _labelIdleBrush);
-      return;
-    }
 
     var keyCenterY = h * 0.18f;
     var countCenterY = h * 0.58f;
@@ -607,15 +433,6 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
     while (_laneEventBuckets.Count < laneCount)
       _laneEventBuckets.Add([]);
   }
-
-  private void EnsureMapLanes(int laneCount)
-  {
-    while (_mapBars.Count < laneCount)
-      _mapBars.Add([]);
-    while (_mapEventBuckets.Count < laneCount)
-      _mapEventBuckets.Add([]);
-  }
-
   public void Dispose()
   {
     if (_disposed)
@@ -634,10 +451,6 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
     _katBorderBrush.Dispose();
     _dragBackgroundBrush.Dispose();
     _dragBorderBrush.Dispose();
-    _taikoDonBrush.Dispose();
-    _taikoKatBrush.Dispose();
-    _standardMapBrush.Dispose();
-    _maniaBeatmapBrush.Dispose();
     _textFormat.Dispose();
     _countFormat.Dispose();
     _kpsFormat.Dispose();
@@ -651,14 +464,5 @@ internal sealed class Direct2DKeyOverlayRenderer : IDisposable
     _bars.Clear();
     _pressCounts.Clear();
     _recentPressTicks.Clear();
-
-    for (var i = 0; i < _mapBars.Count; i++)
-    {
-      for (var j = 0; j < _mapBars[i].Count; j++)
-        ReturnBar(_mapBars[i][j]);
-      _mapBars[i].Clear();
-    }
-    _mapBars.Clear();
-    _mapEventBuckets.Clear();
   }
 }

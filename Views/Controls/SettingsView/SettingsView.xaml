@@ -995,63 +995,10 @@
           <Slider Minimum="0" Maximum="32" Value="{Binding KeyOverlayBarRound}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
           <TextBlock Text="{Binding KeyOverlayBarRound, StringFormat={}{0:F0}}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
         </StackPanel>
-
-        <Grid Height="22" Margin="{StaticResource RowSpacing}">
-          <TextBlock
-            Text="Show Beatmap Bars"
-            FontSize="12"
-            VerticalAlignment="Center"
-            HorizontalAlignment="Left"
-            Foreground="{DynamicResource TextBrush}"
-          />
-          <CheckBox
-            IsChecked="{Binding KeyOverlayShowBeatmapBars}"
-            VerticalAlignment="Center"
-            HorizontalAlignment="Right"
-            Style="{StaticResource ToggleSwitchStyle}"
-          />
-        </Grid>
-
-        <Grid Height="22" Margin="{StaticResource RowSpacing}">
-          <TextBlock
-            Text="Beatmap Lane Position"
-            FontSize="12"
-            VerticalAlignment="Center"
-            HorizontalAlignment="Left"
-            Foreground="{DynamicResource TextBrush}"
-          />
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-            <TextBlock
-              Text="{Binding KeyOverlayBeatmapLanePositionLabel}"
-              FontSize="12"
-              VerticalAlignment="Center"
-              Margin="0,0,8,0"
-              Foreground="{DynamicResource TextBrush}"
-            />
-            <CheckBox
-              IsChecked="{Binding KeyOverlayBeatmapLaneAtEnd}"
-              VerticalAlignment="Center"
-              Style="{StaticResource ToggleSwitchStyle}"
-            />
-          </StackPanel>
-        </Grid>
-
         <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
           <TextBlock Text="Input Bar Opacity" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
           <Slider Minimum="0" Maximum="1" Value="{Binding KeyOverlayInputBarOpacity}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
           <TextBlock Text="{Binding KeyOverlayInputBarOpacity, StringFormat={}{0:F2}}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
-        </StackPanel>
-
-        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
-          <TextBlock Text="Beatmap Bar Opacity" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
-          <Slider Minimum="0" Maximum="1" Value="{Binding KeyOverlayBeatmapBarOpacity}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding KeyOverlayBeatmapBarOpacity, StringFormat={}{0:F2}}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
-        </StackPanel>
-
-        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
-          <TextBlock Text="Tap Bar Length" FontSize="12" VerticalAlignment="Center" Width="160" Foreground="{DynamicResource TextBrush}" />
-          <Slider Minimum="10" Maximum="50" Value="{Binding KeyOverlayBeatmapTapLengthMs}" Style="{StaticResource SliderStyle}" Width="140" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding KeyOverlayBeatmapTapLengthMs, StringFormat={}{0:F0} ms}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
         </StackPanel>
       </StackPanel>
 

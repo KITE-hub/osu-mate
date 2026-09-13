@@ -279,8 +279,6 @@ namespace OsuMate.Services
           || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayBarRound)
           || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayLaneWidth)
           || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayInputBarOpacity)
-          || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayBeatmapBarOpacity)
-          || e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayBeatmapTapLengthMs)
         )
         {
           ApplyKeyOverlaySettings();
@@ -347,10 +345,12 @@ namespace OsuMate.Services
           {
             _overlayWindow.SetDraggable(false);
             _overlayWindow.Show();
+            HideMainWindow();
           }
           else
           {
             _overlayWindow.Hide();
+            ShowMainWindow();
           }
 
           if (_settingsVm.URBarEnabled)
@@ -373,9 +373,6 @@ namespace OsuMate.Services
           {
             _keyOverlayThread.Hide();
           }
-
-          if (_settingsVm.OverlayEnabled || _settingsVm.KeyOverlay.KeyOverlayEnabled)
-            HideMainWindow();
         }
         else
         {
@@ -509,10 +506,31 @@ namespace OsuMate.Services
 
     private void OnOverlayEnabledChanged(bool enabled)
     {
-      if (_isSettingsOpen && !_mainViewModel.IsPlaying)
-        _overlayWindow.Show();
+      if (_mainViewModel.IsPlaying)
+      {
+        if (enabled)
+        {
+          _overlayWindow.SetDraggable(false);
+          _overlayWindow.Show();
+          HideMainWindow();
+        }
+        else
+        {
+          _overlayWindow.Hide();
+          ShowMainWindow();
+        }
+      }
+      else if (_isSettingsOpen)
+      {
+        if (enabled)
+          _overlayWindow.Show();
+        else
+          _overlayWindow.Hide();
+      }
       else if (!enabled)
+      {
         _overlayWindow.Hide();
+      }
     }
 
     private void OnURBarEnabledChanged(bool enabled)
@@ -551,9 +569,7 @@ namespace OsuMate.Services
         _settingsVm.KeyOverlay.KeyOverlayBarRound,
         _settingsVm.KeyOverlay.KeyOverlayLaneWidth,
         _settingsVm.FontFamily,
-        _settingsVm.KeyOverlay.KeyOverlayInputBarOpacity,
-        _settingsVm.KeyOverlay.KeyOverlayBeatmapBarOpacity,
-        _settingsVm.KeyOverlay.KeyOverlayBeatmapTapLengthMs
+        _settingsVm.KeyOverlay.KeyOverlayInputBarOpacity
       );
     }
   }
