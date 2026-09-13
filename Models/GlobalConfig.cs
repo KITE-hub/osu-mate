@@ -6,6 +6,7 @@ namespace OsuMate.Models
   {
     public string FontFamily { get; set; } = "Oxanium";
     public bool IsDarkMode { get; set; } = true;
+    public double ThemeHue { get; set; } = 200;
 
     public List<string> TargetPlayerNames { get; set; } = new();
 

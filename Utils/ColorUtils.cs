@@ -33,6 +33,12 @@ internal static class ColorUtils
     return OxyColor.FromRgb(c.R, c.G, c.B);
   }
 
+  internal static Color FromHct(double h, double c, double t) =>
+    HctUtils.ToColor(h, c, t);
+
+  internal static OxyColor OxyFromHct(double h, double c, double t) =>
+    HctUtils.ToOxyColor(h, c, t);
+
   private static double HueToRgb(double p, double q, double t)
   {
     if (t < 0)

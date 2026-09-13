@@ -7,14 +7,14 @@
   <SolidColorBrush x:Key="IconButtonHoverBrush" Color="#18FFFFFF" />
   <SolidColorBrush x:Key="IconButtonPressedBrush" Color="#28FFFFFF" />
 
-  <SolidColorBrush x:Key="SurfaceLevel0Brush" Color="#FF070909" />
-  <SolidColorBrush x:Key="SurfaceLevel1Brush" Color="#FF0F1112" />
-  <SolidColorBrush x:Key="SurfaceLevel2Brush" Color="#FF191C1D" />
+  <SolidColorBrush x:Key="SurfaceLevel0Brush" Color="#FF080909" />
+  <SolidColorBrush x:Key="SurfaceLevel1Brush" Color="#FF101111" />
+  <SolidColorBrush x:Key="SurfaceLevel2Brush" Color="#FF1A1C1C" />
 
-  <SolidColorBrush x:Key="AccentBrush" Color="#FF87F1F7" />
-  <SolidColorBrush x:Key="AccentOnBrush" Color="#FF191C1C" />
+  <SolidColorBrush x:Key="AccentBrush" Color="#FF85F0F4" />
+  <SolidColorBrush x:Key="AccentOnBrush" Color="#FF1A1C1C" />
 
-  <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1F87F1F7" />
+  <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1F85F0F4" />
 
   <SolidColorBrush x:Key="SeparatorBrush" Color="#14FFFFFF" />
 </ResourceDictionary>

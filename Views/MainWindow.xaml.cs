@@ -52,6 +52,7 @@ namespace OsuMate.Views
       if (!_settingsVm.IsDarkMode)
         _mainViewModel.Theme.Toggle();
       _mainViewModel.Theme.SetFont(_settingsVm.FontFamily);
+      _mainViewModel.Theme.SetHue(_settingsVm.ThemeHue);
       _mainViewModel.OnThemeChanged();
 
       _playLogVm.PlayStatsChartVM.ApplyTheme(_mainViewModel.Theme.Current);
@@ -83,6 +84,12 @@ namespace OsuMate.Views
             _playLogVm.PlayStatsChartVM.ApplyTheme(_mainViewModel.Theme.Current);
             _playLogVm.ActivityChartVM.ApplyTheme(_mainViewModel.Theme.Current);
             SettingsPanel.InvalidateBitmapCache();
+            break;
+          case nameof(SettingsViewModel.ThemeHue):
+            _mainViewModel.Theme.SetHue(_settingsVm.ThemeHue);
+            _mainViewModel.OnThemeChanged();
+            _playLogVm.PlayStatsChartVM.ApplyTheme(_mainViewModel.Theme.Current);
+            _playLogVm.ActivityChartVM.ApplyTheme(_mainViewModel.Theme.Current);
             break;
           case nameof(SettingsViewModel.OverlayFontSize):
             _mainViewModel.SetOverlayFontSize(_settingsVm.OverlayFontSize);

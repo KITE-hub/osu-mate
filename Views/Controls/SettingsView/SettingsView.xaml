@@ -58,6 +58,35 @@
 
         <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
           <TextBlock
+            Text="Theme Hue"
+            FontSize="12"
+            VerticalAlignment="Center"
+            Width="160"
+            Foreground="{DynamicResource TextBrush}"
+          />
+          <Slider
+            Minimum="0"
+            Maximum="358"
+            TickFrequency="2"
+            IsSnapToTickEnabled="True"
+            SmallChange="2"
+            LargeChange="10"
+            Value="{Binding ThemeHue}"
+            Style="{StaticResource SliderStyle}"
+            Width="140"
+            VerticalAlignment="Center"
+          />
+          <TextBlock
+            Text="{Binding ThemeHue, StringFormat={}{0:F0}}"
+            FontSize="12"
+            Margin="12,0,0,0"
+            VerticalAlignment="Center"
+            Foreground="{DynamicResource TextBrush}"
+          />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock
             Text="Font Family"
             FontSize="12"
             VerticalAlignment="Center"

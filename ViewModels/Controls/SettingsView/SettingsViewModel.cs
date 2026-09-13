@@ -386,6 +386,20 @@ namespace OsuMate.ViewModels
       }
     }
 
+    public double ThemeHue
+    {
+      get => _globalConfig.ThemeHue;
+      set
+      {
+        double snapped = Math.Clamp(Math.Round(value / 2.0) * 2.0, 0, 358);
+        if (Math.Abs(_globalConfig.ThemeHue - snapped) < 0.01)
+          return;
+        _globalConfig.ThemeHue = snapped;
+        OnPropertyChanged();
+        DebouncedSave();
+      }
+    }
+
     public int DataUpdateIntervalMs
     {
       get => _globalConfig.DataUpdateIntervalMs;
