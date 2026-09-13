@@ -398,6 +398,27 @@ namespace OsuMate.ViewModels
       ConfigUtils.SaveRootConfig(root);
     }
 
+    private bool _disableSv = false;
+    public bool DisableSv
+    {
+      get => _disableSv;
+      set
+      {
+        if (_disableSv == value)
+          return;
+        _disableSv = value;
+        OnPropertyChanged();
+        SaveDisableSv(value);
+      }
+    }
+
+    private static void SaveDisableSv(bool value)
+    {
+      var root = ConfigUtils.LoadRootConfig();
+      root.Global.DisableSv = value;
+      ConfigUtils.SaveRootConfig(root);
+    }
+
     private bool _isRandomAvailable = true;
     public bool IsRandomAvailable
     {
@@ -407,6 +428,19 @@ namespace OsuMate.ViewModels
         if (_isRandomAvailable == value)
           return;
         _isRandomAvailable = value;
+        OnPropertyChanged();
+      }
+    }
+
+    private bool _isDisableSvAvailable = true;
+    public bool IsDisableSvAvailable
+    {
+      get => _isDisableSvAvailable;
+      private set
+      {
+        if (_isDisableSvAvailable == value)
+          return;
+        _isDisableSvAvailable = value;
         OnPropertyChanged();
       }
     }
@@ -478,6 +512,7 @@ namespace OsuMate.ViewModels
       var globalConfig = ConfigUtils.LoadGlobalConfig();
       _adjustPitchWithSpeed = globalConfig.AdjustPitchWithSpeed;
       _isRandomEnabled = globalConfig.IsRandomEnabled;
+      _disableSv = globalConfig.DisableSv;
       _batchStartRate = globalConfig.BatchStartRate;
       _batchStep = globalConfig.BatchStep;
       _batchCount = globalConfig.BatchCount;
@@ -568,6 +603,7 @@ namespace OsuMate.ViewModels
         _mode = bm.Mode;
         IsArCsEditable = !bm.IsTaikoOrMania;
         IsRandomAvailable = !bm.IsCatch;
+        IsDisableSvAvailable = bm.IsTaikoOrMania;
 
         _ar.Original = bm.ApproachRate >= 0 ? bm.ApproachRate : (decimal?)null;
         _od.Original = bm.OverallDifficulty >= 0 ? bm.OverallDifficulty : (decimal?)null;
@@ -640,6 +676,7 @@ namespace OsuMate.ViewModels
           requests,
           AdjustPitchWithSpeed,
           IsRandomEnabled && IsRandomAvailable,
+          DisableSv && IsDisableSvAvailable,
           msg => _dispatcher.BeginInvoke(() => StatusMessage = msg),
           _generationCts.Token
         );

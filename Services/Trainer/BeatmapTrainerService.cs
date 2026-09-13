@@ -136,6 +136,7 @@ namespace OsuMate.Services.Trainer
       IEnumerable<BatchGenerationRequest> requests,
       bool adjustPitchWithSpeed,
       bool randomizeEnabled,
+      bool disableSv,
       Action<string>? progress = null,
       CancellationToken ct = default
     )
@@ -181,6 +182,8 @@ namespace OsuMate.Services.Trainer
               var diffSuffixes = new List<string>();
               if (randomizedHitObjectLines != null)
                 diffSuffixes.Add("Random");
+              if (disableSv)
+                diffSuffixes.Add("NoSV");
               if (
                 req.ArOverride.HasValue
                 && original.ApproachRate >= 0
@@ -256,7 +259,8 @@ namespace OsuMate.Services.Trainer
                 req.ArOverride,
                 req.OdOverride,
                 req.HpOverride,
-                req.CsOverride
+                req.CsOverride,
+                disableSv
               );
 
               osuFilesToAdd.Add((tempOsuPath, newOsuFilename));

@@ -383,7 +383,8 @@ namespace OsuMate.Services.Trainer
       decimal? arOverride = null,
       decimal? odOverride = null,
       decimal? hpOverride = null,
-      decimal? csOverride = null
+      decimal? csOverride = null,
+      bool disableSv = false
     )
     {
       if (rate <= 0)
@@ -458,7 +459,9 @@ namespace OsuMate.Services.Trainer
             break;
 
           case Section.TimingPoints:
-            outLines.Add(ScaleTimingPointLine(raw, rate));
+            var tpLine = ScaleTimingPointLine(raw, rate, disableSv);
+            if (tpLine != null)
+              outLines.Add(tpLine);
             break;
 
           case Section.HitObjects:
@@ -528,7 +531,7 @@ namespace OsuMate.Services.Trainer
       return $"Bookmarks: {string.Join(",", times)}";
     }
 
-    private static string ScaleTimingPointLine(string raw, decimal rate)
+    private static string? ScaleTimingPointLine(string raw, decimal rate, bool disableSv = false)
     {
       var line = raw.Trim();
       if (line == "" || line.StartsWith("//"))
@@ -559,11 +562,24 @@ namespace OsuMate.Services.Trainer
       if (!int.TryParse(parts[6].Trim(), out int uninherited))
         return raw;
 
+      if (disableSv && uninherited == 0)
+        return null;
+
       double newTime = time / (double)rate;
-      double newBeatLength = uninherited == 1 ? beatLength / (double)rate : beatLength;
+      double newBeatLength = beatLength / (double)rate;
 
       parts[0] = ((int)Math.Round(newTime)).ToString(CultureInfo.InvariantCulture);
-      parts[1] = newBeatLength.ToString("F10", CultureInfo.InvariantCulture);
+      if (disableSv)
+      {
+        parts[1] = newBeatLength.ToString("F10", CultureInfo.InvariantCulture);
+        parts[5] = "100";
+        if (parts.Length >= 8 && int.TryParse(parts[7].Trim(), out int effects))
+          parts[7] = (effects & ~(1 | 8)).ToString(CultureInfo.InvariantCulture);
+      }
+      else
+      {
+        parts[1] = uninherited == 1 ? newBeatLength.ToString("F10", CultureInfo.InvariantCulture) : beatLength.ToString("F10", CultureInfo.InvariantCulture);
+      }
 
       return string.Join(",", parts);
     }

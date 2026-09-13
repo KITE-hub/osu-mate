@@ -471,6 +471,58 @@
           </DockPanel>
         </Grid>
 
+        <Grid
+          Height="24"
+          Margin="{StaticResource RowSpacing}"
+          IsEnabled="{Binding IsDisableSvAvailable}"
+          Style="{StaticResource DisabledOpacityGridStyle}"
+        >
+          <DockPanel ToolTipService.InitialShowDelay="100" ToolTipService.ShowOnDisabled="True">
+            <DockPanel.ToolTip>
+              <ToolTip>
+                <ToolTip.Style>
+                  <Style TargetType="ToolTip" BasedOn="{StaticResource TrackerToolTipStyle}">
+                    <Setter Property="Width" Value="200" />
+                    <Setter Property="MaxWidth" Value="200" />
+                  </Style>
+                </ToolTip.Style>
+                <TextBlock TextWrapping="Wrap">
+                  <Run Text="Disable SV:" />
+                  <LineBreak />
+                  <Run Text="osu!taiko: Supported. Removes all inherited timing points (green lines) for constant 1.0x scroll speed." />
+                  <LineBreak />
+                  <LineBreak />
+                  <Run Text="Kiai and 'Omit first bar line' are turned off, and volume is fixed to 100%." />
+                  <LineBreak />
+                  <LineBreak />
+                  <Run Text="Support for each mode is as follows." />
+                  <LineBreak />
+                  <LineBreak />
+                  <Run Text="osu!standard: Not supported." />
+                  <LineBreak />
+                  <Run Text="osu!taiko: Supported." />
+                  <LineBreak />
+                  <Run Text="osu!catch: Not supported." />
+                  <LineBreak />
+                  <Run Text="osu!mania: Supported." />
+                </TextBlock>
+              </ToolTip>
+            </DockPanel.ToolTip>
+            <TextBlock
+              Text="Disable SV"
+              FontSize="12"
+              VerticalAlignment="Center"
+              Foreground="{DynamicResource TextBrush}"
+            />
+            <CheckBox
+              IsChecked="{Binding DisableSv}"
+              Style="{StaticResource ToggleSwitchStyle}"
+              HorizontalAlignment="Right"
+              VerticalAlignment="Center"
+            />
+          </DockPanel>
+        </Grid>
+
         <Grid Height="24" Margin="{StaticResource RowSpacing}">
           <TextBlock
             Text="Adjust Pitch with Speed"

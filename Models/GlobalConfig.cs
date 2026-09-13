@@ -23,6 +23,8 @@ namespace OsuMate.Models
 
     public bool IsRandomEnabled { get; set; } = false;
 
+    public bool DisableSv { get; set; } = false;
+
     public decimal BatchStartRate { get; set; } = 1.05M;
 
     public decimal BatchStep { get; set; } = 0.05M;
