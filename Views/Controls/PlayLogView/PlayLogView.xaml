@@ -28,7 +28,7 @@
       TargetType="DataGridCell"
       BasedOn="{StaticResource DataGridCellBaseStyle}"
     >
-      <Setter Property="Padding" Value="8,5" />
+      <Setter Property="Padding" Value="10,5" />
     </Style>
 
     <Style
@@ -77,7 +77,7 @@
           <TextBlock
             Text="⟳ Loading..."
             FontSize="11"
-            Margin="8,0,0,0"
+            Margin="10,0,0,0"
             VerticalAlignment="Center"
             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
           />

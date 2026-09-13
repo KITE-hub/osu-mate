@@ -290,6 +290,7 @@
           x:Name="LogColumnList"
           ItemsSource="{Binding LogColumnSettings.LogColumnItems}"
           Visibility="{Binding IsChecked, ElementName=LogColumnPriorityToggle, Converter={StaticResource BoolToVisibilityConverter}}"
+          Margin="{StaticResource RowSpacing}"
         >
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>

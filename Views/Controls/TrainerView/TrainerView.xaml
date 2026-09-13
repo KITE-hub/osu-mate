@@ -13,8 +13,8 @@
       TargetType="TextBox"
       BasedOn="{StaticResource ThemedTextBoxStyle}"
     >
-      <Setter Property="Width" Value="52" />
-      <Setter Property="Padding" Value="4,1" />
+      <Setter Property="Width" Value="50" />
+      <Setter Property="Padding" Value="2,1" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="FontWeight" Value="Bold" />
       <Setter Property="TextAlignment" Value="Center" />
@@ -69,9 +69,9 @@
   </UserControl.Resources>
 
   <ScrollViewer VerticalScrollBarVisibility="Auto">
-    <StackPanel Margin="10,0,10,10">
+    <StackPanel Margin="10,0,10,8">
       <StackPanel Margin="{StaticResource SectionSpacing}">
-        <Grid>
+        <Grid Margin="{StaticResource RowSpacing}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="8" />
@@ -155,11 +155,6 @@
         <Grid Margin="{StaticResource RowSpacing}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
           </Grid.ColumnDefinitions>
 
@@ -168,56 +163,52 @@
             Text="Rate"
             Style="{StaticResource TextTitleStyle}"
             VerticalAlignment="Center"
-            Margin="0,0,16,0"
           />
 
-          <TextBlock
+          <StackPanel
             Grid.Column="1"
-            Text="Start:"
-            VerticalAlignment="Center"
-            FontSize="12"
-            Foreground="{DynamicResource TextBrush}"
-          />
-          <TextBox
-            Grid.Column="2"
-            Text="{Binding BatchStartRate, UpdateSourceTrigger=LostFocus}"
-            Style="{StaticResource RateTextBoxStyle}"
-            Margin="4,0,8,0"
-            HorizontalAlignment="Left"
-            KeyDown="RateTextBox_KeyDown"
-          />
+            Orientation="Horizontal"
+            HorizontalAlignment="Right"
+          >
+            <TextBlock
+              Text="Start:"
+              VerticalAlignment="Center"
+              FontSize="12"
+              Foreground="{DynamicResource TextBrush}"
+            />
+            <TextBox
+              Text="{Binding BatchStartRate, UpdateSourceTrigger=LostFocus}"
+              Style="{StaticResource RateTextBoxStyle}"
+              Margin="6,0,16,0"
+              KeyDown="RateTextBox_KeyDown"
+            />
 
-          <TextBlock
-            Grid.Column="3"
-            Text="Step:"
-            VerticalAlignment="Center"
-            FontSize="12"
-            Foreground="{DynamicResource TextBrush}"
-          />
-          <TextBox
-            Grid.Column="4"
-            Text="{Binding BatchStep, UpdateSourceTrigger=LostFocus}"
-            Style="{StaticResource RateTextBoxStyle}"
-            Margin="4,0,8,0"
-            HorizontalAlignment="Left"
-            KeyDown="RateTextBox_KeyDown"
-          />
+            <TextBlock
+              Text="Step:"
+              VerticalAlignment="Center"
+              FontSize="12"
+              Foreground="{DynamicResource TextBrush}"
+            />
+            <TextBox
+              Text="{Binding BatchStep, UpdateSourceTrigger=LostFocus}"
+              Style="{StaticResource RateTextBoxStyle}"
+              Margin="6,0,16,0"
+              KeyDown="RateTextBox_KeyDown"
+            />
 
-          <TextBlock
-            Grid.Column="5"
-            Text="Count:"
-            VerticalAlignment="Center"
-            FontSize="12"
-            Foreground="{DynamicResource TextBrush}"
-          />
-          <TextBox
-            Grid.Column="6"
-            Text="{Binding BatchCount, UpdateSourceTrigger=LostFocus}"
-            Style="{StaticResource RateTextBoxStyle}"
-            Margin="4,0,0,0"
-            HorizontalAlignment="Left"
-            KeyDown="RateTextBox_KeyDown"
-          />
+            <TextBlock
+              Text="Count:"
+              VerticalAlignment="Center"
+              FontSize="12"
+              Foreground="{DynamicResource TextBrush}"
+            />
+            <TextBox
+              Text="{Binding BatchCount, UpdateSourceTrigger=LostFocus}"
+              Style="{StaticResource RateTextBoxStyle}"
+              Margin="6,0,0,0"
+              KeyDown="RateTextBox_KeyDown"
+            />
+          </StackPanel>
         </Grid>
       </StackPanel>
 
@@ -271,10 +262,10 @@
           Margin="{StaticResource RowSpacing}"
         />
 
-        <ContentControl Style="{StaticResource TextPanelStyle}" Padding="10,8">
+        <ContentControl Style="{StaticResource TextPanelStyle}" Padding="10,6" Margin="{StaticResource RowSpacing}">
           <StackPanel>
             <Grid
-              Height="28"
+              Height="26"
               Margin="0,0,0,6"
               IsEnabled="{Binding IsArCsEditable}"
               Style="{StaticResource DisabledOpacityGridStyle}"
@@ -317,7 +308,7 @@
               />
             </Grid>
 
-            <Grid Height="28" Margin="0,0,0,6">
+            <Grid Height="26" Margin="0,0,0,6">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="24" />
                 <ColumnDefinition Width="*" />
@@ -356,7 +347,7 @@
               />
             </Grid>
 
-            <Grid Height="28" Margin="0,0,0,6">
+            <Grid Height="26" Margin="0,0,0,6">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="24" />
                 <ColumnDefinition Width="*" />
@@ -385,7 +376,7 @@
             </Grid>
 
             <Grid
-              Height="28"
+              Height="26"
               IsEnabled="{Binding IsArCsEditable}"
               Style="{StaticResource DisabledOpacityGridStyle}"
             >

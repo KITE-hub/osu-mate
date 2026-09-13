@@ -8,7 +8,7 @@
 
   <QuadraticEase x:Key="StandardEase" EasingMode="EaseOut" />
 
-  <Thickness x:Key="SectionSpacing">0,0,0,14</Thickness>
+  <Thickness x:Key="SectionSpacing">0,0,0,10</Thickness>
   <Thickness x:Key="RowSpacing">0,0,0,4</Thickness>
 
   <DropShadowEffect
@@ -70,7 +70,7 @@
     <Setter Property="Background" Value="{DynamicResource SurfaceLevel1Brush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource SeparatorBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="Padding" Value="10,6" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="VerticalContentAlignment" Value="Stretch" />
     <Setter Property="Template">

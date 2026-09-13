@@ -7,9 +7,9 @@
     <StackPanel Orientation="Horizontal">
       <ContentControl
         Style="{StaticResource TextPanelStyle}"
-        Width="180"
+        Width="170"
         VerticalAlignment="Top"
-        Margin="0,0,10,10"
+        Margin="0,0,8,8"
       >
         <StackPanel>
           <DockPanel>
@@ -60,7 +60,7 @@
         Style="{StaticResource TextPanelStyle}"
         Width="190"
         VerticalAlignment="Top"
-        Margin="0,0,0,10"
+        Margin="0,0,0,8"
       >
         <StackPanel>
           <DockPanel Visibility="{Binding IsGekiVisible, Converter={StaticResource BoolToVisibilityConverter}}">
@@ -129,9 +129,9 @@
     <StackPanel Orientation="Horizontal">
       <ContentControl
         Style="{StaticResource TextPanelStyle}"
-        Width="180"
+        Width="170"
         VerticalAlignment="Top"
-        Margin="0,0,10,10"
+        Margin="0,0,8,8"
       >
         <StackPanel>
           <DockPanel>
@@ -171,7 +171,7 @@
         Style="{StaticResource TextPanelStyle}"
         Width="190"
         VerticalAlignment="Top"
-        Margin="0,0,0,10"
+        Margin="0,0,0,8"
       >
         <StackPanel>
           <DockPanel>
