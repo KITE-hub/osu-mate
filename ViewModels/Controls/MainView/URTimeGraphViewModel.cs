@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using osu.Game.Rulesets.Scoring;
 using OsuMate.Models;
+using OsuMate.Utils;
 using OsuMate.Services.Osu;
 using OxyPlot;
 using OxyPlot.Annotations;
@@ -76,9 +77,7 @@ namespace OsuMate.ViewModels
 
     private void RenderThemeOnly()
     {
-      _plotModel.TextColor = _theme.OxyTextColor;
-      _plotModel.PlotAreaBorderColor = _theme.OxyBorderColor;
-      _plotModel.DefaultFont = _theme.OxyFontFamily;
+      PlotThemeUtils.ApplyBaseColors(_plotModel, _theme);
 
       if (_plotModel.Series.Count == 0)
         return;
@@ -97,7 +96,7 @@ namespace OsuMate.ViewModels
         }
         else if (series is ScatterSeries scatter && scatter.Tag is int judgement)
         {
-          var color = HitJudgementHelper.GetOxyColor(judgement, _theme);
+          var color = PlotThemeUtils.JudgementColor(judgement, _theme);
           scatter.MarkerFill = color;
           scatter.MarkerStroke = color;
         }
@@ -191,44 +190,27 @@ namespace OsuMate.ViewModels
       _currentTimeLine.Points.Add(new DataPoint(_currentTimeSec, _maxWindow));
     }
 
-    private (double perfect, double great, double good, double ok, double meh) GetWindows()
-    {
-      double GetWindow(HitResult r) => _hitWindows.TryGetValue(r, out var v) ? v : 0;
-      return (
-        GetWindow(HitResult.Perfect),
-        GetWindow(HitResult.Great),
-        GetWindow(HitResult.Good),
-        GetWindow(HitResult.Ok),
-        GetWindow(HitResult.Meh)
-      );
-    }
-
     private void AppendNewPoints(
       List<(double timeSec, double offsetMs)> data,
       int fromIndex,
       int toIndex
     )
     {
-      var (perfectWindow, greatWindow, goodWindow, okWindow, mehWindow) = GetWindows();
-
       for (int i = fromIndex; i < toIndex; i++)
       {
         var (timeSec, offsetMs) = data[i];
-        double abs = Math.Abs(offsetMs);
         var point = new ScatterPoint(timeSec, offsetMs);
 
-        if (perfectWindow > 0 && abs <= perfectWindow)
-          _perfectSeries.Points.Add(point);
-        else if (greatWindow > 0 && abs <= greatWindow)
-          _greatSeries.Points.Add(point);
-        else if (goodWindow > 0 && abs <= goodWindow)
-          _goodSeries.Points.Add(point);
-        else if (okWindow > 0 && abs <= okWindow)
-          _okSeries.Points.Add(point);
-        else if (mehWindow > 0 && abs <= mehWindow)
-          _mehSeries.Points.Add(point);
-        else
-          _missSeries.Points.Add(point);
+        var series = HitJudgementHelper.GetJudgement(offsetMs, _hitWindows) switch
+        {
+          1 => _perfectSeries,
+          2 => _greatSeries,
+          3 => _goodSeries,
+          4 => _okSeries,
+          5 => _mehSeries,
+          _ => _missSeries,
+        };
+        series.Points.Add(point);
 
         _offsetSum += offsetMs;
       }
@@ -242,8 +224,8 @@ namespace OsuMate.ViewModels
       {
         MarkerType = MarkerType.Circle,
         MarkerSize = 1,
-        MarkerFill = HitJudgementHelper.GetOxyColor(judgement, theme),
-        MarkerStroke = HitJudgementHelper.GetOxyColor(judgement, theme),
+        MarkerFill = PlotThemeUtils.JudgementColor(judgement, theme),
+        MarkerStroke = PlotThemeUtils.JudgementColor(judgement, theme),
         MarkerStrokeThickness = 1,
         Tag = judgement,
       };

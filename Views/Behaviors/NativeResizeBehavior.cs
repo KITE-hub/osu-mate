@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using OsuMate.Utils;
 
 namespace OsuMate.Views.Behaviors
 {
@@ -28,12 +29,6 @@ namespace OsuMate.Views.Behaviors
   {
     private const int WM_SYSCOMMAND = 0x112;
     private const int SC_SIZE = 0xF000;
-
-    [DllImport("user32.dll")]
-    private static extern bool ReleaseCapture();
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     public static readonly DependencyProperty DirectionProperty =
       DependencyProperty.RegisterAttached(
@@ -80,10 +75,10 @@ namespace OsuMate.Views.Behaviors
       var host = window as INativeResizeHost;
       host?.OnNativeResizeStarted();
 
-      ReleaseCapture();
+      Win32Interop.ReleaseCapture();
 
       var handle = new WindowInteropHelper(window).Handle;
-      SendMessage(handle, WM_SYSCOMMAND, (IntPtr)(SC_SIZE + (int)direction), IntPtr.Zero);
+      Win32Interop.SendMessage(handle, WM_SYSCOMMAND, (IntPtr)(SC_SIZE + (int)direction), IntPtr.Zero);
 
       host?.OnNativeResizeCompleted();
     }

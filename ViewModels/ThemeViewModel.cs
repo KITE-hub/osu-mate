@@ -18,6 +18,8 @@ namespace OsuMate.ViewModels
     public MaterialIconKind ThemeIconKind =>
       _isDark ? MaterialIconKind.WeatherNight : MaterialIconKind.WhiteBalanceSunny;
 
+    public event Action? ThemeChanged;
+
     public ThemeViewModel()
     {
       ApplyTheme();
@@ -107,6 +109,7 @@ namespace OsuMate.ViewModels
       }
       OnPropertyChanged(nameof(CurrentHue));
       OnPropertyChanged(nameof(Current));
+      ThemeChanged?.Invoke();
     }
 
     public void Toggle()
@@ -117,6 +120,7 @@ namespace OsuMate.ViewModels
       ApplyTheme();
       OnPropertyChanged(nameof(IsDark));
       OnPropertyChanged(nameof(Current));
+      ThemeChanged?.Invoke();
     }
 
     public void SetFont(string fontFamily)
@@ -130,6 +134,7 @@ namespace OsuMate.ViewModels
       Current = Current.WithFont(fontFamily);
       OnPropertyChanged(nameof(CurrentFont));
       OnPropertyChanged(nameof(Current));
+      ThemeChanged?.Invoke();
     }
   }
 }

@@ -15,7 +15,9 @@ namespace OsuMate.Models
     public double KeyOverlayHeight { get; set; } = 700;
     public double KeyOverlayX { get; set; } = 1000;
     public double KeyOverlayY { get; set; } = 150;
-    public double KeyOverlayDurationMs { get; set; } = 700;
+    public const double DefaultKeyOverlayDurationMs = 700;
+
+    public double KeyOverlayDurationMs { get; set; } = DefaultKeyOverlayDurationMs;
     public double KeyOverlayBarRound { get; set; } = 2;
     public double KeyOverlayInputBarOpacity { get; set; } = 0.5;
 

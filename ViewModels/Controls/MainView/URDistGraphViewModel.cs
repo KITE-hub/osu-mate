@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using MathNet.Numerics.Interpolation;
 using osu.Game.Rulesets.Scoring;
 using OsuMate.Models;
+using OsuMate.Utils;
 using OsuMate.Services.Osu;
 using OxyPlot;
 using OxyPlot.Annotations;
@@ -61,9 +62,7 @@ namespace OsuMate.ViewModels
 
     private void RenderThemeOnly()
     {
-      _plotModel.TextColor = _theme.OxyTextColor;
-      _plotModel.PlotAreaBorderColor = _theme.OxyBorderColor;
-      _plotModel.DefaultFont = _theme.OxyFontFamily;
+      PlotThemeUtils.ApplyBaseColors(_plotModel, _theme);
 
       if (_plotModel.Series.Count == 0)
         return;
@@ -76,7 +75,7 @@ namespace OsuMate.ViewModels
         if (series.Tag is int tag)
         {
           series.Color =
-            tag == -1 ? _theme.OxyBorderColor : HitJudgementHelper.GetOxyColor(tag, _theme);
+            tag == -1 ? _theme.OxyBorderColor : PlotThemeUtils.JudgementColor(tag, _theme);
         }
       }
 
@@ -234,7 +233,7 @@ namespace OsuMate.ViewModels
       int currentJudgement = points[0].Judgement;
       LineSeries currentSeries = _segmentPool[0];
       currentSeries.Points.Clear();
-      currentSeries.Color = HitJudgementHelper.GetOxyColor(currentJudgement, _theme);
+      currentSeries.Color = PlotThemeUtils.JudgementColor(currentJudgement, _theme);
       currentSeries.Tag = currentJudgement;
 
       for (int i = 0; i < points.Count; i++)
@@ -248,7 +247,7 @@ namespace OsuMate.ViewModels
           segmentIndex = Math.Min(segmentIndex + 1, MaxSegments - 1);
           currentSeries = _segmentPool[segmentIndex];
           currentSeries.Points.Clear();
-          currentSeries.Color = HitJudgementHelper.GetOxyColor(currentJudgement, _theme);
+          currentSeries.Color = PlotThemeUtils.JudgementColor(currentJudgement, _theme);
           currentSeries.Tag = currentJudgement;
         }
 

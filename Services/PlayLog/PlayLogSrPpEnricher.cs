@@ -17,6 +17,8 @@ namespace OsuMate.Services.PlayLog
     private readonly OsuMemoryService _memory;
     private readonly BeatmapPathResolver _pathResolver;
     private readonly PlayLogRepository _repository;
+    private const int CalculationChunkSize = 16;
+    private const int PlayingPollDelayMs = 1000;
     private readonly SemaphoreSlim _calculationGate = new(1, 1);
 
     public PlayLogSrPpEnricher(
@@ -69,7 +71,7 @@ namespace OsuMate.Services.PlayLog
           catch (Exception ex)
           {
             LogUtils.DebugLogger(
-              "PlayLogSrPpEnricher.CalculateMissingSrPpAsync: osu!.db read failed: " + ex.Message,
+              "PlayLogSrPpEnricher.CalculateMissingSrPpAsync: osu!.db read failed: " + ex,
               true
             );
           }
@@ -77,47 +79,32 @@ namespace OsuMate.Services.PlayLog
 
         foreach (var dateGroup in targets.GroupBy(e => e.PlayedAt.Date))
         {
-          var toSave = new List<PlayLogEntry>();
+          var ordered = dateGroup
+            .OrderBy(e => e.BeatmapMd5)
+            .ThenBy(e => e.BeatmapId)
+            .ThenBy(e => e.Mode)
+            .ThenBy(e => e.ModsString)
+            .ToList();
 
-          foreach (var entry in dateGroup)
+          var results = await CalculateGroupAsync(ordered, md5Map);
+
+          await dispatcher.InvokeAsync(() =>
           {
-            try
+            foreach (var result in results)
             {
-              var (sr, pp) = CalculateSrPpForEntry(entry, md5Map);
-              if (sr == null)
+              if (result.Failed)
               {
-                await dispatcher.InvokeAsync(() =>
-                {
-                  entry.IsCalculationFailed = true;
-                });
-                toSave.Add(entry);
+                result.Entry.IsCalculationFailed = true;
                 continue;
               }
 
-              await dispatcher.InvokeAsync(() =>
-              {
-                entry.StarRating = sr;
-                if (entry.IsCompleted)
-                  entry.Pp = pp;
-              });
-              toSave.Add(entry);
+              result.Entry.StarRating = result.StarRating;
+              if (result.Entry.IsCompleted)
+                result.Entry.Pp = result.Pp;
             }
-            catch (Exception ex)
-            {
-              LogUtils.DebugLogger(
-                $"PlayLogSrPpEnricher: SR/pp calc failed for BeatmapId={entry.BeatmapId}: {ex.Message}",
-                true
-              );
-              await dispatcher.InvokeAsync(() =>
-              {
-                entry.IsCalculationFailed = true;
-              });
-              toSave.Add(entry);
-            }
-          }
+          });
 
-          if (toSave.Count > 0)
-            _repository.SaveEntries(toSave);
+          _repository.SaveEntries(results.Select(r => r.Entry).ToList());
         }
       }
       finally
@@ -126,9 +113,86 @@ namespace OsuMate.Services.PlayLog
       }
     }
 
+    private readonly record struct EntryCalculation(
+      PlayLogEntry Entry,
+      double? StarRating,
+      double? Pp,
+      bool Failed
+    );
+
+    private async Task<List<EntryCalculation>> CalculateGroupAsync(
+      List<PlayLogEntry> entries,
+      Dictionary<string, OsuMate.Services.StableDb.BeatmapInfo>? md5Map
+    )
+    {
+      var results = new List<EntryCalculation>(entries.Count);
+      var cache = new CalculatorCache();
+
+      foreach (var chunk in entries.Chunk(CalculationChunkSize))
+      {
+        while (_memory.IsPlaying)
+          await Task.Delay(PlayingPollDelayMs);
+
+        var chunkResults = await Task.Run(() => CalculateChunk(chunk, md5Map, cache));
+        results.AddRange(chunkResults);
+      }
+
+      return results;
+    }
+
+    private List<EntryCalculation> CalculateChunk(
+      PlayLogEntry[] chunk,
+      Dictionary<string, OsuMate.Services.StableDb.BeatmapInfo>? md5Map,
+      CalculatorCache cache
+    )
+    {
+      var results = new List<EntryCalculation>(chunk.Length);
+      foreach (var entry in chunk)
+      {
+        try
+        {
+          var (sr, pp) = CalculateSrPpForEntry(entry, md5Map, cache);
+          results.Add(new EntryCalculation(entry, sr, pp, sr == null));
+        }
+        catch (Exception ex)
+        {
+          LogUtils.DebugLogger(
+            $"PlayLogSrPpEnricher: SR/pp calc failed for BeatmapId={entry.BeatmapId}: {ex}",
+            true
+          );
+          results.Add(new EntryCalculation(entry, null, null, true));
+        }
+      }
+      return results;
+    }
+
+    private sealed class CalculatorCache
+    {
+      private string? _path;
+      private int _mode;
+      private PpCalculator? _calculator;
+
+      public PpCalculator Get(string path, int mode)
+      {
+        if (_calculator == null || _path != path || _mode != mode)
+        {
+          _calculator = new PpCalculator(path, mode);
+          _path = path;
+          _mode = mode;
+        }
+        return _calculator;
+      }
+    }
+
     public (double? sr, double? pp) CalculateSrPpForEntry(
       PlayLogEntry entry,
       Dictionary<string, OsuMate.Services.StableDb.BeatmapInfo>? md5Map = null
+    ) => CalculateSrPpForEntry(entry, md5Map, new CalculatorCache());
+
+    private (double? sr, double? pp) CalculateSrPpForEntry(
+      PlayLogEntry entry,
+      Dictionary<string, OsuMate.Services.StableDb.BeatmapInfo>? md5Map,
+      CalculatorCache cache
     )
     {
       var beatmapPath =
@@ -143,7 +207,7 @@ namespace OsuMate.Services.PlayLog
           ? Array.Empty<string>()
           : entry.ModsString.Split(',').Select(m => m.Trim().ToLowerInvariant()).ToArray();
 
-      var calculator = new PpCalculator(beatmapPath, entry.Mode);
+      var calculator = cache.Get(beatmapPath, entry.Mode);
 
       var hits = new HitsResult
       {
@@ -168,7 +232,7 @@ namespace OsuMate.Services.PlayLog
         Accuracy = accuracy * 100,
       };
 
-      var data = calculator.Calculate(args, false, true, hits);
+      var data = calculator.Calculate(args, false, true, hits, includeStrainInfo: false);
       double? sr = data.DifficultyAttributes?.StarRating;
       double? pp = data.CurrentPerformanceAttributes?.Total;
       return (sr, pp);

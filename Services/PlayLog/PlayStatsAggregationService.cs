@@ -8,7 +8,7 @@ namespace OsuMate.Services.PlayLog
     public IReadOnlyList<DailyPlayStats> AggregateDailyStats(IEnumerable<PlayLogEntry> entries)
     {
       return entries
-        .GroupBy(e => DateOnly.FromDateTime(e.PlayedAt))
+        .GroupBy(e => DateOnly.FromDateTime(e.PlayedAt.LocalDateTime))
         .OrderBy(g => g.Key)
         .Select(g => new DailyPlayStats(
           g.Key,
@@ -21,7 +21,10 @@ namespace OsuMate.Services.PlayLog
 
     private static MetricStat ComputeStat(IEnumerable<double?> values)
     {
-      var list = values.Where(v => v.HasValue).Select(v => v!.Value).ToList();
+      var list = values
+        .Where(v => v.HasValue && double.IsFinite(v.Value))
+        .Select(v => v!.Value)
+        .ToList();
       if (list.Count == 0)
         return MetricStat.Empty;
 

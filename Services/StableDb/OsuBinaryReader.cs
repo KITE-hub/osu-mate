@@ -5,6 +5,8 @@ namespace OsuMate.Services.StableDb
 {
   public abstract class OsuBinaryReader : IDisposable
   {
+    private const int MaxStringBytes = 1 << 20;
+
     private readonly Stream _stream;
     private readonly byte[] _primitiveBuffer = new byte[8];
 
@@ -63,8 +65,8 @@ namespace OsuMate.Services.StableDb
       }
 
       int length = ReadULeb128();
-      if (length < 0)
-        throw new InvalidDataException("Negative string length.");
+      if (length < 0 || length > MaxStringBytes)
+        throw new InvalidDataException($"Invalid string length {length}.");
       if (length == 0)
         return string.Empty;
 

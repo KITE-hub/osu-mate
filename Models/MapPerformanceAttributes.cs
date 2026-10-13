@@ -1,9 +1,11 @@
 ﻿using osu.Game.Rulesets.Difficulty;
 
-namespace OsuMate.Models;
-
-internal class MapPerformanceAttributes
+namespace OsuMate.Models
 {
-  internal string[] Mods { get; set; } = [];
-  internal PerformanceAttributes? PerformanceAttributes { get; set; }
+
+  internal class MapPerformanceAttributes
+  {
+    internal string[] Mods { get; set; } = [];
+    internal PerformanceAttributes? PerformanceAttributes { get; set; }
+  }
 }

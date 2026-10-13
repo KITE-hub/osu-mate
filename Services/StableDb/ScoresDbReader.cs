@@ -6,8 +6,6 @@ namespace OsuMate.Services.StableDb
 {
   public class ScoresDbReader : OsuBinaryReader
   {
-    public int Version { get; private set; }
-
     private const int ModTargetPractice = 1 << 23;
 
     private ScoresDbReader(Stream stream)
@@ -22,7 +20,7 @@ namespace OsuMate.Services.StableDb
 
     private List<ScoreRecord> Parse()
     {
-      Version = ReadInt32();
+      ReadInt32();
       int numBeatmaps = ReadInt32();
 
       var result = new List<ScoreRecord>();

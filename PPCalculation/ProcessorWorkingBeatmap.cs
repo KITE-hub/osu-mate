@@ -6,29 +6,31 @@ using osu.Game.Beatmaps.Formats;
 using osu.Game.IO;
 using osu.Game.Skinning;
 
-namespace OsuMate.PPCalculation;
-
-public class ProcessorWorkingBeatmap(IBeatmap beatmap) : WorkingBeatmap(beatmap.BeatmapInfo, null)
+namespace OsuMate.PPCalculation
 {
-  public ProcessorWorkingBeatmap(string file)
-    : this(ReadFromFile(file)) { }
 
-  public static ProcessorWorkingBeatmap FromFile(string file) => new(file);
-
-  private static Beatmap ReadFromFile(string filename)
+  public class ProcessorWorkingBeatmap(IBeatmap beatmap) : WorkingBeatmap(beatmap.BeatmapInfo, null)
   {
-    using var stream = File.OpenRead(filename);
-    using var reader = new LineBufferedReader(stream);
-    return Decoder.GetDecoder<Beatmap>(reader).Decode(reader);
+    public ProcessorWorkingBeatmap(string file)
+      : this(ReadFromFile(file)) { }
+
+    public static ProcessorWorkingBeatmap FromFile(string file) => new(file);
+
+    private static Beatmap ReadFromFile(string filename)
+    {
+      using var stream = File.OpenRead(filename);
+      using var reader = new LineBufferedReader(stream);
+      return Decoder.GetDecoder<Beatmap>(reader).Decode(reader);
+    }
+
+    protected override IBeatmap GetBeatmap() => beatmap;
+
+    public override Texture GetBackground() => null!;
+
+    protected override Track GetBeatmapTrack() => null!;
+
+    protected override ISkin GetSkin() => null!;
+
+    public override Stream GetStream(string storagePath) => null!;
   }
-
-  protected override IBeatmap GetBeatmap() => beatmap;
-
-  public override Texture GetBackground() => null!;
-
-  protected override Track GetBeatmapTrack() => null!;
-
-  protected override ISkin GetSkin() => null!;
-
-  public override Stream GetStream(string storagePath) => null!;
 }

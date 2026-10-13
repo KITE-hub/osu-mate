@@ -489,8 +489,7 @@
                 <TextBlock TextWrapping="Wrap">
                   <Run Text="Disable SV:" />
                   <LineBreak />
-                  <Run Text="osu!taiko: Supported. Removes all inherited timing points (green lines) for constant 1.0x scroll speed." />
-                  <LineBreak />
+                  <Run Text="It removes all inherited timing points (green lines) for constant 1.0x scroll speed." />
                   <LineBreak />
                   <Run Text="Kiai and 'Omit first bar line' are turned off, and volume is fixed to 100%." />
                   <LineBreak />

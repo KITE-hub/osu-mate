@@ -1,5 +1,6 @@
 using System.Linq;
 using OsuMate.Models;
+using OsuMate.Utils;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
@@ -111,20 +112,7 @@ namespace OsuMate.ViewModels
       ApplyThemeToModel(_accuracyPlotModel);
     }
 
-    private void ApplyThemeToModel(PlotModel model)
-    {
-      model.TextColor = _theme.OxyTextColor;
-      model.PlotAreaBorderColor = _theme.OxyBorderColor;
-      model.DefaultFont = _theme.OxyFontFamily;
-
-      foreach (var axis in model.Axes)
-      {
-        axis.TicklineColor = _theme.OxyBorderColor;
-        axis.MajorGridlineColor = OxyColor.FromAColor(40, _theme.OxyBorderColor);
-      }
-
-      model.InvalidatePlot(false);
-    }
+    private void ApplyThemeToModel(PlotModel model) => PlotThemeUtils.ApplyGridTheme(model, _theme);
 
     private PlotModel BuildPlotModel(
       string yAxisTitle,
@@ -242,7 +230,7 @@ namespace OsuMate.ViewModels
         if (value is null)
           continue;
 
-        var x = DateTimeAxis.ToDouble(entry.PlayedAt);
+        var x = DateTimeAxis.ToDouble(entry.PlayedAt.LocalDateTime);
         scatter.Points.Add(new ScatterPoint(x, value.Value));
       }
 

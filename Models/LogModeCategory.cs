@@ -14,7 +14,7 @@ namespace OsuMate.Models
   {
     public static int? GetManiaKeyCount(int mode, double circleSize)
     {
-      if (mode != 3 || circleSize <= 0)
+      if (mode != OsuMode.Mania || circleSize <= 0)
         return null;
       return (int)System.Math.Round(circleSize, System.MidpointRounding.AwayFromZero);
     }

@@ -5,6 +5,7 @@ using OsuMate.Models;
 using OsuMate.PPCalculation;
 using OsuMate.Services.Osu;
 using OsuMate.Services.PlayLog;
+using OsuMate.Services.Trainer;
 using OsuMate.Utils;
 using OsuMemoryDataProvider;
 
@@ -32,6 +33,12 @@ namespace OsuMate.Services
     private int _modsStableTickCount;
 
     private const int ModsStableTicksRequired = 3;
+    private const int MapRetryIntervalMs = 1000;
+
+    private readonly object _notifyLock = new();
+    private PendingNotification? _pending;
+
+    private long _mapRetryNotBeforeMs;
 
     internal string[] PrevMods { get; private set; } = [];
     internal double CurrentSpeedMultiplier { get; private set; } = 1.0;
@@ -93,7 +100,7 @@ namespace OsuMate.Services
             }
             catch (Exception e)
             {
-              LogUtils.DebugLogger(e.Message, true);
+              LogUtils.DebugLogger(e.ToString(), true);
             }
           }
         },
@@ -109,7 +116,7 @@ namespace OsuMate.Services
         return;
 
       string beatmapPath = ResolveBeatmapPath();
-      if (!File.Exists(beatmapPath))
+      if (beatmapPath != _preMapPath && !File.Exists(beatmapPath))
         return;
 
       PrevMods = ResolveStableMods();
@@ -158,7 +165,7 @@ namespace OsuMate.Services
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger($"PpCalculationService.ResolveBeatmapPath failed: {ex.Message}", true);
+        LogUtils.DebugLogger($"PpCalculationService.ResolveBeatmapPath failed: {ex}", true);
         return string.Empty;
       }
     }
@@ -200,7 +207,7 @@ namespace OsuMate.Services
         return;
 
       _lastSpeedMultiplierMods = PrevMods;
-      CurrentSpeedMultiplier = RulesetHelper.GetSpeedMultiplier(PrevMods);
+      CurrentSpeedMultiplier = RulesetHelper.GetTimeScale(PrevMods);
     }
 
     private bool DetectMapChange(
@@ -212,27 +219,44 @@ namespace OsuMate.Services
     {
       if (_preMapPath == beatmapPath)
         return true;
+      if (Environment.TickCount64 < _mapRetryNotBeforeMs)
+        return false;
+
+      int gamemode = OsuBeatmapFile.TryReadMode(beatmapPath);
+      if (gamemode is not (0 or 1 or 2 or 3))
+      {
+        _mapRetryNotBeforeMs = Environment.TickCount64 + MapRetryIntervalMs;
+        return false;
+      }
+
+      int currentGamemode = gamemode == OsuMode.Osu ? _memory.CurrentOsuGamemode : gamemode;
+      try
+      {
+        if (_calculator == null)
+          _calculator = new PpCalculator(beatmapPath, currentGamemode);
+        else
+          _calculator.SetMap(beatmapPath, currentGamemode);
+      }
+      catch (Exception e)
+      {
+        _mapRetryNotBeforeMs = Environment.TickCount64 + MapRetryIntervalMs;
+        LogUtils.DebugLogger(
+          $"PpCalculationService.DetectMapChange failed: {beatmapPath}: {e}",
+          true
+        );
+        return false;
+      }
 
       _preMapPath = beatmapPath;
       LogUtils.DebugLogger($"Map changed: {beatmapPath}");
 
-      int gamemode = OsuUtils.GetMapMode(beatmapPath);
-      if (gamemode is -1 or not (0 or 1 or 2 or 3))
-        return false;
-
       _currentBeatmapGamemode = gamemode;
-      CurrentManiaKeyCount = gamemode == 3
+      CurrentManiaKeyCount = gamemode == OsuMode.Mania
         ? BeatmapPathResolver.ReadManiaKeyCountFromFile(beatmapPath)
         : null;
-      _currentGamemode =
-        _currentBeatmapGamemode == 0 ? _memory.CurrentOsuGamemode : _currentBeatmapGamemode;
-      CurrentGamemode = _currentGamemode;
+      _currentGamemode = currentGamemode;
+      CurrentGamemode = currentGamemode;
       CurrentBeatmapMd5 = BeatmapPathResolver.ComputeMd5(beatmapPath);
-
-      if (_calculator == null)
-        _calculator = new PpCalculator(beatmapPath, _currentGamemode);
-      else
-        _calculator.SetMap(beatmapPath, _currentGamemode);
 
       RefreshStrainData(ref strainUpdated, ref strains, ref skillNames);
       return true;
@@ -247,7 +271,7 @@ namespace OsuMate.Services
       if (_memory.CurrentOsuGamemode == _preOsuGamemode)
         return;
 
-      if (_calculator != null && _currentBeatmapGamemode == 0)
+      if (_calculator != null && _currentBeatmapGamemode == OsuMode.Osu)
       {
         _calculator.SetMode(_memory.CurrentOsuGamemode);
         _currentGamemode = _memory.CurrentOsuGamemode;
@@ -333,12 +357,65 @@ namespace OsuMate.Services
       if (dispatcher.HasShutdownStarted || ct.IsCancellationRequested)
         return;
 
+      bool schedule;
+      lock (_notifyLock)
+      {
+        var next = new PendingNotification(
+          data,
+          hits,
+          strainUpdated,
+          strains,
+          skillNames,
+          speedMultiplier
+        );
+        if (!strainUpdated && _pending is { StrainUpdated: true } previous)
+        {
+          next = next with
+          {
+            StrainUpdated = true,
+            Strains = previous.Strains,
+            SkillNames = previous.SkillNames,
+            SpeedMultiplier = previous.SpeedMultiplier,
+          };
+        }
+
+        schedule = _pending == null;
+        _pending = next;
+      }
+
+      if (!schedule)
+        return;
+
       dispatcher.BeginInvoke(() =>
       {
-        OnCalculated?.Invoke(data, hits);
-        if (strainUpdated)
-          OnStrainDataUpdated?.Invoke(data, strains, skillNames, speedMultiplier);
+        PendingNotification? current;
+        lock (_notifyLock)
+        {
+          current = _pending;
+          _pending = null;
+        }
+
+        if (current == null)
+          return;
+
+        OnCalculated?.Invoke(current.Data, current.Hits);
+        if (current.StrainUpdated)
+          OnStrainDataUpdated?.Invoke(
+            current.Data,
+            current.Strains,
+            current.SkillNames,
+            current.SpeedMultiplier
+          );
       });
     }
+
+    private sealed record PendingNotification(
+      BeatmapData Data,
+      HitsResult Hits,
+      bool StrainUpdated,
+      List<float[]> Strains,
+      string[] SkillNames,
+      double SpeedMultiplier
+    );
   }
 }

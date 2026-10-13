@@ -1,6 +1,6 @@
 ﻿namespace OsuMate.Models
 {
-  public class OverlayItem : ObservableBase
+  public class OverlayItem : ObservableBase, IPriorityItem
   {
     public int Id { get; set; }
     public string Label { get; set; } = "";

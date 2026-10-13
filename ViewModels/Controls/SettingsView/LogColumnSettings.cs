@@ -28,122 +28,26 @@ namespace OsuMate.ViewModels
       (16, "Status"),
     ];
 
-    public ObservableCollection<LogColumnItem> LogColumnItems { get; } = [];
-
     private readonly GlobalConfig _config;
-    private readonly Action _save;
+    private readonly PriorityListSettings<LogColumnItem> _items;
 
-    private readonly object _logColumnLock = new();
+    public ObservableCollection<LogColumnItem> LogColumnItems => _items.Items;
 
     public LogColumnSettings(GlobalConfig config, Action save)
     {
       _config = config;
-      _save = save;
-      LoadLogColumnItems();
+      _items = new PriorityListSettings<LogColumnItem>(
+        LogColumnDefinitions,
+        "1/2/3/4/5/6/7/8/9/10/11/12/13/14/15/16",
+        true,
+        (id, label, enabled) => new LogColumnItem { Id = id, Label = label, IsEnabled = enabled },
+        save
+      );
+      _items.Load(_config.LogColumnPriority);
     }
 
-    public void MoveLogColumnItem(int fromIndex, int toIndex)
-    {
-      if (fromIndex == toIndex)
-        return;
-      if (fromIndex < 0 || fromIndex >= LogColumnItems.Count)
-        return;
-      if (toIndex < 0 || toIndex >= LogColumnItems.Count)
-        return;
-      lock (_logColumnLock)
-      {
-        var item = LogColumnItems[fromIndex];
-        LogColumnItems.RemoveAt(fromIndex);
-        LogColumnItems.Insert(toIndex, item);
-      }
-      _save();
-    }
+    public void MoveLogColumnItem(int fromIndex, int toIndex) => _items.Move(fromIndex, toIndex);
 
-    public string ToLogColumnPriorityString()
-    {
-      lock (_logColumnLock)
-        return string.Join(
-          "/",
-          LogColumnItems.Select(i => i.IsEnabled ? i.Id.ToString() : $"-{i.Id}")
-        );
-    }
-
-    private void LoadLogColumnItems()
-    {
-      try
-      {
-        var priority = _config.LogColumnPriority ?? "1/2/3/4/5/6/7/8/9/10/11/12/13/14/15/16";
-        var tokens = priority.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-        var ordered = tokens
-          .Select(t =>
-          {
-            bool enabled = !t.StartsWith('-');
-            string raw = enabled ? t : t[1..];
-            if (int.TryParse(raw, out int id))
-              return (Id: id, Enabled: enabled);
-            return (Id: -1, Enabled: false);
-          })
-          .Where(x => x.Id > 0)
-          .ToList();
-
-        var orderedIds = ordered.Select(x => x.Id).ToList();
-
-        lock (_logColumnLock)
-        {
-          LogColumnItems.Clear();
-          foreach (var col in ordered)
-          {
-            var def = LogColumnDefinitions.FirstOrDefault(d => d.id == col.Id);
-            if (def == default)
-              continue;
-            LogColumnItems.Add(
-              new LogColumnItem
-              {
-                Id = col.Id,
-                Label = def.label,
-                IsEnabled = col.Enabled,
-              }
-            );
-          }
-
-          foreach (var def in LogColumnDefinitions)
-          {
-            if (orderedIds.Contains(def.id))
-              continue;
-            LogColumnItems.Add(
-              new LogColumnItem
-              {
-                Id = def.id,
-                Label = def.label,
-                IsEnabled = true,
-              }
-            );
-          }
-        }
-      }
-      catch (Exception e)
-      {
-        LogUtils.DebugLogger("LogColumnSettings.LoadLogColumnItems failed: " + e.Message, true);
-        LoadDefaultLogColumnItems();
-      }
-    }
-
-    private void LoadDefaultLogColumnItems()
-    {
-      lock (_logColumnLock)
-      {
-        LogColumnItems.Clear();
-        foreach (var def in LogColumnDefinitions)
-          LogColumnItems.Add(
-            new LogColumnItem
-            {
-              Id = def.id,
-              Label = def.label,
-              IsEnabled = true,
-            }
-          );
-      }
-    }
+    public string ToLogColumnPriorityString() => _items.ToPriorityString();
   }
 }

@@ -1,9 +1,11 @@
 ﻿using osu.Game.Rulesets.Difficulty;
 
-namespace OsuMate.Models;
-
-internal class MapDifficultyAttributes
+namespace OsuMate.Models
 {
-  internal string[] Mods { get; set; } = [];
-  internal DifficultyAttributes DifficultyAttributes { get; set; } = new DifficultyAttributes();
+
+  internal class MapDifficultyAttributes
+  {
+    internal string[] Mods { get; set; } = [];
+    internal DifficultyAttributes DifficultyAttributes { get; set; } = new DifficultyAttributes();
+  }
 }

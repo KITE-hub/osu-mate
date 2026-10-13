@@ -5,6 +5,8 @@ namespace OsuMate.Utils
 {
   public static class TimerResolution
   {
+    private const uint TimerNoError = 0;
+
     private static int _appliedPeriodMs;
 
     [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod", SetLastError = true)]
@@ -19,12 +21,12 @@ namespace OsuMate.Utils
         return;
       try
       {
-        TimeBeginPeriod((uint)periodMs);
-        _appliedPeriodMs = periodMs;
+        if (TimeBeginPeriod((uint)periodMs) == TimerNoError)
+          _appliedPeriodMs = periodMs;
       }
       catch (Exception e)
       {
-        LogUtils.DebugLogger($"TimerResolution.Begin failed: {e.Message}", true);
+        LogUtils.DebugLogger($"TimerResolution.Begin failed: {e}", true);
       }
     }
 
@@ -38,7 +40,7 @@ namespace OsuMate.Utils
       }
       catch (Exception e)
       {
-        LogUtils.DebugLogger($"TimerResolution.End failed: {e.Message}", true);
+        LogUtils.DebugLogger($"TimerResolution.End failed: {e}", true);
       }
       finally
       {

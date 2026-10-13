@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Rulesets;
@@ -13,51 +14,90 @@ using OsuMate.Utils;
 
 namespace OsuMate.PPCalculation
 {
-  internal class PpCalculator(string file, int mode)
+  internal class PpCalculator
   {
-    private Ruleset ruleset = RulesetHelper.GetRuleset(mode);
-    private ProcessorWorkingBeatmap workingBeatmap = ProcessorWorkingBeatmap.FromFile(file);
-    private List<TimedDifficultyAttributes>? currentDifficultyAttributes = null;
-    private MapDifficultyAttributes? currentMapDifficultyAttributes = null;
-    private MapPerformanceAttributes? currentMapPerformanceAttributes = null;
-    private int totalHitObjectCount;
+    private Ruleset _ruleset;
+    private ProcessorWorkingBeatmap _workingBeatmap;
+    private int _mode;
+    private List<TimedDifficultyAttributes>? _currentDifficultyAttributes = null;
+    private MapDifficultyAttributes? _currentMapDifficultyAttributes = null;
+    private MapPerformanceAttributes? _currentMapPerformanceAttributes = null;
+    private int _totalHitObjectCount;
     private StrainList? _cachedStrainList = null;
     private IBeatmap? _cachedPlayableBeatmap = null;
     private string[] _cachedPlayableBeatmapMods = [];
     private Mod[] _cachedResolvedMods = [];
     private string[] _cachedResolvedModsKey = [];
     private int _lastDifficultyIndex;
+    private StaticMapInfo? _cachedStaticMapInfo;
     private const int StrainSectionLengthMs = 400;
+
+    internal PpCalculator(string file, int mode)
+    {
+      _mode = mode;
+      _ruleset = RulesetHelper.GetRuleset(mode);
+      _workingBeatmap = ProcessorWorkingBeatmap.FromFile(file);
+    }
+
+    private sealed record StaticMapInfo(
+      string[] Mods,
+      Dictionary<HitResult, int> StatisticsSs,
+      Dictionary<HitResult, double> ModifiedHitWindows,
+      Lazy<int> TotalStrainCount
+    );
 
     internal void SetMap(string file, int givenmode)
     {
-      ruleset = RulesetHelper.GetRuleset(givenmode);
-      mode = givenmode;
+      var newRuleset = RulesetHelper.GetRuleset(givenmode);
+      var newWorkingBeatmap = ProcessorWorkingBeatmap.FromFile(file);
 
-      workingBeatmap = ProcessorWorkingBeatmap.FromFile(file);
+      _ruleset = newRuleset;
+      _mode = givenmode;
+      _workingBeatmap = newWorkingBeatmap;
 
       InvalidateCaches();
     }
 
     internal void SetMode(int givenmode)
     {
-      ruleset = RulesetHelper.GetRuleset(givenmode);
-      mode = givenmode;
+      _ruleset = RulesetHelper.GetRuleset(givenmode);
+      _mode = givenmode;
 
       InvalidateCaches();
     }
 
     private void InvalidateCaches()
     {
-      currentDifficultyAttributes = null;
-      currentMapDifficultyAttributes = null;
-      currentMapPerformanceAttributes = null;
+      _currentDifficultyAttributes = null;
+      _currentMapDifficultyAttributes = null;
+      _currentMapPerformanceAttributes = null;
       _cachedStrainList = null;
       _cachedPlayableBeatmap = null;
       _cachedPlayableBeatmapMods = [];
       _cachedResolvedMods = [];
       _cachedResolvedModsKey = [];
+      _cachedStaticMapInfo = null;
       _lastDifficultyIndex = 0;
+    }
+
+    private StaticMapInfo GetStaticMapInfo(string[] modAcronyms, IBeatmap beatmap, Mod[] mods)
+    {
+      if (_cachedStaticMapInfo != null && _cachedStaticMapInfo.Mods.SequenceEqual(modAcronyms))
+        return _cachedStaticMapInfo;
+
+      string[] modKey = [.. modAcronyms];
+      var info = new StaticMapInfo(
+        modKey,
+        HitResultHelper.GenerateHitResultsForSs(beatmap, _mode),
+        TimingHelper.GetModifiedHitWindows(_mode, beatmap.Difficulty.OverallDifficulty, mods),
+        new Lazy<int>(() =>
+        {
+          var strainsData = GetStrainLists(modKey);
+          return strainsData.Strains.Count > 0 ? strainsData.Strains.Max(l => l.Length) : 0;
+        })
+      );
+      _cachedStaticMapInfo = info;
+      return info;
     }
 
     private Mod[] GetResolvedMods(string[] modAcronyms)
@@ -65,7 +105,7 @@ namespace OsuMate.PPCalculation
       if (_cachedResolvedModsKey.SequenceEqual(modAcronyms))
         return _cachedResolvedMods;
 
-      _cachedResolvedMods = RulesetHelper.GetMods(ruleset, modAcronyms);
+      _cachedResolvedMods = RulesetHelper.GetMods(_ruleset, modAcronyms);
       _cachedResolvedModsKey = modAcronyms;
       return _cachedResolvedMods;
     }
@@ -93,18 +133,16 @@ namespace OsuMate.PPCalculation
       CalculateArgs args,
       bool playing,
       bool resultScreen,
-      HitsResult hits
+      HitsResult hits,
+      bool includeStrainInfo = true
     )
     {
       var mods = GetResolvedMods(args.Mods);
       var beatmap = GetCurrentPlayableBeatmap(args, mods);
 
-      double speedMultiplier = RulesetHelper.GetSpeedMultiplier(args.Mods);
-      var strainsData = GetStrainLists(args.Mods);
-      int totalStrainCount =
-        strainsData.Strains.Count > 0 ? strainsData.Strains.Max(l => l.Length) : 0;
-
-      var statisticsSs = HitResultHelper.GenerateHitResultsForSs(beatmap, mode);
+      double speedMultiplier = RulesetHelper.GetTimeScale(args.Mods);
+      var staticInfo = GetStaticMapInfo(args.Mods, beatmap, mods);
+      var statisticsSs = staticInfo.StatisticsSs;
 
       var difficultyAttributes = GetCurrentMapDifficultyAttributes(args, beatmap);
       var performanceAttributes = GetCurrentMapPerformanceAttributes(
@@ -119,13 +157,14 @@ namespace OsuMate.PPCalculation
         difficultyAttributes,
         performanceAttributes,
         statisticsSs,
+        staticInfo,
         speedMultiplier,
-        totalStrainCount
+        includeStrainInfo
       );
 
-      var statisticsCurrent = HitResultHelper.GenerateHitResultsForCurrent(hits, mode);
+      var statisticsCurrent = HitResultHelper.GenerateHitResultsForCurrent(hits, _mode);
       data.HitResults = statisticsCurrent;
-      data.HitResultLossMode = statisticsCurrent;
+      data.HitResultLossMode = new Dictionary<HitResult, int>(statisticsCurrent);
 
       ApplyBpmInfo(data, beatmap, args.Time, speedMultiplier);
 
@@ -160,8 +199,9 @@ namespace OsuMate.PPCalculation
       DifficultyAttributes difficultyAttributes,
       MapPerformanceAttributes performanceAttributes,
       Dictionary<HitResult, int> statisticsSs,
+      StaticMapInfo staticInfo,
       double speedMultiplier,
-      int totalStrainCount
+      bool includeStrainInfo
     )
     {
       BeatmapDifficulty beatmapDifficulty = beatmap.Difficulty;
@@ -178,17 +218,15 @@ namespace OsuMate.PPCalculation
         PerformanceAttributesLossMode = performanceAttributes.PerformanceAttributes,
         FirstObjectTimeModified = (int)(GetFirstObjectTime() * speedMultiplier),
         LastObjectTimeModified = (int)(GetLastObjectTime() * speedMultiplier),
-        StrainTimeModified = totalStrainCount * StrainSectionLengthMs,
+        StrainTimeModified = includeStrainInfo
+          ? staticInfo.TotalStrainCount.Value * StrainSectionLengthMs
+          : 0,
         IfFcHitResult = statisticsSs,
         Bpm = (0, 0, 0),
-        TotalHitObjectCount = totalHitObjectCount,
+        TotalHitObjectCount = _totalHitObjectCount,
         OverallDifficulty = beatmapDifficulty.OverallDifficulty,
 
-        ModifiedHitWindows = TimingHelper.GetModifiedHitWindows(
-          mode,
-          beatmapDifficulty.OverallDifficulty,
-          mods
-        ),
+        ModifiedHitWindows = staticInfo.ModifiedHitWindows,
       };
     }
 
@@ -227,7 +265,7 @@ namespace OsuMate.PPCalculation
       Dictionary<HitResult, int> statisticsCurrent
     )
     {
-      var resultScoreInfo = new ScoreInfo(beatmap.BeatmapInfo, ruleset.RulesetInfo)
+      var resultScoreInfo = new ScoreInfo(beatmap.BeatmapInfo, _ruleset.RulesetInfo)
       {
         Accuracy = args.Accuracy / 100,
         MaxCombo = args.Combo,
@@ -235,7 +273,7 @@ namespace OsuMate.PPCalculation
         Mods = mods,
         TotalScore = args.Score,
       };
-      var performanceCalculator = ruleset.CreatePerformanceCalculator();
+      var performanceCalculator = _ruleset.CreatePerformanceCalculator();
       var performanceAttributesResult = performanceCalculator?.Calculate(
         resultScoreInfo,
         difficultyAttributes
@@ -260,7 +298,7 @@ namespace OsuMate.PPCalculation
       Dictionary<HitResult, int> statisticsCurrent
     )
     {
-      var performanceCalculator = ruleset.CreatePerformanceCalculator();
+      var performanceCalculator = _ruleset.CreatePerformanceCalculator();
       if (performanceCalculator == null)
       {
         LogUtils.DebugLogger("PerformanceCalculator is null, returning empty BeatmapData.");
@@ -269,9 +307,9 @@ namespace OsuMate.PPCalculation
 
       var difficultyAttributesCurrent = GetCurrentDifficultyAttributes(args, args.Time);
 
-      var currentScoreInfo = new ScoreInfo(beatmap.BeatmapInfo, ruleset.RulesetInfo)
+      var currentScoreInfo = new ScoreInfo(beatmap.BeatmapInfo, _ruleset.RulesetInfo)
       {
-        Accuracy = ScoreHelper.GetAccuracy(statisticsCurrent, mode),
+        Accuracy = ScoreHelper.GetAccuracy(statisticsCurrent, _mode),
         MaxCombo = args.Combo,
         Statistics = statisticsCurrent,
         Mods = mods,
@@ -285,7 +323,7 @@ namespace OsuMate.PPCalculation
       data.CurrentDifficultyAttributes = difficultyAttributesCurrent;
       data.CurrentPerformanceAttributes = performanceAttributesCurrent;
 
-      if (mode is 1 or 3)
+      if (_mode is OsuMode.Taiko or OsuMode.Mania)
         ApplyLossModeData(
           data,
           args,
@@ -321,12 +359,12 @@ namespace OsuMate.PPCalculation
       PerformanceCalculator performanceCalculator
     )
     {
-      var statisticsLoss = HitResultHelper.GenerateHitResultsForLossMode(statisticsSs, hits, mode);
+      var statisticsLoss = HitResultHelper.GenerateHitResultsForLossMode(statisticsSs, hits, _mode);
       data.HitResultLossMode = statisticsLoss;
 
-      var lossScoreInfo = new ScoreInfo(beatmap.BeatmapInfo, ruleset.RulesetInfo)
+      var lossScoreInfo = new ScoreInfo(beatmap.BeatmapInfo, _ruleset.RulesetInfo)
       {
-        Accuracy = ScoreHelper.GetAccuracy(statisticsLoss, mode),
+        Accuracy = ScoreHelper.GetAccuracy(statisticsLoss, _mode),
         MaxCombo = args.Combo,
         Statistics = statisticsLoss,
         Mods = mods,
@@ -352,14 +390,14 @@ namespace OsuMate.PPCalculation
       var statisticsForPredicted = HitResultHelper.GenerateHitResultsForPredicted(
         beatmap,
         hits,
-        mode
+        _mode
       );
       data.HitResultPredicted = statisticsForPredicted;
 
-      var predictedScoreInfo = new ScoreInfo(beatmap.BeatmapInfo, ruleset.RulesetInfo)
+      var predictedScoreInfo = new ScoreInfo(beatmap.BeatmapInfo, _ruleset.RulesetInfo)
       {
-        Accuracy = ScoreHelper.GetAccuracy(statisticsForPredicted, mode),
-        MaxCombo = ScoreHelper.GetMaxCombo(beatmap, mode),
+        Accuracy = ScoreHelper.GetAccuracy(statisticsForPredicted, _mode),
+        MaxCombo = ScoreHelper.GetMaxCombo(beatmap, _mode),
         Statistics = statisticsForPredicted,
         Mods = mods,
         TotalScore = args.Score,
@@ -376,7 +414,7 @@ namespace OsuMate.PPCalculation
       if (_cachedPlayableBeatmap != null && _cachedPlayableBeatmapMods.SequenceEqual(args.Mods))
         return _cachedPlayableBeatmap;
 
-      _cachedPlayableBeatmap = workingBeatmap.GetPlayableBeatmap(ruleset.RulesetInfo, mods);
+      _cachedPlayableBeatmap = _workingBeatmap.GetPlayableBeatmap(_ruleset.RulesetInfo, mods);
       _cachedPlayableBeatmapMods = args.Mods;
       return _cachedPlayableBeatmap;
     }
@@ -384,26 +422,26 @@ namespace OsuMate.PPCalculation
     private DifficultyAttributes GetCurrentDifficultyAttributes(CalculateArgs args, int? time)
     {
       time ??= 0;
-      currentDifficultyAttributes ??= CalculateAllTimedDifficulties(args);
-      if (currentDifficultyAttributes.Count == 0)
+      _currentDifficultyAttributes ??= CalculateAllTimedDifficulties(args);
+      if (_currentDifficultyAttributes.Count == 0)
         return new DifficultyAttributes();
 
       _lastDifficultyIndex = Math.Clamp(
         _lastDifficultyIndex,
         0,
-        currentDifficultyAttributes.Count - 1
+        _currentDifficultyAttributes.Count - 1
       );
       while (
-        _lastDifficultyIndex > 0 && currentDifficultyAttributes[_lastDifficultyIndex].Time > time
+        _lastDifficultyIndex > 0 && _currentDifficultyAttributes[_lastDifficultyIndex].Time > time
       )
         _lastDifficultyIndex--;
       while (
-        _lastDifficultyIndex < currentDifficultyAttributes.Count - 1
-        && currentDifficultyAttributes[_lastDifficultyIndex + 1].Time <= time
+        _lastDifficultyIndex < _currentDifficultyAttributes.Count - 1
+        && _currentDifficultyAttributes[_lastDifficultyIndex + 1].Time <= time
       )
         _lastDifficultyIndex++;
 
-      return currentDifficultyAttributes[_lastDifficultyIndex].Attributes;
+      return _currentDifficultyAttributes[_lastDifficultyIndex].Attributes;
     }
 
     private DifficultyAttributes GetCurrentMapDifficultyAttributes(
@@ -412,7 +450,7 @@ namespace OsuMate.PPCalculation
     )
     {
       var mapDifficultyAttributes = GetOrRecompute(
-        ref currentMapDifficultyAttributes,
+        ref _currentMapDifficultyAttributes,
         args.Mods,
         v => v.Mods,
         () => CalculateMapDifficultyAttributes(args, beatmap),
@@ -424,20 +462,20 @@ namespace OsuMate.PPCalculation
     private void InvalidateDifficultyIndexCache()
     {
       LogUtils.DebugLogger("Mods changed, recalculating Map DifficultyAttributes...");
-      currentDifficultyAttributes = null;
+      _currentDifficultyAttributes = null;
       _lastDifficultyIndex = 0;
     }
 
     private List<TimedDifficultyAttributes> CalculateAllTimedDifficulties(CalculateArgs args)
     {
       LogUtils.DebugLogger($"Calculating All DifficultyAttributes...");
-      var currentTime = DateTime.Now;
+      var startTimestamp = Stopwatch.GetTimestamp();
 
-      var mods = RulesetHelper.GetMods(ruleset, args);
-      var difficultyCalculator = ruleset.CreateDifficultyCalculator(workingBeatmap);
+      var mods = RulesetHelper.GetMods(_ruleset, args);
+      var difficultyCalculator = _ruleset.CreateDifficultyCalculator(_workingBeatmap);
       var difficultyAttributes = difficultyCalculator.CalculateTimed(mods);
 
-      var elapsed = DateTime.Now - currentTime;
+      var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
       LogUtils.DebugLogger(
         $"Calculated All DifficultyAttributes! (Total Time: "
           + elapsed.TotalMilliseconds
@@ -453,21 +491,21 @@ namespace OsuMate.PPCalculation
     )
     {
       LogUtils.DebugLogger("Calculating Map DifficultyAttributes...");
-      var currentTime = DateTime.Now;
+      var startTimestamp = Stopwatch.GetTimestamp();
 
-      var mods = RulesetHelper.GetMods(ruleset, args);
-      var difficultyCalculator = ruleset.CreateDifficultyCalculator(workingBeatmap);
+      var mods = RulesetHelper.GetMods(_ruleset, args);
+      var difficultyCalculator = _ruleset.CreateDifficultyCalculator(_workingBeatmap);
       var difficultyAttributes = difficultyCalculator.Calculate(mods);
 
-      var elapsed = DateTime.Now - currentTime;
+      var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
       LogUtils.DebugLogger(
         "Calculated Map DifficultyAttributes! (Total Time: "
           + elapsed.TotalMilliseconds
           + " milliseconds)"
       );
 
-      totalHitObjectCount = ScoreHelper.CountTotalHitObjects(beatmap, mode);
-      LogUtils.DebugLogger("Total HitObject Count: " + totalHitObjectCount);
+      _totalHitObjectCount = ScoreHelper.CountTotalHitObjects(beatmap, _mode);
+      LogUtils.DebugLogger("Total HitObject Count: " + _totalHitObjectCount);
 
       return new MapDifficultyAttributes
       {
@@ -483,7 +521,7 @@ namespace OsuMate.PPCalculation
     )
     {
       return GetOrRecompute(
-        ref currentMapPerformanceAttributes,
+        ref _currentMapPerformanceAttributes,
         args.Mods,
         v => v.Mods,
         () => CalculateMapPerformanceAttributes(args, beatmap, difficultyAttributes),
@@ -498,21 +536,21 @@ namespace OsuMate.PPCalculation
     )
     {
       LogUtils.DebugLogger("Calculating Map PerformanceAttributes...");
-      var currentTime = DateTime.Now;
+      var startTimestamp = Stopwatch.GetTimestamp();
 
-      var mods = RulesetHelper.GetMods(ruleset, args);
-      var scoreInfo = new ScoreInfo(beatmap.BeatmapInfo, ruleset.RulesetInfo)
+      var mods = RulesetHelper.GetMods(_ruleset, args);
+      var scoreInfo = new ScoreInfo(beatmap.BeatmapInfo, _ruleset.RulesetInfo)
       {
         Accuracy = 1,
-        MaxCombo = ScoreHelper.GetMaxCombo(beatmap, mode),
-        Statistics = HitResultHelper.GenerateHitResultsForSs(beatmap, mode),
+        MaxCombo = ScoreHelper.GetMaxCombo(beatmap, _mode),
+        Statistics = HitResultHelper.GenerateHitResultsForSs(beatmap, _mode),
         Mods = mods,
       };
 
-      var performanceCalculator = ruleset.CreatePerformanceCalculator();
+      var performanceCalculator = _ruleset.CreatePerformanceCalculator();
       var performanceAttributes = performanceCalculator?.Calculate(scoreInfo, difficultyAttributes);
 
-      var elapsed = DateTime.Now - currentTime;
+      var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
       LogUtils.DebugLogger(
         "Calculated Map PerformanceAttributes! (Total Time: "
           + elapsed.TotalMilliseconds
@@ -539,18 +577,20 @@ namespace OsuMate.PPCalculation
       }
       catch (Exception e)
       {
-        LogUtils.DebugLogger("Error getting strain lists: " + e.Message, true);
-        return new StrainList();
+        LogUtils.DebugLogger("Error getting strain lists: " + e, true);
+        var fallback = new StrainList { Mods = mods };
+        _cachedStrainList = fallback;
+        return fallback;
       }
     }
 
     private StrainList ComputeStrainList(string[] mods)
     {
-      double speedMultiplier = RulesetHelper.GetSpeedMultiplier(mods);
-      var resolvedMods = RulesetHelper.GetMods(ruleset, mods);
+      double speedMultiplier = RulesetHelper.GetTimeScale(mods);
+      var resolvedMods = RulesetHelper.GetMods(_ruleset, mods);
       var difficultyCalculator = RulesetHelper.GetExtendedDifficultyCalculator(
-        ruleset.RulesetInfo,
-        workingBeatmap
+        _ruleset.RulesetInfo,
+        _workingBeatmap
       );
       difficultyCalculator.Calculate(resolvedMods);
 
@@ -599,7 +639,14 @@ namespace OsuMate.PPCalculation
       int sectionLength = StrainSectionLengthMs
     )
     {
-      var hitObjects = workingBeatmap.Beatmap.HitObjects;
+      var hitObjects = _workingBeatmap.Beatmap.HitObjects;
+      if (objectDifficulties.Count != hitObjects.Count - 1)
+      {
+        LogUtils.DebugLogger(
+          $"PpCalculator.BuildTimeBinnedPeaks: difficulty object count {objectDifficulties.Count} != hit objects {hitObjects.Count} - 1 (mode {_mode})"
+        );
+      }
+
       int count = Math.Min(objectDifficulties.Count, hitObjects.Count - 1);
       if (count <= 0)
         return [];
@@ -627,14 +674,14 @@ namespace OsuMate.PPCalculation
     internal int GetFirstObjectTime()
     {
       var firstObject =
-        workingBeatmap.Beatmap.HitObjects.Count > 1 ? workingBeatmap.Beatmap.HitObjects[1] : null;
+        _workingBeatmap.Beatmap.HitObjects.Count > 1 ? _workingBeatmap.Beatmap.HitObjects[1] : null;
       return (int)(firstObject?.StartTime ?? 0);
     }
 
     internal int GetLastObjectTime()
     {
       var lastObject =
-        workingBeatmap.Beatmap.HitObjects.Count > 0 ? workingBeatmap.Beatmap.HitObjects[^1] : null;
+        _workingBeatmap.Beatmap.HitObjects.Count > 0 ? _workingBeatmap.Beatmap.HitObjects[^1] : null;
       return (int)(lastObject?.GetEndTime() ?? 0);
     }
   }

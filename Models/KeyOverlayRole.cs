@@ -1,8 +1,10 @@
-namespace OsuMate.Models;
-
-public enum KeyOverlayRole : byte
+namespace OsuMate.Models
 {
-  Normal,
-  TaikoDon,
-  TaikoKat
+
+  public enum KeyOverlayRole : byte
+  {
+    Normal,
+    TaikoDon,
+    TaikoKat
+  }
 }

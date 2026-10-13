@@ -38,9 +38,9 @@ namespace OsuMate.Services
       _processMonitor = processMonitor;
       _rawInput = rawInput;
 
-      _overlayPosition = new RelativeWindowPosition(_settingsVm.OverlayX, _settingsVm.OverlayY);
-      _urBarPosition = new RelativeWindowPosition(_settingsVm.URBarX, _settingsVm.URBarY);
-      _urBarSize = new RelativeWindowSize(_settingsVm.URBarWidth, _settingsVm.URBarHeight);
+      _overlayPosition = new RelativeWindowPosition(_settingsVm.Overlay.OverlayX, _settingsVm.Overlay.OverlayY);
+      _urBarPosition = new RelativeWindowPosition(_settingsVm.URBar.URBarX, _settingsVm.URBar.URBarY);
+      _urBarSize = new RelativeWindowSize(_settingsVm.URBar.URBarWidth, _settingsVm.URBar.URBarHeight);
       _keyOverlayPosition = new RelativeWindowPosition(
         _settingsVm.KeyOverlay.KeyOverlayX,
         _settingsVm.KeyOverlay.KeyOverlayY
@@ -52,16 +52,16 @@ namespace OsuMate.Services
 
       _urBarWindow = new Views.URBarWindow();
       _urBarWindow.SetViewModel(_mainViewModel.URBar);
-      _urBarWindow.SetRotation(_settingsVm.URBarRotation);
+      _urBarWindow.SetRotation(_settingsVm.URBar.URBarRotation);
       _urBarWindow.UpdateAnimationSettings(
-        _settingsVm.URBarAvgLineFollowStrength,
-        _settingsVm.URBarAvgLineAnimMs
+        _settingsVm.URBar.URBarAvgLineFollowStrength,
+        _settingsVm.URBar.URBarAvgLineAnimMs
       );
       _urBarWindow.UpdateOpacitySettings(
-        _settingsVm.URBarLabelOpacity,
-        _settingsVm.URBarSegmentOpacity,
-        _settingsVm.URBarMarkerOpacity,
-        _settingsVm.URBarHitErrorOpacity
+        _settingsVm.URBar.URBarLabelOpacity,
+        _settingsVm.URBar.URBarSegmentOpacity,
+        _settingsVm.URBar.URBarMarkerOpacity,
+        _settingsVm.URBar.URBarHitErrorOpacity
       );
       _urBarWindow.PositionChanged += HandleURBarWindowPositionChanged;
       _urBarWindow.OnSizeChanged += HandleURBarWindowSizeChanged;
@@ -70,19 +70,24 @@ namespace OsuMate.Services
       ApplyKeyOverlaySettings();
       _keyOverlayThread.PositionChanged += HandleKeyOverlayWindowPositionChanged;
       _keyOverlayThread.FlowLengthChanged += HandleKeyOverlayFlowLengthChanged;
+    }
 
-      _settingsVm.OnSaveOverlayPositionRequested += HandleSaveOverlayPositionRequested;
-      _settingsVm.OnApplyOverlayPositionRequested += HandleApplyOverlayPositionRequested;
-      _settingsVm.OnSaveURBarPositionRequested += HandleSaveURBarPositionRequested;
-      _settingsVm.OnApplyURBarPositionRequested += HandleApplyURBarPositionRequested;
-      _settingsVm.OnSaveURBarSizeRequested += HandleSaveURBarSizeRequested;
-      _settingsVm.OnApplyURBarSizeRequested += HandleApplyURBarSizeRequested;
+    public void Start()
+    {
+      _settingsVm.Overlay.OnSaveOverlayPositionRequested += HandleSaveOverlayPositionRequested;
+      _settingsVm.Overlay.OnApplyOverlayPositionRequested += HandleApplyOverlayPositionRequested;
+      _settingsVm.URBar.OnSaveURBarPositionRequested += HandleSaveURBarPositionRequested;
+      _settingsVm.URBar.OnApplyURBarPositionRequested += HandleApplyURBarPositionRequested;
+      _settingsVm.URBar.OnSaveURBarSizeRequested += HandleSaveURBarSizeRequested;
+      _settingsVm.URBar.OnApplyURBarSizeRequested += HandleApplyURBarSizeRequested;
       _settingsVm.KeyOverlay.OnSaveKeyOverlayPositionRequested += HandleSaveKeyOverlayPositionRequested;
       _settingsVm.KeyOverlay.OnApplyKeyOverlayPositionRequested += HandleApplyKeyOverlayPositionRequested;
       _settingsVm.KeyOverlay.OnSaveKeyOverlayFlowLengthRequested += HandleSaveKeyOverlayFlowLengthRequested;
       _settingsVm.KeyOverlay.OnApplyKeyOverlayFlowLengthRequested += HandleApplyKeyOverlayFlowLengthRequested;
 
       _settingsVm.PropertyChanged += SettingsVm_PropertyChanged;
+      _settingsVm.Overlay.PropertyChanged += SettingsVm_PropertyChanged;
+      _settingsVm.URBar.PropertyChanged += SettingsVm_PropertyChanged;
       _settingsVm.KeyOverlay.PropertyChanged += KeyOverlayVm_PropertyChanged;
       _mainViewModel.IsPlayingChanged += OnIsPlayingChanged;
       _mainViewModel.OnOsuWindowFound += OnOsuWindowFound;
@@ -134,37 +139,37 @@ namespace OsuMate.Services
 
     private void HandleSaveOverlayPositionRequested()
     {
-      _settingsVm.SetOverlayPosition(_overlayPosition.X, _overlayPosition.Y);
+      _settingsVm.Overlay.SetOverlayPosition(_overlayPosition.X, _overlayPosition.Y);
     }
 
     private void HandleApplyOverlayPositionRequested()
     {
-      _overlayPosition.SetValue(_settingsVm.OverlayX, _settingsVm.OverlayY);
+      _overlayPosition.SetValue(_settingsVm.Overlay.OverlayX, _settingsVm.Overlay.OverlayY);
       PositionOverlaysToOsu();
     }
 
     private void HandleSaveURBarPositionRequested()
     {
-      _settingsVm.SetURBarPosition(_urBarPosition.X, _urBarPosition.Y);
+      _settingsVm.URBar.SetURBarPosition(_urBarPosition.X, _urBarPosition.Y);
     }
 
     private void HandleApplyURBarPositionRequested()
     {
-      _urBarPosition.SetValue(_settingsVm.URBarX, _settingsVm.URBarY);
+      _urBarPosition.SetValue(_settingsVm.URBar.URBarX, _settingsVm.URBar.URBarY);
       PositionOverlaysToOsu();
     }
 
     private void HandleSaveURBarSizeRequested()
     {
-      _settingsVm.URBarWidth = _urBarSize.Width;
-      _settingsVm.URBarHeight = _urBarSize.Height;
+      _settingsVm.URBar.URBarWidth = _urBarSize.Width;
+      _settingsVm.URBar.URBarHeight = _urBarSize.Height;
       _settingsVm.Save();
     }
 
     private void HandleApplyURBarSizeRequested()
     {
-      _urBarSize.SetValue(_settingsVm.URBarWidth, _settingsVm.URBarHeight);
-      Application.Current.Dispatcher.Invoke(() =>
+      _urBarSize.SetValue(_settingsVm.URBar.URBarWidth, _settingsVm.URBar.URBarHeight);
+      DispatcherUtils.RunOnPrimary(() =>
         _urBarWindow.SetSettingsMode(_isSettingsOpen, _urBarSize.Width, _urBarSize.Height)
       );
     }
@@ -199,19 +204,19 @@ namespace OsuMate.Services
       System.ComponentModel.PropertyChangedEventArgs e
     )
     {
-      Application.Current.Dispatcher.Invoke(() =>
+      DispatcherUtils.RunOnPrimary(() =>
       {
-        if (e.PropertyName == nameof(SettingsViewModel.OverlayFontSize))
+        if (e.PropertyName == nameof(OverlaySettingsViewModel.OverlayFontSize))
         {
           Interlocked.Increment(ref _suppressCount);
           _ = Task.Delay(1000).ContinueWith(_ => Interlocked.Decrement(ref _suppressCount));
         }
-        else if (e.PropertyName == nameof(SettingsViewModel.URBarRotation))
+        else if (e.PropertyName == nameof(URBarSettingsViewModel.URBarRotation))
         {
           double cx = _urBarWindow.Left + _urBarWindow.Width / 2;
           double cy = _urBarWindow.Top + _urBarWindow.Height / 2;
 
-          _urBarWindow.SetRotation(_settingsVm.URBarRotation);
+          _urBarWindow.SetRotation(_settingsVm.URBar.URBarRotation);
 
           _urBarWindow.Left = cx - _urBarWindow.Width / 2;
           _urBarWindow.Top = cy - _urBarWindow.Height / 2;
@@ -222,41 +227,41 @@ namespace OsuMate.Services
             TryGetOsuWindowRectOrNull()
           );
         }
-        else if (e.PropertyName == nameof(SettingsViewModel.URBarEnabled))
+        else if (e.PropertyName == nameof(URBarSettingsViewModel.URBarEnabled))
         {
-          OnURBarEnabledChanged(_settingsVm.URBarEnabled);
+          OnURBarEnabledChanged(_settingsVm.URBar.URBarEnabled);
         }
         else if (e.PropertyName == nameof(SettingsViewModel.FontFamily))
         {
           ApplyKeyOverlaySettings();
         }
         else if (
-          e.PropertyName == nameof(SettingsViewModel.URBarAvgLineFollowStrength)
-          || e.PropertyName == nameof(SettingsViewModel.URBarAvgLineAnimMs)
+          e.PropertyName == nameof(URBarSettingsViewModel.URBarAvgLineFollowStrength)
+          || e.PropertyName == nameof(URBarSettingsViewModel.URBarAvgLineAnimMs)
         )
         {
           _urBarWindow.UpdateAnimationSettings(
-            _settingsVm.URBarAvgLineFollowStrength,
-            _settingsVm.URBarAvgLineAnimMs
+            _settingsVm.URBar.URBarAvgLineFollowStrength,
+            _settingsVm.URBar.URBarAvgLineAnimMs
           );
         }
         else if (
-          e.PropertyName == nameof(SettingsViewModel.URBarLabelOpacity)
-          || e.PropertyName == nameof(SettingsViewModel.URBarMarkerOpacity)
-          || e.PropertyName == nameof(SettingsViewModel.URBarSegmentOpacity)
-          || e.PropertyName == nameof(SettingsViewModel.URBarHitErrorOpacity)
+          e.PropertyName == nameof(URBarSettingsViewModel.URBarLabelOpacity)
+          || e.PropertyName == nameof(URBarSettingsViewModel.URBarMarkerOpacity)
+          || e.PropertyName == nameof(URBarSettingsViewModel.URBarSegmentOpacity)
+          || e.PropertyName == nameof(URBarSettingsViewModel.URBarHitErrorOpacity)
         )
         {
           _urBarWindow.UpdateOpacitySettings(
-            _settingsVm.URBarLabelOpacity,
-            _settingsVm.URBarSegmentOpacity,
-            _settingsVm.URBarMarkerOpacity,
-            _settingsVm.URBarHitErrorOpacity
+            _settingsVm.URBar.URBarLabelOpacity,
+            _settingsVm.URBar.URBarSegmentOpacity,
+            _settingsVm.URBar.URBarMarkerOpacity,
+            _settingsVm.URBar.URBarHitErrorOpacity
           );
         }
-        else if (e.PropertyName == nameof(SettingsViewModel.OverlayEnabled))
+        else if (e.PropertyName == nameof(OverlaySettingsViewModel.OverlayEnabled))
         {
-          OnOverlayEnabledChanged(_settingsVm.OverlayEnabled);
+          OnOverlayEnabledChanged(_settingsVm.Overlay.OverlayEnabled);
         }
       });
     }
@@ -266,7 +271,7 @@ namespace OsuMate.Services
       System.ComponentModel.PropertyChangedEventArgs e
     )
     {
-      Application.Current.Dispatcher.Invoke(() =>
+      DispatcherUtils.RunOnPrimary(() =>
       {
         if (e.PropertyName == nameof(KeyOverlaySettingsViewModel.KeyOverlayEnabled))
         {
@@ -288,7 +293,7 @@ namespace OsuMate.Services
 
     public void EnterSettingsMode()
     {
-      Application.Current.Dispatcher.Invoke(() =>
+      DispatcherUtils.RunOnPrimary(() =>
       {
         _isSettingsOpen = true;
         if (!_mainViewModel.IsPlaying)
@@ -296,7 +301,7 @@ namespace OsuMate.Services
           PositionOverlaysToOsu();
           _overlayWindow.Show();
           _overlayWindow.SetDraggable(true);
-          _urBarWindow.SetSettingsMode(true, _settingsVm.URBarWidth, _settingsVm.URBarHeight);
+          _urBarWindow.SetSettingsMode(true, _settingsVm.URBar.URBarWidth, _settingsVm.URBar.URBarHeight);
           _urBarWindow.Show();
           _keyOverlayThread.SetDraggable(true);
           ApplyKeyOverlaySettings();
@@ -307,13 +312,13 @@ namespace OsuMate.Services
 
     public void LeaveSettingsMode()
     {
-      Application.Current.Dispatcher.Invoke(() =>
+      DispatcherUtils.RunOnPrimary(() =>
       {
         _isSettingsOpen = false;
         if (!_mainViewModel.IsPlaying)
         {
           _overlayWindow.SetDraggable(false);
-          _urBarWindow.SetSettingsMode(false, _settingsVm.URBarWidth, _settingsVm.URBarHeight);
+          _urBarWindow.SetSettingsMode(false, _settingsVm.URBar.URBarWidth, _settingsVm.URBar.URBarHeight);
 
           _overlayWindow.Hide();
           _urBarWindow.Hide();
@@ -325,7 +330,7 @@ namespace OsuMate.Services
 
     public void HideOverlays()
     {
-      Application.Current.Dispatcher.Invoke(() =>
+      DispatcherUtils.RunOnPrimary(() =>
       {
         _overlayWindow?.Hide();
         _urBarWindow?.Hide();
@@ -335,13 +340,13 @@ namespace OsuMate.Services
 
     private void OnIsPlayingChanged(bool isPlaying)
     {
-      Application.Current.Dispatcher.Invoke(() =>
+      DispatcherUtils.RunOnPrimary(() =>
       {
         if (isPlaying)
         {
           PositionOverlaysToOsu();
 
-          if (_settingsVm.OverlayEnabled)
+          if (_settingsVm.Overlay.OverlayEnabled)
           {
             _overlayWindow.SetDraggable(false);
             _overlayWindow.Show();
@@ -353,9 +358,9 @@ namespace OsuMate.Services
             ShowMainWindow();
           }
 
-          if (_settingsVm.URBarEnabled)
+          if (_settingsVm.URBar.URBarEnabled)
           {
-            _urBarWindow.SetSettingsMode(false, _settingsVm.URBarWidth, _settingsVm.URBarHeight);
+            _urBarWindow.SetSettingsMode(false, _settingsVm.URBar.URBarWidth, _settingsVm.URBar.URBarHeight);
             _urBarWindow.Show();
           }
           else
@@ -385,7 +390,7 @@ namespace OsuMate.Services
             PositionOverlaysToOsu();
             _overlayWindow.Show();
             _overlayWindow.SetDraggable(true);
-            _urBarWindow.SetSettingsMode(true, _settingsVm.URBarWidth, _settingsVm.URBarHeight);
+            _urBarWindow.SetSettingsMode(true, _settingsVm.URBar.URBarWidth, _settingsVm.URBar.URBarHeight);
             _urBarWindow.Show();
             _keyOverlayThread.SetDraggable(true);
             ApplyKeyOverlaySettings();
@@ -398,15 +403,15 @@ namespace OsuMate.Services
 
     private void OnOsuWindowFound(IntPtr handle)
     {
-      if (_settingsVm.OsuPositionEnabled)
+      if (_settingsVm.Position.OsuPositionEnabled)
       {
-        Application.Current.Dispatcher.Invoke(() =>
+        DispatcherUtils.RunOnPrimary(() =>
         {
           Win32Interop.SetWindowPos(
             handle,
             IntPtr.Zero,
-            (int)_settingsVm.OsuX,
-            (int)_settingsVm.OsuY,
+            (int)_settingsVm.Position.OsuX,
+            (int)_settingsVm.Position.OsuY,
             0,
             0,
             Win32Interop.SWP_NOSIZE | Win32Interop.SWP_NOZORDER
@@ -423,7 +428,7 @@ namespace OsuMate.Services
 
     private void PositionOverlaysToOsu()
     {
-      Application.Current.Dispatcher.Invoke(() =>
+      DispatcherUtils.RunOnPrimary(() =>
       {
         if (!_processMonitor.EnsureProcess())
           return;
@@ -499,8 +504,6 @@ namespace OsuMate.Services
       _overlayTrackingCts?.Cancel();
       _overlayTrackingCts?.Dispose();
       _overlayTrackingCts = null;
-      _processMonitor.Dispose();
-      _rawInput.Dispose();
       _keyOverlayThread.Dispose();
     }
 
@@ -537,7 +540,7 @@ namespace OsuMate.Services
     {
       if (_isSettingsOpen && !_mainViewModel.IsPlaying)
       {
-        _urBarWindow.SetSettingsMode(true, _settingsVm.URBarWidth, _settingsVm.URBarHeight);
+        _urBarWindow.SetSettingsMode(true, _settingsVm.URBar.URBarWidth, _settingsVm.URBar.URBarHeight);
         _urBarWindow.Show();
       }
       else if (!enabled)

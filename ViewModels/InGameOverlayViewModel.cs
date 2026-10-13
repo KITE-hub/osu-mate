@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using osu.Game.Rulesets.Scoring;
 using OsuMate.Models;
 using OsuMate.Services.Osu;
@@ -8,34 +6,6 @@ using OsuMate.Utils;
 
 namespace OsuMate.ViewModels
 {
-  public class OverlayLineItem : ObservableBase
-  {
-    private string _label = "";
-    private string _value = "";
-
-    public int Id { get; init; }
-
-    public string Label
-    {
-      get => _label;
-      set
-      {
-        _label = value;
-        OnPropertyChanged();
-      }
-    }
-
-    public string Value
-    {
-      get => _value;
-      set
-      {
-        _value = value;
-        OnPropertyChanged();
-      }
-    }
-  }
-
   public class InGameOverlayViewModel : ObservableBase
   {
     private double _fontSize = 13;
@@ -92,7 +62,10 @@ namespace OsuMate.ViewModels
         .Where(l => l != null)
         .ToList();
 
-      if (Lines.Count == newLines.Count)
+      bool sameLayout =
+        Lines.Count == newLines.Count && Lines.Zip(newLines, (a, b) => a.Id == b!.Id).All(x => x);
+
+      if (sameLayout)
       {
         for (int i = 0; i < Lines.Count; i++)
         {
@@ -120,25 +93,31 @@ namespace OsuMate.ViewModels
       {
         switch (line.Id)
         {
-          case 6:
-            line.Value = $"{accuracy:F2}%";
+          case OverlayLineIds.Accuracy:
+            line.Value = FormatAccuracy(accuracy);
             break;
-          case 7:
+          case OverlayLineIds.Hits:
             line.Value = OsuUtils.ConvertHits(gamemode, hits);
             break;
-          case 8:
+          case OverlayLineIds.AverageOffset:
             if (modifiedAvg.HasValue)
-              line.Value =
-                $"{MathUtils.FormatUnder4CharsSign(modifiedAvg.Value)} ± {MathUtils.FormatUnder4Chars(modifiedStdev!.Value)}";
+              line.Value = FormatAverageOffset(modifiedAvg.Value, modifiedStdev!.Value);
             break;
-          case 11:
+          case OverlayLineIds.UnstableRate:
             if (rawUR.HasValue)
-              line.Value =
-                $"{MathUtils.IsNaNWithNum(rawUR.Value):F2} ({MathUtils.IsNaNWithNum(modifiedUR!.Value):F2})";
+              line.Value = FormatUnstableRate(rawUR.Value, modifiedUR!.Value);
             break;
         }
       }
     }
+
+    private static string FormatAccuracy(double accuracy) => $"{accuracy:F2}%";
+
+    private static string FormatAverageOffset(double average, double stdev) =>
+      $"{MathUtils.FormatUnder4CharsSign(average)} ± {MathUtils.FormatUnder4Chars(stdev)}";
+
+    private static string FormatUnstableRate(double raw, double modified) =>
+      $"{MathUtils.IsNaNWithNum(raw):F2} ({MathUtils.IsNaNWithNum(modified):F2})";
 
     private static OverlayLineItem? GetLine(
       int id,
@@ -153,7 +132,7 @@ namespace OsuMate.ViewModels
     {
       switch (id)
       {
-        case 1:
+        case OverlayLineIds.StarRating:
           var sr = MathUtils.IsNaNWithNum(
             Math.Round(data.DifficultyAttributes?.StarRating ?? 0, 2)
           );
@@ -164,7 +143,7 @@ namespace OsuMate.ViewModels
             Value = $"{sr}",
           };
 
-        case 2:
+        case OverlayLineIds.SsPp:
           var sspp = Math.Round(MathUtils.IsNaNWithNum(data.PerformanceAttributes?.Total));
           return new()
           {
@@ -173,7 +152,7 @@ namespace OsuMate.ViewModels
             Value = $"{sspp}pp",
           };
 
-        case 3:
+        case OverlayLineIds.LossPp:
           var losspp = Math.Round(
             MathUtils.IsNaNWithNum(data.PerformanceAttributesLossMode?.Total)
           );
@@ -184,7 +163,7 @@ namespace OsuMate.ViewModels
             Value = $"{losspp}pp",
           };
 
-        case 4:
+        case OverlayLineIds.PredictedPp:
           var predpp = Math.Round(
             MathUtils.IsNaNWithNum(data.PerformanceAttributesPredicted?.Total)
           );
@@ -195,7 +174,7 @@ namespace OsuMate.ViewModels
             Value = $"{predpp}pp",
           };
 
-        case 5:
+        case OverlayLineIds.CurrentPp:
           var curpp = Math.Round(MathUtils.IsNaNWithNum(data.CurrentPerformanceAttributes?.Total));
           return new()
           {
@@ -204,16 +183,15 @@ namespace OsuMate.ViewModels
             Value = $"{curpp}pp",
           };
 
-        case 6:
-          var acc = accuracy.ToString("F2");
+        case OverlayLineIds.Accuracy:
           return new()
           {
             Id = id,
             Label = "ACC",
-            Value = $"{acc}%",
+            Value = FormatAccuracy(accuracy),
           };
 
-        case 7:
+        case OverlayLineIds.Hits:
           return new()
           {
             Id = id,
@@ -221,17 +199,18 @@ namespace OsuMate.ViewModels
             Value = OsuUtils.ConvertHits(gamemode, hits),
           };
 
-        case 8:
-          var modifiedAvgOffset = MathUtils.FormatUnder4CharsSign(data.DetailedOffset.modifiedAvg);
-          var modifiedStdev = MathUtils.FormatUnder4Chars(data.DetailedOffset.modifiedStdev);
+        case OverlayLineIds.AverageOffset:
           return new()
           {
             Id = id,
             Label = "Avg offset",
-            Value = $"{modifiedAvgOffset} ± {modifiedStdev}",
+            Value = FormatAverageOffset(
+              data.DetailedOffset.modifiedAvg,
+              data.DetailedOffset.modifiedStdev
+            ),
           };
 
-        case 9:
+        case OverlayLineIds.UniversalOffsetHelp:
           var robustAvgToUniversalOffset = MathUtils.FormatNaturalSign(
             -1 * data.DetailedOffset.robustAvg
           );
@@ -242,7 +221,7 @@ namespace OsuMate.ViewModels
             Value = $"{robustAvgToUniversalOffset} ms",
           };
 
-        case 10:
+        case OverlayLineIds.LocalOffsetHelp:
           var robustAvgToLocalOffset = MathUtils.FormatNaturalSign(data.DetailedOffset.robustAvg);
           return new()
           {
@@ -251,17 +230,15 @@ namespace OsuMate.ViewModels
             Value = $"{robustAvgToLocalOffset} ms",
           };
 
-        case 11:
-          var rawUR = MathUtils.IsNaNWithNum(data.UR.rawUR).ToString("F2");
-          var modifiedUR = MathUtils.IsNaNWithNum(data.UR.modifiedUR).ToString("F2");
+        case OverlayLineIds.UnstableRate:
           return new()
           {
             Id = id,
             Label = "UR",
-            Value = $"{rawUR} ({modifiedUR})",
+            Value = FormatUnstableRate(data.UR.rawUR, data.UR.modifiedUR),
           };
 
-        case 12:
+        case OverlayLineIds.Progress:
           var child = audioTime * speedMultiplier - data.FirstObjectTimeModified;
           var mother = data.StrainTimeModified - data.FirstObjectTimeModified;
           if (mother == 0)
@@ -279,7 +256,7 @@ namespace OsuMate.ViewModels
             Value = $"{progress:F1} %",
           };
 
-        case 13:
+        case OverlayLineIds.RemainingNotes:
           var judgedSoFar =
             hits.HitGeki + hits.Hit300 + hits.HitKatu + hits.Hit100 + hits.Hit50 + hits.HitMiss;
           var remainingNotes = Math.Max(0, data.TotalHitObjectCount - judgedSoFar);
@@ -290,7 +267,7 @@ namespace OsuMate.ViewModels
             Value = $"{remainingNotes}",
           };
 
-        case 14:
+        case OverlayLineIds.Bpm:
           var bpm = MathUtils.IsNaNWithNum(data.Bpm.CurrentBpm).ToString("F1");
           var minBpm = MathUtils.IsNaNWithNum(data.Bpm.MinimumBpm).ToString("F0");
           var maxBpm = MathUtils.IsNaNWithNum(data.Bpm.MaximumBpm).ToString("F0");
@@ -301,7 +278,7 @@ namespace OsuMate.ViewModels
             Value = $"{bpm} ({minBpm}-{maxBpm})",
           };
 
-        case 15:
+        case OverlayLineIds.BestPp:
           var bestPpValue = bestPp.HasValue ? $"{Math.Round(bestPp.Value)}pp" : "-";
           return new()
           {

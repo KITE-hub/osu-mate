@@ -4,12 +4,14 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using OsuMate.Models;
 using OsuMate.Services.Osu;
 using OsuMate.Utils;
 using OsuMemoryDataProvider;
+using System.Globalization;
 
 namespace OsuMate.Services.PlayLog
 {
@@ -17,27 +19,34 @@ namespace OsuMate.Services.PlayLog
   {
     private readonly OsuMemoryService _memory;
     private readonly PpCalculationService _ppService;
-    private Dispatcher? _uiDispatcher;
+    private readonly Dispatcher _uiDispatcher;
     private readonly PlayLogRepository _repository;
     private readonly BeatmapPathResolver _pathResolver;
     private readonly PlayLogSrPpEnricher _srPpEnricher;
     private readonly HistoricalImporter _historicalImporter;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
+    private readonly Channel<PendingWrite> _writeQueue = Channel.CreateUnbounded<PendingWrite>(
+      new UnboundedChannelOptions { SingleReader = true }
+    );
+    private readonly Task _writerTask;
 
-    private bool _isRealtimeTrackingEnabled = true;
+    private readonly record struct PendingWrite(
+      PlayLogEntry Entry,
+      string? OldDedupeKey,
+      DateTimeOffset? OldPlayedAt
+    );
 
-    private PlaySessionSnapshot? _currentSession;
+    private const int AutoplayModFlag = 2048;
 
-    public ObservableCollection<PlayLogEntry> Entries { get; } = [];
+    private PlaySession? _currentSession;
+
+    public BulkObservableCollection<PlayLogEntry> Entries { get; } = [];
+
+    public Dispatcher UiDispatcher => _uiDispatcher;
 
     private readonly ConcurrentDictionary<string, PlayLogEntry> _entriesByKey = new();
 
     private Dictionary<string, OsuMate.Services.StableDb.BeatmapInfo>? _md5Map;
-
-    public void AttachUiDispatcher(Dispatcher dispatcher)
-    {
-      _uiDispatcher = dispatcher;
-    }
 
     public PlayLogService(
       OsuMemoryService memory,
@@ -45,9 +54,11 @@ namespace OsuMate.Services.PlayLog
       PlayLogRepository repository,
       BeatmapPathResolver pathResolver,
       PlayLogSrPpEnricher srPpEnricher,
-      HistoricalImporter historicalImporter
+      HistoricalImporter historicalImporter,
+      Dispatcher uiDispatcher
     )
     {
+      _uiDispatcher = uiDispatcher;
       _memory = memory;
       _ppService = ppService;
       _repository = repository;
@@ -60,15 +71,38 @@ namespace OsuMate.Services.PlayLog
       _memory.OnMemoryRead += HandleMemoryTick;
 
       _memory.OnOsuDirectoryLoaded += HandleOsuDirectoryLoaded;
+
+      _writerTask = Task.Run(RunWriterAsync);
     }
 
-    private void HandleOsuDirectoryLoaded(string osuDir)
+    private async Task RunWriterAsync()
     {
-      var unused = Task.Run(async () =>
+      await foreach (var write in _writeQueue.Reader.ReadAllAsync())
       {
         try
         {
-          await HandleOsuDirectoryLoadedAsync();
+          _repository.SaveEntry(write.Entry, write.OldDedupeKey, write.OldPlayedAt);
+        }
+        catch (Exception ex)
+        {
+          LogUtils.DebugLogger("PlayLogService.RunWriterAsync failed: " + ex, true);
+        }
+      }
+    }
+
+    private void EnqueueSave(
+      PlayLogEntry entry,
+      string? oldDedupeKey = null,
+      DateTimeOffset? oldPlayedAt = null
+    ) => _writeQueue.Writer.TryWrite(new PendingWrite(entry, oldDedupeKey, oldPlayedAt));
+
+    private void HandleOsuDirectoryLoaded(string osuDirectory)
+    {
+      _ = Task.Run(async () =>
+      {
+        try
+        {
+          await ReconcileAsync();
         }
         catch (Exception ex)
         {
@@ -80,63 +114,92 @@ namespace OsuMate.Services.PlayLog
       });
     }
 
-    private async Task HandleOsuDirectoryLoadedAsync()
+    public async Task LoadAndCalculateAsync()
+    {
+      try
+      {
+        await ReconcileAsync();
+      }
+      catch (Exception ex)
+      {
+        LogUtils.DebugLogger("PlayLogService.LoadAndCalculateAsync failed: " + ex, true);
+      }
+    }
+
+    private async Task ReconcileAsync()
     {
       await _loadGate.WaitAsync();
       try
       {
-        var newEntries = _historicalImporter.LoadFromLocalOsuData(out var md5Map);
-
-        _md5Map ??= md5Map;
-
-        var persistedEntries = _repository.LoadAllFromDisk();
-        var persistedByKey = SelectBestByDedupeKey(persistedEntries);
-
-        var entriesToSave = new List<(PlayLogEntry Entry, string? OldDedupeKey, DateTime? OldPlayedAt)>();
-
         var uiDispatcher = _uiDispatcher;
-        if (uiDispatcher == null)
-          return;
+
+        var (historicalEntries, md5Map, persistedByKey) = await Task.Run(() =>
+        {
+          var historical = _historicalImporter.LoadFromLocalOsuData(out var map);
+          return (historical, map, SelectBestByDedupeKey(_repository.LoadAllFromDisk()));
+        });
+
+        if (md5Map != null)
+          _md5Map = md5Map;
+
+        var addedEntries = new List<PlayLogEntry>();
+        var metadataChangedEntries = new List<PlayLogEntry>();
+        var replacedEntries = new List<(PlayLogEntry Entry, string OldDedupeKey, DateTimeOffset OldPlayedAt)>();
 
         await uiDispatcher.InvokeAsync(() =>
         {
-          void InsertSorted(PlayLogEntry item)
-          {
-            int index = FindInsertIndexDescending(Entries, item.PlayedAt);
-            Entries.Insert(index, item);
-          }
+          var removed = new HashSet<PlayLogEntry>();
+          var visible = new List<PlayLogEntry>();
 
-          foreach (var persisted in persistedByKey.Values.OrderByDescending(e => e.PlayedAt))
+          foreach (var persisted in persistedByKey.Values)
           {
             if (_entriesByKey.TryAdd(persisted.DedupeKey, persisted))
-              InsertSorted(persisted);
+              visible.Add(persisted);
           }
 
-          foreach (var entry in newEntries.OrderByDescending(e => e.PlayedAt))
-          {
-            if (_entriesByKey.ContainsKey(entry.DedupeKey))
-              continue;
+          var memoryIndex = CompletedMemoryIndex.Build(_entriesByKey.Values);
 
-            var matchedMemoryForEntry = FindMatchingCompletedMemoryEntry(_entriesByKey.Values, entry);
-            if (matchedMemoryForEntry is not null)
+          foreach (var entry in historicalEntries)
+          {
+            if (_entriesByKey.TryGetValue(entry.DedupeKey, out var existing))
             {
-              MergePersistedCalculation(entry, matchedMemoryForEntry);
-              _entriesByKey.TryRemove(matchedMemoryForEntry.DedupeKey, out _);
-              Entries.Remove(matchedMemoryForEntry);
-              _entriesByKey[entry.DedupeKey] = entry;
-              InsertSorted(entry);
-              entriesToSave.Add((entry, matchedMemoryForEntry.DedupeKey, matchedMemoryForEntry.PlayedAt));
+              if (!ReferenceEquals(existing, entry) && ApplyHistoricalModeMetadata(existing, entry))
+                metadataChangedEntries.Add(existing);
               continue;
             }
 
+            var matchedMemoryEntry = memoryIndex.FindMatch(entry);
+            if (matchedMemoryEntry is not null)
+            {
+              MergePersistedCalculation(entry, matchedMemoryEntry);
+              _entriesByKey.TryRemove(matchedMemoryEntry.DedupeKey, out _);
+              memoryIndex.Remove(matchedMemoryEntry);
+              removed.Add(matchedMemoryEntry);
+              replacedEntries.Add((entry, matchedMemoryEntry.DedupeKey, matchedMemoryEntry.PlayedAt));
+            }
+            else
+            {
+              addedEntries.Add(entry);
+            }
+
             _entriesByKey[entry.DedupeKey] = entry;
-            InsertSorted(entry);
-            entriesToSave.Add((entry, null, null));
+            visible.Add(entry);
           }
+
+          if (visible.Count == 0 && removed.Count == 0)
+            return;
+
+          Entries.ReplaceAll(
+            Entries.Concat(visible).Where(e => !removed.Contains(e)).OrderByDescending(e => e.PlayedAt)
+          );
         });
 
-        foreach (var (entry, oldDedupeKey, oldPlayedAt) in entriesToSave)
-          _repository.SaveEntry(entry, oldDedupeKey, oldPlayedAt);
+        await Task.Run(() =>
+        {
+          _repository.SaveEntries(addedEntries.Concat(metadataChangedEntries));
+          foreach (var (entry, oldDedupeKey, oldPlayedAt) in replacedEntries)
+            _repository.SaveEntry(entry, oldDedupeKey, oldPlayedAt);
+        });
 
         await _srPpEnricher.CalculateMissingSrPpAsync(uiDispatcher, Entries, _md5Map);
       }
@@ -162,108 +225,6 @@ namespace OsuMate.Services.PlayLog
         );
     }
 
-    public async Task LoadAndCalculateAsync()
-    {
-      await _loadGate.WaitAsync();
-      try
-      {
-        var allEntries = _repository.LoadAllFromDisk();
-        LogUtils.DebugLogger($"PlayLogService: LoadAllFromDisk={allEntries.Count}", true);
-
-        var historicalEntries = _historicalImporter.LoadFromLocalOsuData(out var md5Map);
-
-        _md5Map = md5Map;
-        LogUtils.DebugLogger($"PlayLogService: LoadHistorical={historicalEntries.Count}", true);
-
-        var savedByKey = SelectBestByDedupeKey(allEntries);
-
-        var combinedByKey = new Dictionary<string, PlayLogEntry>(savedByKey);
-        var entriesToSave = new List<PlayLogEntry>();
-
-        foreach (var historical in historicalEntries)
-        {
-          if (combinedByKey.TryGetValue(historical.DedupeKey, out var persisted))
-          {
-            if (ApplyHistoricalModeMetadata(persisted, historical))
-              entriesToSave.Add(persisted);
-
-            continue;
-          }
-
-          var provisionalHistorical = FindMatchingCompletedMemoryEntry(combinedByKey.Values, historical);
-          combinedByKey[historical.DedupeKey] = historical;
-          if (provisionalHistorical is not null)
-          {
-            MergePersistedCalculation(historical, provisionalHistorical);
-            combinedByKey.Remove(provisionalHistorical.DedupeKey);
-            _repository.SaveEntry(
-              historical,
-              provisionalHistorical.DedupeKey,
-              provisionalHistorical.PlayedAt
-            );
-          }
-          else
-          {
-            entriesToSave.Add(historical);
-          }
-        }
-
-        foreach (var entry in entriesToSave)
-          _repository.SaveEntry(entry);
-
-        var combined = combinedByKey
-          .Values.GroupBy(e => e.DedupeKey)
-          .Select(g =>
-            g.OrderByDescending(e => e.StarRating.HasValue ? 1 : 0)
-              .ThenByDescending(e => e.PlayedAt)
-              .First()
-          )
-          .ToList();
-
-        var sorted = combined.OrderByDescending(e => e.PlayedAt).ToList();
-
-        var uiDispatcher = _uiDispatcher;
-        if (uiDispatcher == null)
-          return;
-
-        await uiDispatcher.InvokeAsync(() =>
-        {
-          Entries.Clear();
-          _entriesByKey.Clear();
-          foreach (var entry in sorted)
-          {
-            Entries.Add(entry);
-            _entriesByKey[entry.DedupeKey] = entry;
-          }
-        });
-
-        await _srPpEnricher.CalculateMissingSrPpAsync(uiDispatcher, Entries, _md5Map);
-      }
-      catch (Exception ex)
-      {
-        LogUtils.DebugLogger("PlayLogService.LoadAndCalculateAsync failed: " + ex.Message, true);
-      }
-      finally
-      {
-        _loadGate.Release();
-      }
-    }
-
-    private static int FindInsertIndexDescending(IList<PlayLogEntry> list, DateTime playedAt)
-    {
-      int lo = 0,
-        hi = list.Count;
-      while (lo < hi)
-      {
-        int mid = lo + (hi - lo) / 2;
-        if (list[mid].PlayedAt > playedAt)
-          lo = mid + 1;
-        else
-          hi = mid;
-      }
-      return lo;
-    }
-
     private static bool ApplyHistoricalModeMetadata(PlayLogEntry persisted, PlayLogEntry historical)
     {
       bool changed = false;
@@ -283,27 +244,61 @@ namespace OsuMate.Services.PlayLog
       return changed;
     }
 
-    private static PlayLogEntry? FindMatchingCompletedMemoryEntry(
-      IEnumerable<PlayLogEntry> entries,
-      PlayLogEntry historical
-    )
+    private sealed class CompletedMemoryIndex
     {
-      return entries.FirstOrDefault(entry =>
-        entry.DedupeKey != historical.DedupeKey
-        && IsMatchingCompletedMemoryEntry(entry, historical)
-      );
+      private readonly Dictionary<(string, string, int, int, int), List<PlayLogEntry>> _byKey = [];
+
+      public static CompletedMemoryIndex Build(IEnumerable<PlayLogEntry> entries)
+      {
+        var index = new CompletedMemoryIndex();
+        foreach (var entry in entries)
+          index.Add(entry);
+        return index;
+      }
+
+      public void Add(PlayLogEntry entry)
+      {
+        if (!IsMatchableMemoryEntry(entry))
+          return;
+
+        var key = KeyOf(entry);
+        if (!_byKey.TryGetValue(key, out var list))
+          _byKey[key] = list = [];
+        list.Add(entry);
+      }
+
+      public void Remove(PlayLogEntry entry)
+      {
+        if (_byKey.TryGetValue(KeyOf(entry), out var list))
+          list.Remove(entry);
+      }
+
+      public PlayLogEntry? FindMatch(PlayLogEntry historical)
+      {
+        if (!_byKey.TryGetValue(KeyOf(historical), out var list))
+          return null;
+
+        return list.FirstOrDefault(candidate =>
+          candidate.DedupeKey != historical.DedupeKey
+          && IsMatchingCompletedMemoryEntry(candidate, historical)
+        );
+      }
+
+      private static (string, string, int, int, int) KeyOf(PlayLogEntry e) =>
+        (e.BeatmapMd5, e.PlayerName, e.Mode, e.ModsRaw, e.TotalScore);
     }
+
+    private static bool IsMatchableMemoryEntry(PlayLogEntry entry) =>
+      entry.IsCompleted
+      && !entry.OnlineScoreId.HasValue
+      && string.IsNullOrWhiteSpace(entry.ReplayMd5);
 
     private static bool IsMatchingCompletedMemoryEntry(
       PlayLogEntry candidate,
       PlayLogEntry historical
     )
     {
-      if (
-        !candidate.IsCompleted
-        || candidate.OnlineScoreId.HasValue
-        || !string.IsNullOrWhiteSpace(candidate.ReplayMd5)
-      )
+      if (!IsMatchableMemoryEntry(candidate))
         return false;
 
       return candidate.BeatmapMd5 == historical.BeatmapMd5
@@ -335,9 +330,6 @@ namespace OsuMate.Services.PlayLog
     {
       try
       {
-        if (!_isRealtimeTrackingEnabled)
-          return;
-
         if (
           current == OsuMemoryStatus.Playing
           && prev == OsuMemoryStatus.SongSelect
@@ -353,7 +345,7 @@ namespace OsuMate.Services.PlayLog
         if (prev == OsuMemoryStatus.Playing && _currentSession != null)
         {
           bool isCompleted = current == OsuMemoryStatus.ResultsScreen;
-          CommitSession(isCompleted, current);
+          CommitSession(isCompleted);
         }
 
         if (prev == OsuMemoryStatus.ResultsScreen && _currentSession != null)
@@ -364,7 +356,7 @@ namespace OsuMate.Services.PlayLog
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger("PlayLogService.HandleStatusChanged failed: " + ex.Message, true);
+        LogUtils.DebugLogger("PlayLogService.HandleStatusChanged failed: " + ex, true);
       }
     }
 
@@ -372,8 +364,6 @@ namespace OsuMate.Services.PlayLog
     {
       try
       {
-        if (!_isRealtimeTrackingEnabled)
-          return;
         if (_currentSession == null)
           return;
 
@@ -382,27 +372,29 @@ namespace OsuMate.Services.PlayLog
 
         var livePlayer = _memory.GetBaseAddressSnapshot().Player;
         RefreshSessionMetadataFromLivePlayer();
-        _currentSession.LastHit300 = livePlayer.Hit300;
-        _currentSession.LastHit100 = livePlayer.Hit100;
-        _currentSession.LastHit50 = livePlayer.Hit50;
-        _currentSession.LastHitGeki = livePlayer.HitGeki;
-        _currentSession.LastHitKatu = livePlayer.HitKatu;
-        _currentSession.LastHitMiss = livePlayer.HitMiss;
-        _currentSession.LastMaxCombo = livePlayer.MaxCombo;
-        _currentSession.LastScore = livePlayer.Score;
-        _currentSession.LastAccuracy = livePlayer.Accuracy;
+        _currentSession.CaptureScore(
+          livePlayer.Hit300,
+          livePlayer.Hit100,
+          livePlayer.Hit50,
+          livePlayer.HitGeki,
+          livePlayer.HitKatu,
+          livePlayer.HitMiss,
+          livePlayer.MaxCombo,
+          livePlayer.Score,
+          livePlayer.Accuracy
+        );
 
         int currentRetries = _memory.GetBaseAddressSnapshot().GeneralData.Retries;
         if (currentRetries == _currentSession.StartRetries)
           return;
 
-        CommitSession(isCompleted: false, endStatus: OsuMemoryStatus.Playing);
+        CommitSession(isCompleted: false);
         if (!_memory.GetBaseAddressSnapshot().Player.IsReplay)
           CaptureSessionStart();
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger("PlayLogService.HandleMemoryTick failed: " + ex.Message, true);
+        LogUtils.DebugLogger("PlayLogService.HandleMemoryTick failed: " + ex, true);
       }
     }
 
@@ -412,41 +404,30 @@ namespace OsuMate.Services.PlayLog
         return;
 
       int mode = _memory.CurrentOsuGamemode;
-      if (mode is >= 0 and <= 3)
+      if (OsuMode.IsValid(mode))
       {
-        _currentSession.Mode = mode;
+        _currentSession.UpdateMode(mode);
 
-        if (mode != 3)
-        {
-          _currentSession.ManiaKeyCount = null;
-        }
-        else if (
-          _currentSession.ManiaKeyCount == null
-          && !_currentSession.ManiaKeyCountResolveAttempted
-        )
+        if (_currentSession.NeedsManiaKeyCountResolve)
         {
           var beatmapPath = _pathResolver.ResolveBeatmapFilePath(
             _memory.GetBaseAddressSnapshot().Beatmap,
             _md5Map
           );
-          if (beatmapPath != null)
-            _currentSession.ManiaKeyCount = BeatmapPathResolver.ReadManiaKeyCountFromFile(
-              beatmapPath
-            );
-          _currentSession.ManiaKeyCountResolveAttempted = true;
+          _currentSession.SetManiaKeyCount(
+            beatmapPath != null ? BeatmapPathResolver.ReadManiaKeyCountFromFile(beatmapPath) : null
+          );
         }
       }
 
-      var playerName = _memory.GetBaseAddressSnapshot().Player.Username;
-      if (!string.IsNullOrWhiteSpace(playerName))
-        _currentSession.PlayerName = playerName;
+      _currentSession.UpdatePlayerName(_memory.GetBaseAddressSnapshot().Player.Username);
     }
 
     private void CaptureSessionStart()
     {
       var baseAddresses = _memory.GetBaseAddressSnapshot();
 
-      if ((baseAddresses.GeneralData.Mods & 2048) == 2048)
+      if ((baseAddresses.GeneralData.Mods & AutoplayModFlag) == AutoplayModFlag)
         return;
 
       var bm = baseAddresses.Beatmap;
@@ -457,12 +438,12 @@ namespace OsuMate.Services.PlayLog
           : ("", "", "", "");
       int mode = _memory.CurrentOsuGamemode;
       int? maniaKeyCount =
-        mode == 3 && filePath != null
+        mode == OsuMode.Mania && filePath != null
           ? BeatmapPathResolver.ReadManiaKeyCountFromFile(filePath)
           : null;
 
       string playerName = baseAddresses.Player.Username ?? "";
-      _currentSession = new PlaySessionSnapshot
+      _currentSession = new PlaySession
       {
         StartedAt = DateTime.Now,
         BeatmapId = bm.Id,
@@ -484,7 +465,7 @@ namespace OsuMate.Services.PlayLog
       };
     }
 
-    private void CommitSession(bool isCompleted, OsuMemoryStatus endStatus)
+    private void CommitSession(bool isCompleted)
     {
       if (_currentSession == null)
         return;
@@ -496,7 +477,6 @@ namespace OsuMate.Services.PlayLog
       }
 
       var snap = _currentSession;
-      var isCompletedNow = endStatus == OsuMemoryStatus.ResultsScreen;
       var displayMods = OsuUtils.ParseMods(snap.ModsRaw).Display;
       var modsStr =
         displayMods.Length == 0 ? "NM" : string.Join(",", displayMods.Select(m => m.ToUpper()));
@@ -507,7 +487,7 @@ namespace OsuMate.Services.PlayLog
 
       var entry = new PlayLogEntry
       {
-        PlayedAt = DateTime.Now,
+        PlayedAt = DateTimeOffset.Now,
         BeatmapId = snap.BeatmapId,
         BeatmapSetId = snap.BeatmapSetId,
         Artist = snap.Artist,
@@ -552,7 +532,7 @@ namespace OsuMate.Services.PlayLog
       AddEntryToLog(entry);
 
       if (isCompleted)
-        snap.PendingCompletedKey = entry.DedupeKey;
+        snap.MarkCommitted(entry.DedupeKey);
 
       if (!isCompleted)
         _currentSession = null;
@@ -560,29 +540,34 @@ namespace OsuMate.Services.PlayLog
 
     private void AddEntryToLog(PlayLogEntry entry)
     {
-      if (!_entriesByKey.TryAdd(entry.DedupeKey, entry))
-      {
-        var baseKey = entry.DedupeKey;
-        entry.DedupeKey = $"{baseKey}|{entry.PlayedAt:yyyyMMddHHmmssfff}";
-        var suffix = 1;
-        while (!_entriesByKey.TryAdd(entry.DedupeKey, entry))
-          entry.DedupeKey = $"{baseKey}|{entry.PlayedAt:yyyyMMddHHmmssfff}|{suffix++}";
-        LogUtils.DebugLogger(
-          $"PlayLogService: preserved completed-key collision for {baseKey}",
-          true
-        );
-      }
+      RegisterUniqueKey(entry);
 
-      _uiDispatcher?.InvokeAsync(() => Entries.Insert(0, entry));
-      _repository.SaveEntry(entry);
+      _uiDispatcher.InvokeAsync(() => Entries.Insert(0, entry));
+      EnqueueSave(entry);
+    }
+
+    private void RegisterUniqueKey(PlayLogEntry entry)
+    {
+      var baseKey = entry.DedupeKey;
+      if (_entriesByKey.TryAdd(baseKey, entry))
+        return;
+
+      var playedAtStamp = entry.PlayedAt.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
+      entry.DedupeKey = $"{baseKey}|{playedAtStamp}";
+      var suffix = 1;
+      while (!_entriesByKey.TryAdd(entry.DedupeKey, entry))
+        entry.DedupeKey = $"{baseKey}|{playedAtStamp}|{suffix++}";
+      LogUtils.DebugLogger($"PlayLogService: preserved completed-key collision for {baseKey}", true);
     }
 
     private void UpdateLastEntryAsCompleted()
     {
-      if (_currentSession == null)
+      var session = _currentSession;
+      if (session == null)
         return;
 
-      var oldKey = _currentSession.PendingCompletedKey;
+      var oldKey = session.PendingCompletedKey;
+      var uiDispatcher = _uiDispatcher;
       if (oldKey == null || !_entriesByKey.TryGetValue(oldKey, out var existing))
       {
         _currentSession = null;
@@ -591,20 +576,13 @@ namespace OsuMate.Services.PlayLog
 
       RefreshSessionMetadataFromLivePlayer();
       var rs = _memory.GetBaseAddressSnapshot().ResultsScreen;
+      var maniaKeyCount = session.ManiaKeyCount;
+      _currentSession = null;
 
-      var uiDispatcher = _uiDispatcher;
-      if (uiDispatcher == null)
-      {
-        _currentSession = null;
-        return;
-      }
-
-      string newKey = null!;
-      string? staleKey = null;
-      uiDispatcher.Invoke(() =>
+      _ = uiDispatcher.InvokeAsync(() =>
       {
         existing.Mode = rs.Mode;
-        existing.ManiaKeyCount = existing.Mode == 3 ? _currentSession.ManiaKeyCount : null;
+        existing.ManiaKeyCount = existing.Mode == OsuMode.Mania ? maniaKeyCount : null;
         existing.Count300 = rs.Hit300;
         existing.Count100 = rs.Hit100;
         existing.Count50 = rs.Hit50;
@@ -615,7 +593,7 @@ namespace OsuMate.Services.PlayLog
         existing.TotalScore = rs.Score;
         existing.IsCompleted = true;
 
-        newKey = PlayLogKeyBuilder.MakeCompletedKey(
+        var newKey = PlayLogKeyBuilder.MakeCompletedKey(
           existing.BeatmapMd5,
           existing.PlayerName,
           existing.Mode,
@@ -624,20 +602,35 @@ namespace OsuMate.Services.PlayLog
           0,
           null
         );
+
+        string? staleKey = null;
         if (newKey != oldKey)
         {
           staleKey = oldKey;
+          _entriesByKey.TryRemove(oldKey, out _);
           existing.DedupeKey = newKey;
-          _entriesByKey.TryRemove(staleKey, out _);
+          RegisterUniqueKey(existing);
         }
-        _entriesByKey[newKey] = existing;
+
+        EnqueueSave(existing, staleKey);
       });
-
-      _repository.SaveEntry(existing, staleKey);
-
-      _currentSession = null;
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+      _memory.OnStatusChanged -= HandleStatusChanged;
+      _memory.OnMemoryRead -= HandleMemoryTick;
+      _memory.OnOsuDirectoryLoaded -= HandleOsuDirectoryLoaded;
+
+      _writeQueue.Writer.TryComplete();
+      try
+      {
+        _writerTask.Wait(TimeSpan.FromSeconds(3));
+      }
+      catch (AggregateException ex)
+      {
+        LogUtils.DebugLogger("PlayLogService.Dispose failed: " + ex, true);
+      }
+    }
   }
 }

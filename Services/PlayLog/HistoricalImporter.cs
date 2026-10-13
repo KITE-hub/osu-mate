@@ -10,11 +10,11 @@ namespace OsuMate.Services.PlayLog
   public class HistoricalImporter
   {
     private readonly OsuMemoryService _memory;
-    private readonly GlobalConfig _config;
-    public HistoricalImporter(OsuMemoryService memory)
+    private readonly ConfigStore _config;
+    public HistoricalImporter(OsuMemoryService memory, ConfigStore config)
     {
       _memory = memory;
-      _config = ConfigUtils.LoadGlobalConfig();
+      _config = config;
     }
 
     public List<PlayLogEntry> LoadFromLocalOsuData(
@@ -27,8 +27,9 @@ namespace OsuMate.Services.PlayLog
       {
         var candidates = new List<string>();
 
-        if (!string.IsNullOrWhiteSpace(_config.OsuExeDirectory))
-          candidates.Add(_config.OsuExeDirectory);
+        var configuredDirectory = _config.Global.OsuExeDirectory;
+        if (!string.IsNullOrWhiteSpace(configuredDirectory))
+          candidates.Add(configuredDirectory);
 
         if (!string.IsNullOrWhiteSpace(_memory.OsuDirectory))
           candidates.Add(_memory.OsuDirectory);
@@ -49,8 +50,7 @@ namespace OsuMate.Services.PlayLog
           candidates.Add(osuAppData);
 
         LogUtils.DebugLogger(
-          $"HistoricalImporter: DB search candidates: {string.Join(", ", candidates)}",
-          true
+          $"HistoricalImporter: DB search candidates: {string.Join(", ", candidates)}"
         );
 
         string? osuDbPath = null;
@@ -69,12 +69,11 @@ namespace OsuMate.Services.PlayLog
         if (osuDbPath == null || scoresDbPath == null)
         {
           LogUtils.DebugLogger(
-            "HistoricalImporter: osu!.db or scores.db not found in any candidate directory",
-            true
+            "HistoricalImporter: osu!.db or scores.db not found in any candidate directory"
           );
           return list;
         }
-        LogUtils.DebugLogger($"HistoricalImporter: Reading DB from {osuDbPath}", true);
+        LogUtils.DebugLogger($"HistoricalImporter: Reading DB from {osuDbPath}");
 
         var parsedMd5Map = OsuMate.Services.StableDb.OsuDbReader.ReadBeatmaps(osuDbPath);
         var scores = ScoresDbReader.ReadScores(scoresDbPath);
@@ -83,7 +82,7 @@ namespace OsuMate.Services.PlayLog
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger("HistoricalImporter.LoadFromLocalOsuData failed: " + ex.Message, true);
+        LogUtils.DebugLogger("HistoricalImporter.LoadFromLocalOsuData failed: " + ex, true);
       }
 
       return list;

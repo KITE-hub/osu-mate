@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -24,7 +25,7 @@ namespace OsuMate.ViewModels
 
     public ObservableCollection<Preset> Presets => _presetManager.Presets;
 
-    public IReadOnlyList<string> AvailableFonts { get; } =
+    private static readonly Lazy<IReadOnlyList<string>> LazyAvailableFonts = new(() =>
       OsuMate
         .Utils.AppFonts.EmbeddedFontNames.Append(OsuMate.Utils.AppFonts.FontListSeparator)
         .Concat(
@@ -33,7 +34,10 @@ namespace OsuMate.ViewModels
             .Where(s => !OsuMate.Utils.AppFonts.EmbeddedFontNames.Contains(s))
             .OrderBy(s => s)
         )
-        .ToList();
+        .ToList()
+    );
+
+    public IReadOnlyList<string> AvailableFonts => LazyAvailableFonts.Value;
 
     public IReadOnlyList<UpdateIntervalOption> UpdateIntervalOptions { get; } =
       new List<UpdateIntervalOption>
@@ -43,68 +47,24 @@ namespace OsuMate.ViewModels
         new("60 fps", 16),
       };
 
-    public event Action? OnSaveOverlayPositionRequested
-    {
-      add => Overlay.OnSaveOverlayPositionRequested += value;
-      remove => Overlay.OnSaveOverlayPositionRequested -= value;
-    }
-    public event Action? OnApplyOverlayPositionRequested
-    {
-      add => Overlay.OnApplyOverlayPositionRequested += value;
-      remove => Overlay.OnApplyOverlayPositionRequested -= value;
-    }
-
-    public void RequestSaveOverlayPosition() => Overlay.RequestSaveOverlayPosition();
-
-    public void RequestApplyOverlayPosition() => Overlay.RequestApplyOverlayPosition();
-
-    public event Action? OnSaveURBarPositionRequested
-    {
-      add => URBar.OnSaveURBarPositionRequested += value;
-      remove => URBar.OnSaveURBarPositionRequested -= value;
-    }
-    public event Action? OnApplyURBarPositionRequested
-    {
-      add => URBar.OnApplyURBarPositionRequested += value;
-      remove => URBar.OnApplyURBarPositionRequested -= value;
-    }
-    public event Action? OnSaveURBarSizeRequested
-    {
-      add => URBar.OnSaveURBarSizeRequested += value;
-      remove => URBar.OnSaveURBarSizeRequested -= value;
-    }
-    public event Action? OnApplyURBarSizeRequested
-    {
-      add => URBar.OnApplyURBarSizeRequested += value;
-      remove => URBar.OnApplyURBarSizeRequested -= value;
-    }
-
-    public void RequestSaveURBarPosition() => URBar.RequestSaveURBarPosition();
-
-    public void RequestApplyURBarPosition() => URBar.RequestApplyURBarPosition();
-
-    public void RequestSaveURBarSize() => URBar.RequestSaveURBarSize();
-
-    public void RequestApplyURBarSize() => URBar.RequestApplyURBarSize();
-
     private readonly RootConfig _root;
     private readonly GlobalConfig _globalConfig;
     private readonly OsuMemoryService _memory;
     private readonly PresetManager _presetManager;
 
     private PresetConfig PresetConfig => _presetManager.ActiveConfig;
-    private readonly System.Threading.Timer _saveTimer;
-    private System.Windows.Threading.Dispatcher? _uiDispatcher;
+    private readonly System.Windows.Threading.DispatcherTimer _saveTimer;
+    private readonly System.Windows.Threading.Dispatcher _uiDispatcher;
 
-    public void AttachUiDispatcher(System.Windows.Threading.Dispatcher dispatcher)
+    public SettingsViewModel(
+      OsuMemoryService memory,
+      ConfigStore config,
+      System.Windows.Threading.Dispatcher uiDispatcher
+    )
     {
-      _uiDispatcher = dispatcher;
-    }
-
-    public SettingsViewModel(OsuMemoryService memory)
-    {
+      _uiDispatcher = uiDispatcher;
       _memory = memory;
-      _root = ConfigUtils.LoadRootConfig();
+      _root = config.Root;
       _globalConfig = _root.Global;
       _globalConfig.DataUpdateIntervalMs = SnapToNearestUpdateInterval(_globalConfig.DataUpdateIntervalMs);
 
@@ -112,50 +72,34 @@ namespace OsuMate.ViewModels
 
       _memory.OnOsuDirectoryLoaded += dir =>
       {
-        _uiDispatcher?.BeginInvoke(() =>
-        {
-          OsuExeDirectory = dir;
-        });
+        _uiDispatcher.BeginInvoke(() => OnPropertyChanged(nameof(OsuExeDirectoryText)));
       };
 
-      _presetManager = new PresetManager(_root);
+      _presetManager = new PresetManager(config);
 
-      _saveTimer = new System.Threading.Timer(
-        _ =>
-          _uiDispatcher?.BeginInvoke(
-            System.Windows.Threading.DispatcherPriority.Background,
-            new Action(() =>
-            {
-              try
-              {
-                Save();
-              }
-              catch (Exception e)
-              {
-                LogUtils.DebugLogger("SettingsViewModel.DebouncedSave failed: " + e.Message, true);
-              }
-            })
-          ),
-        null,
-        Timeout.Infinite,
-        Timeout.Infinite
-      );
+      _saveTimer = new System.Windows.Threading.DispatcherTimer(
+        System.Windows.Threading.DispatcherPriority.Background,
+        _uiDispatcher
+      )
+      {
+        Interval = TimeSpan.FromMilliseconds(500),
+      };
+      _saveTimer.Tick += (_, _) => RunDebouncedSave();
 
       Overlay = new OverlaySettingsViewModel(() => PresetConfig, Save, DebouncedSave);
-      Overlay.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
       URBar = new URBarSettingsViewModel(() => PresetConfig, Save, DebouncedSave);
-      URBar.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
       KeyOverlay = new KeyOverlaySettingsViewModel(() => PresetConfig, Save, DebouncedSave);
 
       Position = new PositionSettingsViewModel(() => PresetConfig, Save);
-      Position.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
       _presetManager.ActivePresetChanged += ApplyPresetConfig;
 
       foreach (var name in _globalConfig.TargetPlayerNames)
         TargetPlayerNames.Add(name);
+      TargetPlayerNames.CollectionChanged += (_, _) =>
+        _globalConfig.TargetPlayerNames = [.. TargetPlayerNames];
 
       LogColumnSettings = new LogColumnSettings(_globalConfig, Save);
     }
@@ -165,6 +109,36 @@ namespace OsuMate.ViewModels
       get => _presetManager.SelectedPreset;
       set => _presetManager.SelectedPreset = value;
     }
+
+    private ICommand? _newPresetCommand;
+    private ICommand? _duplicatePresetCommand;
+    private ICommand? _renamePresetCommand;
+    private ICommand? _removeTargetPlayerNameCommand;
+
+    public ICommand NewPresetCommand => _newPresetCommand ??= new RelayCommand(_ => CreatePreset("New Preset"));
+
+    public ICommand DuplicatePresetCommand =>
+      _duplicatePresetCommand ??= new RelayCommand(_ =>
+      {
+        var current = SelectedPreset;
+        if (current != null)
+          DuplicatePreset(current.Id, current.Name + " - Copy");
+      });
+
+    public ICommand RenamePresetCommand =>
+      _renamePresetCommand ??= new RelayCommand(parameter =>
+      {
+        var current = SelectedPreset;
+        if (current != null && parameter is string name)
+          RenamePreset(current.Id, name);
+      });
+
+    public ICommand RemoveTargetPlayerNameCommand =>
+      _removeTargetPlayerNameCommand ??= new RelayCommand(parameter =>
+      {
+        if (parameter is string name)
+          RemoveTargetPlayerName(name);
+      });
 
     public Preset CreatePreset(string name) => _presetManager.CreatePreset(name);
 
@@ -183,9 +157,9 @@ namespace OsuMate.ViewModels
       Position.NotifyPresetApplied();
       OnPropertyChanged(nameof(SelectedPreset));
 
-      RequestApplyOverlayPosition();
-      RequestApplyURBarPosition();
-      RequestApplyURBarSize();
+      Overlay.RequestApplyOverlayPosition();
+      URBar.RequestApplyURBarPosition();
+      URBar.RequestApplyURBarSize();
       KeyOverlay.RequestApplyKeyOverlayPosition();
     }
 
@@ -198,7 +172,6 @@ namespace OsuMate.ViewModels
         return;
 
       TargetPlayerNames.Add(name);
-      _globalConfig.TargetPlayerNames = [.. TargetPlayerNames];
       Save();
     }
 
@@ -211,157 +184,8 @@ namespace OsuMate.ViewModels
         return;
 
       TargetPlayerNames.Remove(existing);
-      _globalConfig.TargetPlayerNames = [.. TargetPlayerNames];
       Save();
     }
-
-    public double OverlayX
-    {
-      get => Overlay.OverlayX;
-      set => Overlay.OverlayX = value;
-    }
-    public double OverlayY
-    {
-      get => Overlay.OverlayY;
-      set => Overlay.OverlayY = value;
-    }
-    public string OverlayPositionText => Overlay.OverlayPositionText;
-
-    public void SetOverlayPosition(double x, double y) => Overlay.SetOverlayPosition(x, y);
-
-    public bool OverlayEnabled
-    {
-      get => Overlay.OverlayEnabled;
-      set => Overlay.OverlayEnabled = value;
-    }
-    public double OverlayFontSize
-    {
-      get => Overlay.OverlayFontSize;
-      set => Overlay.OverlayFontSize = value;
-    }
-    public bool IsShowValueFirst
-    {
-      get => Overlay.IsShowValueFirst;
-      set => Overlay.IsShowValueFirst = value;
-    }
-
-    public bool URBarEnabled
-    {
-      get => URBar.URBarEnabled;
-      set => URBar.URBarEnabled = value;
-    }
-
-    public int URBarRotation
-    {
-      get => URBar.URBarRotation;
-      set => URBar.URBarRotation = value;
-    }
-    public string URBarRotationLabel => URBar.URBarRotationLabel;
-    public double URBarWidth
-    {
-      get => URBar.URBarWidth;
-      set => URBar.URBarWidth = value;
-    }
-    public double URBarHeight
-    {
-      get => URBar.URBarHeight;
-      set => URBar.URBarHeight = value;
-    }
-    public double URBarX
-    {
-      get => URBar.URBarX;
-      set => URBar.URBarX = value;
-    }
-    public double URBarY
-    {
-      get => URBar.URBarY;
-      set => URBar.URBarY = value;
-    }
-    public string URBarPositionText => URBar.URBarPositionText;
-
-    public void SetURBarPosition(double x, double y) => URBar.SetURBarPosition(x, y);
-
-    public string URBarSizeText => URBar.URBarSizeText;
-    public double URBarAvgLineFollowStrength
-    {
-      get => URBar.URBarAvgLineFollowStrength;
-      set => URBar.URBarAvgLineFollowStrength = value;
-    }
-    public double URBarAvgLineAnimMs
-    {
-      get => URBar.URBarAvgLineAnimMs;
-      set => URBar.URBarAvgLineAnimMs = value;
-    }
-    public double URBarLabelOpacity
-    {
-      get => URBar.URBarLabelOpacity;
-      set => URBar.URBarLabelOpacity = value;
-    }
-    public double URBarSegmentOpacity
-    {
-      get => URBar.URBarSegmentOpacity;
-      set => URBar.URBarSegmentOpacity = value;
-    }
-    public double URBarMarkerOpacity
-    {
-      get => URBar.URBarMarkerOpacity;
-      set => URBar.URBarMarkerOpacity = value;
-    }
-    public double URBarHitErrorOpacity
-    {
-      get => URBar.URBarHitErrorOpacity;
-      set => URBar.URBarHitErrorOpacity = value;
-    }
-
-    public bool AppPositionEnabled
-    {
-      get => Position.AppPositionEnabled;
-      set => Position.AppPositionEnabled = value;
-    }
-    public double AppX
-    {
-      get => Position.AppX;
-      set => Position.AppX = value;
-    }
-    public double AppY
-    {
-      get => Position.AppY;
-      set => Position.AppY = value;
-    }
-    public string AppPositionText => Position.AppPositionText;
-
-    public void SetAppPosition(double x, double y) => Position.SetAppPosition(x, y);
-
-    public bool OsuPositionEnabled
-    {
-      get => Position.OsuPositionEnabled;
-      set => Position.OsuPositionEnabled = value;
-    }
-    public double OsuX
-    {
-      get => Position.OsuX;
-      set => Position.OsuX = value;
-    }
-    public double OsuY
-    {
-      get => Position.OsuY;
-      set => Position.OsuY = value;
-    }
-    public string OsuPositionText => Position.OsuPositionText;
-
-    public void SetOsuPosition(double x, double y) => Position.SetOsuPosition(x, y);
-
-    public bool StartupPositionEnabled
-    {
-      get => Position.StartupPositionEnabled;
-      set => Position.StartupPositionEnabled = value;
-    }
-
-    public ObservableCollection<OverlayItem> Items => Overlay.Items;
-
-    public void MoveItem(int fromIndex, int toIndex) => Overlay.MoveItem(fromIndex, toIndex);
-
-    public void ToggleItem(OverlayItem item) => Overlay.ToggleItem(item);
 
     public string FontFamily
     {
@@ -507,7 +331,21 @@ namespace OsuMate.ViewModels
 
     private void DebouncedSave()
     {
-      _saveTimer.Change(500, Timeout.Infinite);
+      _saveTimer.Stop();
+      _saveTimer.Start();
+    }
+
+    private void RunDebouncedSave()
+    {
+      _saveTimer.Stop();
+      try
+      {
+        Save();
+      }
+      catch (Exception e)
+      {
+        LogUtils.DebugLogger("SettingsViewModel.DebouncedSave failed: " + e, true);
+      }
     }
 
     public void Save()

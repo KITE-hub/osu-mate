@@ -4,7 +4,7 @@ namespace OsuMate.Models
 {
   public class PlayLogEntry : ObservableBase
   {
-    public DateTime PlayedAt { get; set; }
+    public DateTimeOffset PlayedAt { get; set; }
 
     public string DedupeKey { get; set; } = "";
 

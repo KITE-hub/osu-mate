@@ -51,6 +51,7 @@ namespace OsuMate.ViewModels
 
     private readonly BeatmapTrainerService _trainerService;
     private readonly OsuMemoryService _memory;
+    private readonly ConfigStore _config;
     private readonly Dispatcher _dispatcher;
 
     private readonly System.Threading.Timer _pollTimer;
@@ -140,12 +141,8 @@ namespace OsuMate.ViewModels
       }
     }
 
-    private static void SaveBatchStartRate(decimal value)
-    {
-      var root = ConfigUtils.LoadRootConfig();
-      root.Global.BatchStartRate = value;
-      ConfigUtils.SaveRootConfig(root);
-    }
+    private void SaveBatchStartRate(decimal value) =>
+      _config.Update(g => g.BatchStartRate = value);
 
     private decimal _batchStep = 0.05M;
     public decimal BatchStep
@@ -163,12 +160,8 @@ namespace OsuMate.ViewModels
       }
     }
 
-    private static void SaveBatchStep(decimal value)
-    {
-      var root = ConfigUtils.LoadRootConfig();
-      root.Global.BatchStep = value;
-      ConfigUtils.SaveRootConfig(root);
-    }
+    private void SaveBatchStep(decimal value) =>
+      _config.Update(g => g.BatchStep = value);
 
     private int _batchCount = 4;
     public int BatchCount
@@ -186,12 +179,8 @@ namespace OsuMate.ViewModels
       }
     }
 
-    private static void SaveBatchCount(int value)
-    {
-      var root = ConfigUtils.LoadRootConfig();
-      root.Global.BatchCount = value;
-      ConfigUtils.SaveRootConfig(root);
-    }
+    private void SaveBatchCount(int value) =>
+      _config.Update(g => g.BatchCount = value);
 
     public ObservableCollection<BatchPreviewItem> BatchPreviews { get; } = new();
 
@@ -391,12 +380,8 @@ namespace OsuMate.ViewModels
       }
     }
 
-    private static void SaveIsRandomEnabled(bool value)
-    {
-      var root = ConfigUtils.LoadRootConfig();
-      root.Global.IsRandomEnabled = value;
-      ConfigUtils.SaveRootConfig(root);
-    }
+    private void SaveIsRandomEnabled(bool value) =>
+      _config.Update(g => g.IsRandomEnabled = value);
 
     private bool _disableSv = false;
     public bool DisableSv
@@ -412,12 +397,8 @@ namespace OsuMate.ViewModels
       }
     }
 
-    private static void SaveDisableSv(bool value)
-    {
-      var root = ConfigUtils.LoadRootConfig();
-      root.Global.DisableSv = value;
-      ConfigUtils.SaveRootConfig(root);
-    }
+    private void SaveDisableSv(bool value) =>
+      _config.Update(g => g.DisableSv = value);
 
     private bool _isRandomAvailable = true;
     public bool IsRandomAvailable
@@ -459,12 +440,8 @@ namespace OsuMate.ViewModels
       }
     }
 
-    private static void SaveAdjustPitchWithSpeed(bool value)
-    {
-      var root = ConfigUtils.LoadRootConfig();
-      root.Global.AdjustPitchWithSpeed = value;
-      ConfigUtils.SaveRootConfig(root);
-    }
+    private void SaveAdjustPitchWithSpeed(bool value) =>
+      _config.Update(g => g.AdjustPitchWithSpeed = value);
 
     private bool _isGenerating = false;
     public bool IsGenerating
@@ -503,13 +480,18 @@ namespace OsuMate.ViewModels
 
     public bool CanGenerate => IsBeatmapLoaded && !IsGenerating && !IsOriginalMapMissing;
 
-    public TrainerViewModel(BeatmapTrainerService trainerService, OsuMemoryService memory)
+    public TrainerViewModel(
+      BeatmapTrainerService trainerService,
+      OsuMemoryService memory,
+      ConfigStore config
+    )
     {
       _trainerService = trainerService;
       _memory = memory;
+      _config = config;
       _dispatcher = Dispatcher.CurrentDispatcher;
 
-      var globalConfig = ConfigUtils.LoadGlobalConfig();
+      var globalConfig = _config.Global;
       _adjustPitchWithSpeed = globalConfig.AdjustPitchWithSpeed;
       _isRandomEnabled = globalConfig.IsRandomEnabled;
       _disableSv = globalConfig.DisableSv;
@@ -540,7 +522,7 @@ namespace OsuMate.ViewModels
         }
         catch (Exception ex)
         {
-          LogUtils.DebugLogger($"[Trainer] Failed to load beatmap: {ex.Message}", true);
+          LogUtils.DebugLogger($"[Trainer] Failed to load beatmap: {ex}", true);
           return;
         }
 
@@ -559,7 +541,7 @@ namespace OsuMate.ViewModels
             catch (Exception ex)
             {
               LogUtils.DebugLogger(
-                $"[Trainer] Failed to load original beatmap: {ex.Message}",
+                $"[Trainer] Failed to load original beatmap: {ex}",
                 true
               );
               _lastActualPath = string.Empty;
@@ -585,7 +567,7 @@ namespace OsuMate.ViewModels
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger($"[Trainer] Unexpected exception in PollBeatmap: {ex.Message}", true);
+        LogUtils.DebugLogger($"[Trainer] Unexpected exception in PollBeatmap: {ex}", true);
       }
     }
 
@@ -697,8 +679,14 @@ namespace OsuMate.ViewModels
       }
     }
 
+    private bool _disposed;
+
     public void Dispose()
     {
+      if (_disposed)
+        return;
+      _disposed = true;
+
       _pollTimer.Dispose();
       _generationCts?.Cancel();
       _generationCts?.Dispose();

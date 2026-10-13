@@ -11,7 +11,9 @@ namespace OsuMate.Views.Controls
 {
   public partial class SettingsView : UserControl
   {
-    private SettingsViewModel Vm => (SettingsViewModel)DataContext;
+    private SettingsViewModel Vm =>
+      DataContext as SettingsViewModel
+      ?? throw new InvalidOperationException("SettingsView.DataContext must be a SettingsViewModel.");
 
     private readonly DragReorderController<OverlayItem> _chipDrag;
     private readonly DragReorderController<LogColumnItem> _logColumnDrag;
@@ -23,8 +25,8 @@ namespace OsuMate.Views.Controls
       _chipDrag = new DragReorderController<OverlayItem>(
         this,
         ChipList,
-        () => Vm.Items,
-        (from, to) => Vm.MoveItem(from, to)
+        () => Vm.Overlay.Items,
+        (from, to) => Vm.Overlay.MoveItem(from, to)
       );
 
       _logColumnDrag = new DragReorderController<LogColumnItem>(
@@ -35,36 +37,12 @@ namespace OsuMate.Views.Controls
       );
     }
 
-    private void URBarRotateLeft_Click(object sender, System.Windows.RoutedEventArgs e)
-    {
-      if (DataContext is SettingsViewModel vm)
-        vm.URBarRotation -= 90;
-    }
-
-    private void URBarRotateRight_Click(object sender, System.Windows.RoutedEventArgs e)
-    {
-      if (DataContext is SettingsViewModel vm)
-        vm.URBarRotation += 90;
-    }
-
-    private void KeyOverlayRotateLeft_Click(object sender, System.Windows.RoutedEventArgs e)
-    {
-      if (DataContext is SettingsViewModel vm)
-        vm.KeyOverlay.KeyOverlayRotation -= 90;
-    }
-
-    private void KeyOverlayRotateRight_Click(object sender, System.Windows.RoutedEventArgs e)
-    {
-      if (DataContext is SettingsViewModel vm)
-        vm.KeyOverlay.KeyOverlayRotation += 90;
-    }
-
     private void GetAppPosition_Click(object sender, RoutedEventArgs e)
     {
       var window = Window.GetWindow(this);
       if (window != null)
       {
-        Vm.SetAppPosition(window.Left, window.Top);
+        Vm.Position.SetAppPosition(window.Left, window.Top);
       }
     }
 
@@ -73,8 +51,8 @@ namespace OsuMate.Views.Controls
       var window = Window.GetWindow(this);
       if (window != null)
       {
-        window.Left = Vm.AppX;
-        window.Top = Vm.AppY;
+        window.Left = Vm.Position.AppX;
+        window.Top = Vm.Position.AppY;
       }
     }
 
@@ -85,7 +63,7 @@ namespace OsuMate.Views.Controls
       {
         if (Win32Interop.GetWindowRect(handle, out var rect))
         {
-          Vm.SetOsuPosition(rect.Left, rect.Top);
+          Vm.Position.SetOsuPosition(rect.Left, rect.Top);
         }
       }
       else
@@ -107,8 +85,8 @@ namespace OsuMate.Views.Controls
         Win32Interop.SetWindowPos(
           handle,
           IntPtr.Zero,
-          (int)Vm.OsuX,
-          (int)Vm.OsuY,
+          (int)Vm.Position.OsuX,
+          (int)Vm.Position.OsuY,
           0,
           0,
           Win32Interop.SWP_NOSIZE | Win32Interop.SWP_NOZORDER
@@ -124,35 +102,6 @@ namespace OsuMate.Views.Controls
         );
       }
     }
-
-    private void SaveURBarSize_Click(object sender, RoutedEventArgs e) => Vm.RequestSaveURBarSize();
-
-    private void ApplyURBarSize_Click(object sender, RoutedEventArgs e) =>
-      Vm.RequestApplyURBarSize();
-
-    private void SaveURBarPosition_Click(object sender, RoutedEventArgs e) =>
-      Vm.RequestSaveURBarPosition();
-
-    private void ApplyURBarPosition_Click(object sender, RoutedEventArgs e) =>
-      Vm.RequestApplyURBarPosition();
-
-    private void SaveKeyOverlayPosition_Click(object sender, RoutedEventArgs e) =>
-      Vm.KeyOverlay.RequestSaveKeyOverlayPosition();
-
-    private void ApplyKeyOverlayPosition_Click(object sender, RoutedEventArgs e) =>
-      Vm.KeyOverlay.RequestApplyKeyOverlayPosition();
-
-    private void SaveKeyOverlayFlowLength_Click(object sender, RoutedEventArgs e) =>
-      Vm.KeyOverlay.RequestSaveKeyOverlayFlowLength();
-
-    private void ApplyKeyOverlayFlowLength_Click(object sender, RoutedEventArgs e) =>
-      Vm.KeyOverlay.RequestApplyKeyOverlayFlowLength();
-
-    private void SaveOverlayPosition_Click(object sender, RoutedEventArgs e) =>
-      Vm.RequestSaveOverlayPosition();
-
-    private void ApplyOverlayPosition_Click(object sender, RoutedEventArgs e) =>
-      Vm.RequestApplyOverlayPosition();
 
     private void BrowseAutoLaunchOsuPath_Click(object sender, RoutedEventArgs e)
     {
@@ -194,19 +143,6 @@ namespace OsuMate.Views.Controls
     private void LogColumn_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
       _logColumnDrag.OnItemMouseLeftButtonDown(sender, e);
 
-    private void NewPreset_Click(object sender, RoutedEventArgs e)
-    {
-      Vm.CreatePreset("New Preset");
-    }
-
-    private void DuplicatePreset_Click(object sender, RoutedEventArgs e)
-    {
-      var current = Vm.SelectedPreset;
-      if (current == null)
-        return;
-      Vm.DuplicatePreset(current.Id, current.Name + " - Copy");
-    }
-
     private void DeletePreset_Click(object sender, RoutedEventArgs e)
     {
       var current = Vm.SelectedPreset;
@@ -224,14 +160,6 @@ namespace OsuMate.Views.Controls
       }
     }
 
-    private void RenamePreset_Click(object sender, RoutedEventArgs e)
-    {
-      var current = Vm.SelectedPreset;
-      if (current == null)
-        return;
-      Vm.RenamePreset(current.Id, PresetNameBox.Text);
-    }
-
     private void AddTargetPlayerName_Click(object sender, RoutedEventArgs e)
     {
       Vm.AddTargetPlayerName(TargetPlayerNameInput.Text);
@@ -244,12 +172,6 @@ namespace OsuMate.Views.Controls
         return;
       Vm.AddTargetPlayerName(TargetPlayerNameInput.Text);
       TargetPlayerNameInput.Clear();
-    }
-
-    private void RemoveTargetPlayerName_Click(object sender, RoutedEventArgs e)
-    {
-      if (sender is FrameworkElement { Tag: string name })
-        Vm.RemoveTargetPlayerName(name);
     }
 
     private void CommitOnEnter_KeyDown(object sender, KeyEventArgs e)

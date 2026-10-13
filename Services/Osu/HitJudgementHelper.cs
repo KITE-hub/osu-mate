@@ -1,23 +1,9 @@
 ﻿using osu.Game.Rulesets.Scoring;
-using OsuMate.Models;
-using OsuMate.Utils;
-using OxyPlot;
 
 namespace OsuMate.Services.Osu
 {
   internal static class HitJudgementHelper
   {
-    public static OxyColor GetOxyColor(int judgement, ThemeSettings theme) =>
-      judgement switch
-      {
-        1 => ColorUtils.OxyFromHsl(180, theme.PlotSaturation, theme.PlotLightness),
-        2 => ColorUtils.OxyFromHsl(45, theme.PlotSaturation, theme.PlotLightness),
-        3 => ColorUtils.OxyFromHsl(120, theme.PlotSaturation, theme.PlotLightness),
-        4 => ColorUtils.OxyFromHsl(210, theme.PlotSaturation, theme.PlotLightness),
-        5 => ColorUtils.OxyFromHsl(300, theme.PlotSaturation, theme.PlotLightness),
-        _ => ColorUtils.OxyFromHsl(0, 0, theme.PlotLightness),
-      };
-
     public static int GetJudgement(double offsetMs, IReadOnlyDictionary<HitResult, double> hitWindows)
     {
       double abs = Math.Abs(offsetMs);

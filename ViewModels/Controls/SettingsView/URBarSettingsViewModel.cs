@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using OsuMate.Models;
 
 namespace OsuMate.ViewModels
@@ -8,6 +9,27 @@ namespace OsuMate.ViewModels
     public event Action? OnApplyURBarPositionRequested;
     public event Action? OnSaveURBarSizeRequested;
     public event Action? OnApplyURBarSizeRequested;
+
+    private ICommand? _rotateLeftCommand;
+    private ICommand? _rotateRightCommand;
+    private ICommand? _saveSizeCommand;
+    private ICommand? _applySizeCommand;
+    private ICommand? _savePositionCommand;
+    private ICommand? _applyPositionCommand;
+
+    public ICommand RotateLeftCommand => _rotateLeftCommand ??= new RelayCommand(_ => URBarRotation -= 90);
+
+    public ICommand RotateRightCommand => _rotateRightCommand ??= new RelayCommand(_ => URBarRotation += 90);
+
+    public ICommand SaveSizeCommand => _saveSizeCommand ??= new RelayCommand(_ => RequestSaveURBarSize());
+
+    public ICommand ApplySizeCommand => _applySizeCommand ??= new RelayCommand(_ => RequestApplyURBarSize());
+
+    public ICommand SavePositionCommand =>
+      _savePositionCommand ??= new RelayCommand(_ => RequestSaveURBarPosition());
+
+    public ICommand ApplyPositionCommand =>
+      _applyPositionCommand ??= new RelayCommand(_ => RequestApplyURBarPosition());
 
     public void RequestSaveURBarPosition() => OnSaveURBarPositionRequested?.Invoke();
 

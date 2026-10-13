@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using System.Collections.ObjectModel;
 using OsuMate.Models;
 using OsuMate.Utils;
@@ -8,27 +9,38 @@ namespace OsuMate.ViewModels
   {
     private static readonly (int id, string label)[] ItemDefinitions =
     [
-      (1, "SR"),
-      (2, "SS pp"),
-      (3, "Lossmode pp"),
-      (4, "Predicted pp"),
-      (5, "Current pp"),
-      (6, "Accuracy"),
-      (7, "Hits"),
-      (8, "Avg offset"),
-      (9, "Universal offset help"),
-      (10, "Local offset help"),
-      (11, "UR"),
-      (12, "Progress %"),
-      (13, "Remaining notes"),
-      (14, "BPM"),
-      (15, "Best pp"),
+      (OverlayLineIds.StarRating, "SR"),
+      (OverlayLineIds.SsPp, "SS pp"),
+      (OverlayLineIds.LossPp, "Lossmode pp"),
+      (OverlayLineIds.PredictedPp, "Predicted pp"),
+      (OverlayLineIds.CurrentPp, "Current pp"),
+      (OverlayLineIds.Accuracy, "Accuracy"),
+      (OverlayLineIds.Hits, "Hits"),
+      (OverlayLineIds.AverageOffset, "Avg offset"),
+      (OverlayLineIds.UniversalOffsetHelp, "Universal offset help"),
+      (OverlayLineIds.LocalOffsetHelp, "Local offset help"),
+      (OverlayLineIds.UnstableRate, "UR"),
+      (OverlayLineIds.Progress, "Progress %"),
+      (OverlayLineIds.RemainingNotes, "Remaining notes"),
+      (OverlayLineIds.Bpm, "BPM"),
+      (OverlayLineIds.BestPp, "Best pp"),
     ];
 
-    public ObservableCollection<OverlayItem> Items { get; } = [];
+    private readonly PriorityListSettings<OverlayItem> _items;
+
+    public ObservableCollection<OverlayItem> Items => _items.Items;
 
     public event Action? OnSaveOverlayPositionRequested;
     public event Action? OnApplyOverlayPositionRequested;
+
+    private ICommand? _savePositionCommand;
+    private ICommand? _applyPositionCommand;
+
+    public ICommand SavePositionCommand =>
+      _savePositionCommand ??= new RelayCommand(_ => RequestSaveOverlayPosition());
+
+    public ICommand ApplyPositionCommand =>
+      _applyPositionCommand ??= new RelayCommand(_ => RequestApplyOverlayPosition());
 
     public void RequestSaveOverlayPosition() => OnSaveOverlayPositionRequested?.Invoke();
 
@@ -37,8 +49,6 @@ namespace OsuMate.ViewModels
     private readonly Func<PresetConfig> _presetConfig;
     private readonly Action _save;
     private readonly Action _debouncedSave;
-
-    private readonly object _itemsLock = new();
 
     public OverlaySettingsViewModel(
       Func<PresetConfig> presetConfig,
@@ -49,6 +59,13 @@ namespace OsuMate.ViewModels
       _presetConfig = presetConfig;
       _save = save;
       _debouncedSave = debouncedSave;
+      _items = new PriorityListSettings<OverlayItem>(
+        ItemDefinitions,
+        "1/2/3/4/5/6/7/8/9/10/11/12/13/14/15",
+        false,
+        (id, label, enabled) => new OverlayItem { Id = id, Label = label, IsEnabled = enabled },
+        save
+      );
       LoadItems();
     }
 
@@ -119,116 +136,13 @@ namespace OsuMate.ViewModels
       }
     }
 
-    public void LoadItems()
-    {
-      try
-      {
-        var priority =
-          _presetConfig().InGameOverlayPriority ?? "1/2/3/4/5/6/7/8/9/10/11/12/13/14/15";
-        var tokens = priority.Split('/', StringSplitOptions.RemoveEmptyEntries);
+    public void LoadItems() => _items.Load(_presetConfig().InGameOverlayPriority);
 
-        var ordered = tokens
-          .Select(t =>
-          {
-            bool enabled = !t.StartsWith('-');
-            string raw = enabled ? t : t[1..];
-            if (int.TryParse(raw, out int id))
-              return (Id: id, Enabled: enabled);
-            return (Id: -1, Enabled: false);
-          })
-          .Where(x => x.Id > 0)
-          .ToList();
+    public void MoveItem(int fromIndex, int toIndex) => _items.Move(fromIndex, toIndex);
 
-        var orderedIds = ordered.Select(x => x.Id).ToList();
+    public void ToggleItem(OverlayItem item) => _items.Toggle(item);
 
-        lock (_itemsLock)
-        {
-          Items.Clear();
-          foreach (var item in ordered)
-          {
-            var def = ItemDefinitions.FirstOrDefault(d => d.id == item.Id);
-            if (def == default)
-              continue;
-            Items.Add(
-              new OverlayItem
-              {
-                Id = item.Id,
-                Label = def.label,
-                IsEnabled = item.Enabled,
-              }
-            );
-          }
-
-          foreach (var def in ItemDefinitions)
-          {
-            if (orderedIds.Contains(def.id))
-              continue;
-            Items.Add(
-              new OverlayItem
-              {
-                Id = def.id,
-                Label = def.label,
-                IsEnabled = false,
-              }
-            );
-          }
-        }
-      }
-      catch (Exception e)
-      {
-        LogUtils.DebugLogger("OverlaySettingsViewModel.LoadItems failed: " + e.Message, true);
-        LoadDefaultItems();
-      }
-    }
-
-    private void LoadDefaultItems()
-    {
-      lock (_itemsLock)
-      {
-        Items.Clear();
-        foreach (var def in ItemDefinitions)
-          Items.Add(
-            new OverlayItem
-            {
-              Id = def.id,
-              Label = def.label,
-              IsEnabled = true,
-            }
-          );
-      }
-    }
-
-    public void MoveItem(int fromIndex, int toIndex)
-    {
-      if (fromIndex == toIndex)
-        return;
-      if (fromIndex < 0 || fromIndex >= Items.Count)
-        return;
-      if (toIndex < 0 || toIndex >= Items.Count)
-        return;
-      lock (_itemsLock)
-      {
-        var item = Items[fromIndex];
-        Items.RemoveAt(fromIndex);
-        Items.Insert(toIndex, item);
-      }
-      _save();
-    }
-
-    public void ToggleItem(OverlayItem item)
-    {
-      lock (_itemsLock)
-      {
-        item.IsEnabled = !item.IsEnabled;
-      }
-      _save();
-    }
-
-    public string ToPriorityString()
-    {
-      lock (_itemsLock)
-        return string.Join("/", Items.Select(i => i.IsEnabled ? i.Id.ToString() : $"-{i.Id}"));
-    }
+    public string ToPriorityString() => _items.ToPriorityString();
 
     public void NotifyPresetApplied()
     {

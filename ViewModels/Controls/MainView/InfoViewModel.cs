@@ -10,275 +10,175 @@ namespace OsuMate.ViewModels
     public string Sr
     {
       get => _sr;
-      set
-      {
-        _sr = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _sr, value);
     }
 
     private string _od = "-";
     public string Od
     {
       get => _od;
-      set
-      {
-        _od = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _od, value);
     }
 
     private string _bpm = "-";
     public string Bpm
     {
       get => _bpm;
-      set
-      {
-        _bpm = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _bpm, value);
     }
 
     private string _bpmRange = "";
     public string BpmRange
     {
       get => _bpmRange;
-      set
-      {
-        _bpmRange = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _bpmRange, value);
     }
 
     private string _hitObject = "-";
     public string HitObject
     {
       get => _hitObject;
-      set
-      {
-        _hitObject = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _hitObject, value);
     }
 
     private string _time = "-";
     public string Time
     {
       get => _time;
-      set
-      {
-        _time = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _time, value);
     }
 
     private string _density = "-";
     public string Density
     {
       get => _density;
-      set
-      {
-        _density = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _density, value);
     }
 
     private string _hitGeki = "-";
     public string HitGeki
     {
       get => _hitGeki;
-      set
-      {
-        _hitGeki = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _hitGeki, value);
     }
 
     private string _hit300 = "-";
     public string Hit300
     {
       get => _hit300;
-      set
-      {
-        _hit300 = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _hit300, value);
     }
 
     private string _hitKatu = "-";
     public string HitKatu
     {
       get => _hitKatu;
-      set
-      {
-        _hitKatu = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _hitKatu, value);
     }
 
     private string _hit100 = "-";
     public string Hit100
     {
       get => _hit100;
-      set
-      {
-        _hit100 = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _hit100, value);
     }
 
     private string _hit50 = "-";
     public string Hit50
     {
       get => _hit50;
-      set
-      {
-        _hit50 = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _hit50, value);
     }
 
     private string _hitMiss = "-";
     public string HitMiss
     {
       get => _hitMiss;
-      set
-      {
-        _hitMiss = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _hitMiss, value);
     }
 
     private string _windowPerfect = "";
     public string WindowPerfect
     {
       get => _windowPerfect;
-      set
-      {
-        _windowPerfect = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _windowPerfect, value);
     }
 
     private string _window300 = "";
     public string Window300
     {
       get => _window300;
-      set
-      {
-        _window300 = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _window300, value);
     }
 
     private string _window200 = "";
     public string Window200
     {
       get => _window200;
-      set
-      {
-        _window200 = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _window200, value);
     }
 
     private string _window100 = "";
     public string Window100
     {
       get => _window100;
-      set
-      {
-        _window100 = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _window100, value);
     }
 
     private string _window50 = "";
     public string Window50
     {
       get => _window50;
-      set
-      {
-        _window50 = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _window50, value);
     }
 
     private bool _isGekiVisible;
     public bool IsGekiVisible
     {
       get => _isGekiVisible;
-      set
-      {
-        _isGekiVisible = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _isGekiVisible, value);
     }
 
     private bool _isKatuVisible;
     public bool IsKatuVisible
     {
       get => _isKatuVisible;
-      set
-      {
-        _isKatuVisible = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _isKatuVisible, value);
     }
 
     private bool _is50Visible;
     public bool Is50Visible
     {
       get => _is50Visible;
-      set
-      {
-        _is50Visible = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _is50Visible, value);
     }
 
     private string _ssPp = "-";
     public string SsPp
     {
       get => _ssPp;
-      set
-      {
-        _ssPp = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _ssPp, value);
     }
 
     private string _lossModePp = "-";
     public string LossModePp
     {
       get => _lossModePp;
-      set
-      {
-        _lossModePp = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _lossModePp, value);
     }
 
     private string _predictedPp = "-";
     public string PredictedPp
     {
       get => _predictedPp;
-      set
-      {
-        _predictedPp = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _predictedPp, value);
     }
 
     private string _currentPp = "-";
     public string CurrentPp
     {
       get => _currentPp;
-      set
-      {
-        _currentPp = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _currentPp, value);
     }
 
     private string _bestPp = "-";
@@ -286,11 +186,7 @@ namespace OsuMate.ViewModels
     public string BestPp
     {
       get => _bestPp;
-      set
-      {
-        _bestPp = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _bestPp, value);
     }
 
     private string _latestPlayedAt = "-";
@@ -298,11 +194,7 @@ namespace OsuMate.ViewModels
     public string LatestPlayedAt
     {
       get => _latestPlayedAt;
-      set
-      {
-        _latestPlayedAt = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _latestPlayedAt, value);
     }
 
     private string _bestPpAchievedAt = "-";
@@ -310,66 +202,42 @@ namespace OsuMate.ViewModels
     public string BestPpAchievedAt
     {
       get => _bestPpAchievedAt;
-      set
-      {
-        _bestPpAchievedAt = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _bestPpAchievedAt, value);
     }
 
     private string _accuracy = "-";
     public string Accuracy
     {
       get => _accuracy;
-      set
-      {
-        _accuracy = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _accuracy, value);
     }
 
     private string _modifiedAvgOffset = "-";
     public string ModifiedAvgOffset
     {
       get => _modifiedAvgOffset;
-      set
-      {
-        _modifiedAvgOffset = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _modifiedAvgOffset, value);
     }
 
     private string _modifiedAvgOffsetStdev = "";
     public string ModifiedAvgOffsetStdev
     {
       get => _modifiedAvgOffsetStdev;
-      set
-      {
-        _modifiedAvgOffsetStdev = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _modifiedAvgOffsetStdev, value);
     }
 
     private string _rawUR = "-";
     public string RawUR
     {
       get => _rawUR;
-      set
-      {
-        _rawUR = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _rawUR, value);
     }
 
     private string _modifiedUR = "";
     public string ModifiedUR
     {
       get => _modifiedUR;
-      set
-      {
-        _modifiedUR = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _modifiedUR, value);
     }
 
     private string _localOffsetHelp = "-";
@@ -377,11 +245,7 @@ namespace OsuMate.ViewModels
     public string LocalOffsetHelp
     {
       get => _localOffsetHelp;
-      set
-      {
-        _localOffsetHelp = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _localOffsetHelp, value);
     }
 
     private string _universalOffsetHelp = "-";
@@ -389,11 +253,7 @@ namespace OsuMate.ViewModels
     public string UniversalOffsetHelp
     {
       get => _universalOffsetHelp;
-      set
-      {
-        _universalOffsetHelp = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _universalOffsetHelp, value);
     }
 
     internal void UpdateMapInfo(
@@ -419,8 +279,7 @@ namespace OsuMate.ViewModels
 
       double currentTimeSec = (audioTime * speedMultiplier - data.FirstObjectTimeModified) / 1000.0;
       double duration = (data.LastObjectTimeModified - data.FirstObjectTimeModified) / 1000.0;
-      Time =
-        $"{TimeSpan.FromSeconds(Math.Max(0, currentTimeSec)):mm\\:ss} / {TimeSpan.FromSeconds(duration):mm\\:ss}";
+      Time = FormatPlaybackTime(currentTimeSec, duration);
 
       double density =
         MathUtils.IsNaNWithNum(data.TotalHitObjectCount) / (duration == 0 ? 1 : duration);
@@ -437,24 +296,32 @@ namespace OsuMate.ViewModels
       HitMiss = hits.HitMiss.ToString();
     }
 
+    private static string FormatHitWindow(BeatmapData data, HitResult result) =>
+      data.ModifiedHitWindows.TryGetValue(result, out double window) && window > 0
+        ? $" (± {window:F2} ms)"
+        : "-";
+
+    private static string FormatPlaybackTime(double currentSeconds, double durationSeconds)
+    {
+      var current = TimeSpan.FromSeconds(Math.Max(0, currentSeconds));
+      var duration = TimeSpan.FromSeconds(Math.Max(0, durationSeconds));
+      var format = duration.TotalHours >= 1 ? @"h\:mm\:ss" : @"mm\:ss";
+      return $"{current.ToString(format)} / {duration.ToString(format)}";
+    }
+
     internal void UpdateJudge(BeatmapData data, HitsResult hits, int gamemode)
     {
       UpdateHits(hits);
 
-      if (data.ModifiedHitWindows.TryGetValue(HitResult.Perfect, out double perfect))
-        WindowPerfect = $" (± {perfect:F2} ms)";
-      if (data.ModifiedHitWindows.TryGetValue(HitResult.Great, out double great))
-        Window300 = $" (± {great:F2} ms)";
-      if (data.ModifiedHitWindows.TryGetValue(HitResult.Good, out double good))
-        Window200 = $" (± {good:F2} ms)";
-      if (data.ModifiedHitWindows.TryGetValue(HitResult.Ok, out double ok))
-        Window100 = $" (± {ok:F2} ms)";
-      if (data.ModifiedHitWindows.TryGetValue(HitResult.Meh, out double meh))
-        Window50 = $" (± {meh:F2} ms)";
+      WindowPerfect = FormatHitWindow(data, HitResult.Perfect);
+      Window300 = FormatHitWindow(data, HitResult.Great);
+      Window200 = FormatHitWindow(data, HitResult.Good);
+      Window100 = FormatHitWindow(data, HitResult.Ok);
+      Window50 = FormatHitWindow(data, HitResult.Meh);
 
-      IsGekiVisible = gamemode == 3;
-      IsKatuVisible = gamemode == 3;
-      Is50Visible = gamemode == 0 || gamemode == 2 || gamemode == 3;
+      IsGekiVisible = gamemode == OsuMode.Mania;
+      IsKatuVisible = gamemode == OsuMode.Mania;
+      Is50Visible = gamemode is OsuMode.Osu or OsuMode.Catch or OsuMode.Mania;
     }
 
     internal void UpdateBestPp(double? bestPp)
@@ -462,9 +329,9 @@ namespace OsuMate.ViewModels
       BestPp = bestPp.HasValue ? bestPp.Value.ToString("F2") : "-";
     }
 
-    internal void UpdatePlayedAt(DateTime? latestPlayedAt, DateTime? bestPpPlayedAt)
+    internal void UpdatePlayedAt(DateTimeOffset? latestPlayedAt, DateTimeOffset? bestPpPlayedAt)
     {
-      static string Format(DateTime? d) => d.HasValue ? d.Value.ToString("yyyy-MM-dd") : "-";
+      static string Format(DateTimeOffset? d) => d.HasValue ? d.Value.ToString("yyyy-MM-dd") : "-";
       LatestPlayedAt = Format(latestPlayedAt);
       BestPpAchievedAt = Format(bestPpPlayedAt);
     }

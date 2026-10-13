@@ -1,8 +1,10 @@
 using osu.Game.Rulesets.Difficulty.Skills;
 
-namespace OsuMate.Models;
-
-internal interface IExtendedDifficultyCalculator
+namespace OsuMate.Models
 {
-  Skill[] GetSkills();
+
+  internal interface IExtendedDifficultyCalculator
+  {
+    Skill[] GetSkills();
+  }
 }

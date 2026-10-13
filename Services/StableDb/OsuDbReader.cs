@@ -19,16 +19,19 @@ namespace OsuMate.Services.StableDb
       return reader.Parse();
     }
 
+    private const int MaxInitialCapacity = 1 << 16;
+
     private Dictionary<string, BeatmapInfo> Parse()
     {
       Version = ReadInt32();
       int folderCount = ReadInt32();
-      bool accountUnlocked = ReadByte() != 0;
-      long dateUnlockTicks = ReadInt64();
+      Skip(sizeof(byte) + sizeof(long));
       PlayerName = ReadString();
       int numBeatmaps = ReadInt32();
+      if (numBeatmaps < 0)
+        throw new InvalidDataException($"Invalid beatmap count {numBeatmaps}.");
 
-      var result = new Dictionary<string, BeatmapInfo>(numBeatmaps);
+      var result = new Dictionary<string, BeatmapInfo>(Math.Min(numBeatmaps, MaxInitialCapacity));
 
       for (int i = 0; i < numBeatmaps; i++)
       {

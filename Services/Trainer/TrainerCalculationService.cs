@@ -35,6 +35,7 @@ namespace OsuMate.Services.Trainer
   {
     private const decimal MinDifficulty = 0.0M;
     private const decimal MaxDifficulty = 10.0M;
+    private const int MaxBatchCount = 20;
 
     public static decimal ClampDifficulty(decimal value) =>
       Math.Max(MinDifficulty, Math.Min(MaxDifficulty, value));
@@ -45,25 +46,47 @@ namespace OsuMate.Services.Trainer
         ? newValue
         : null;
 
+    public static decimal ComputeNewAR(decimal ar, decimal rate)
+    {
+      double arMs =
+        (double)ar <= 5.0 ? 1800.0 - 120.0 * (double)ar : 1200.0 - 150.0 * ((double)ar - 5.0);
+      double newArMs = arMs / (double)rate;
+      double newAr =
+        newArMs >= 1200.0 ? (1800.0 - newArMs) / 120.0 : 5.0 + (1200.0 - newArMs) / 150.0;
+      return (decimal)Math.Clamp(newAr, 0.0, 11.0);
+    }
+
+    public static decimal ComputeNewOD(decimal od, decimal rate)
+    {
+      double odMs = 80.0 - 6.0 * (double)od;
+      double newOdMs = odMs / (double)rate;
+      double newOd = (80.0 - newOdMs) / 6.0;
+      return (decimal)Math.Clamp(newOd, 0.0, 11.0);
+    }
+
     public static decimal ComputeApproachRate(
       decimal arBase,
       decimal rate,
       bool scaleEnabled,
       bool hasOriginal
-    ) => scaleEnabled && hasOriginal ? OsuBeatmapFile.ComputeNewAR(arBase, rate) : arBase;
+    ) => scaleEnabled && hasOriginal ? ComputeNewAR(arBase, rate) : arBase;
 
     public static decimal ComputeOverallDifficulty(
       decimal odBase,
       decimal rate,
       bool scaleEnabled,
       bool hasOriginal
-    ) => scaleEnabled && hasOriginal ? OsuBeatmapFile.ComputeNewOD(odBase, rate) : odBase;
+    ) => scaleEnabled && hasOriginal ? ComputeNewOD(odBase, rate) : odBase;
 
     public static List<BatchPreviewData> ComputeBatchPreviews(BatchPreviewRequest request)
     {
       var results = new List<BatchPreviewData>();
 
-      for (int i = 0; i < request.Count; i++)
+      int count = Math.Clamp(request.Count, 0, MaxBatchCount);
+      if (request.Step <= 0)
+        count = Math.Min(count, 1);
+
+      for (int i = 0; i < count; i++)
       {
         decimal rate = request.StartRate + (request.Step * i);
         if (rate > request.MaxRate)

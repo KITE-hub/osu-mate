@@ -2,13 +2,16 @@ using System;
 using System.Linq;
 using OsuMate.Models;
 using OsuMate.Services.Osu;
+using System.Globalization;
 
 namespace OsuMate.Services.PlayLog
 {
   public static class PlayLogKeyBuilder
   {
-    public static DateTime FileTimeToLocal(long ticks)
+    public static DateTime TicksToLocalTime(long ticks)
     {
+      if (ticks < 0 || ticks > DateTime.MaxValue.Ticks)
+        return DateTime.MinValue;
       return new DateTime(ticks, DateTimeKind.Utc).ToLocalTime();
     }
 
@@ -34,7 +37,7 @@ namespace OsuMate.Services.PlayLog
     public static string MakeInterruptedKey(PlayLogEntry e)
     {
       var playerName = e.PlayerName == "Guest" ? "" : e.PlayerName;
-      return $"mem|{e.BeatmapMd5}|{playerName}|{e.PlayedAt:yyyyMMddHHmmssfff}";
+      return $"mem|{e.BeatmapMd5}|{playerName}|{e.PlayedAt.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture)}";
     }
 
     public static string FormatModsString(int modsRaw)

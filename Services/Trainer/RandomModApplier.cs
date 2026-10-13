@@ -9,7 +9,7 @@ namespace OsuMate.Services.Trainer
     private const float PlayfieldHeight = 384f;
     private static readonly Vector2 PlayfieldCentre = new(PlayfieldWidth / 2f, PlayfieldHeight / 2f);
 
-    public static bool IsSupported(int mode) => mode != 2;
+    public static bool IsSupported(int mode) => mode != Models.OsuMode.Catch;
 
     public static List<string> Apply(
       IReadOnlyList<string> hitObjectLines,
@@ -116,15 +116,11 @@ namespace OsuMate.Services.Trainer
       return new Vector2(clampedX, clampedY);
     }
 
-    private static Vector2 Rotate(Vector2 v, float radians)
-    {
-      float cos = MathF.Cos(radians);
-      float sin = MathF.Sin(radians);
-      return new Vector2(v.X * cos - v.Y * sin, v.X * sin + v.Y * cos);
-    }
+    private static Vector2 RotateBy(Vector2 v, float cos, float sin) =>
+      new(v.X * cos - v.Y * sin, v.X * sin + v.Y * cos);
 
-    private static Vector2 ApplyFlipRotation(Vector2 offset, bool flip, float rotation) =>
-      Rotate(flip ? new Vector2(-offset.X, offset.Y) : offset, rotation);
+    private static Vector2 ApplyFlipRotationBy(Vector2 offset, bool flip, float cos, float sin) =>
+      RotateBy(flip ? new Vector2(-offset.X, offset.Y) : offset, cos, sin);
 
     private static List<Vector2> TransformOffsets(
       Vector2 headPosition,
@@ -133,9 +129,11 @@ namespace OsuMate.Services.Trainer
       float rotation
     )
     {
+      float cos = MathF.Cos(rotation);
+      float sin = MathF.Sin(rotation);
       var points = new List<Vector2>(offsets.Count);
       foreach (var offset in offsets)
-        points.Add(headPosition + ApplyFlipRotation(offset, flip, rotation));
+        points.Add(headPosition + ApplyFlipRotationBy(offset, flip, cos, sin));
       return points;
     }
 
@@ -157,10 +155,12 @@ namespace OsuMate.Services.Trainer
       float ry
     )
     {
+      float cos = MathF.Cos(rotation);
+      float sin = MathF.Sin(rotation);
       float overflow = 0f;
       foreach (var offset in offsets)
       {
-        var point = headPosition + ApplyFlipRotation(offset, flip, rotation);
+        var point = headPosition + ApplyFlipRotationBy(offset, flip, cos, sin);
         overflow += ComputeAxisOverflow(point.X, rx, PlayfieldWidth - rx);
         overflow += ComputeAxisOverflow(point.Y, ry, PlayfieldHeight - ry);
       }
@@ -453,6 +453,8 @@ namespace OsuMate.Services.Trainer
       return Math.Max(0f, minSeparation - separation);
     }
 
+    private static readonly bool[] FlipOptions = [false, true];
+
     private static (Vector2 Head, bool Flip, float Rotation) ChooseSliderPlacement(
       Vector2 anchor,
       float distance,
@@ -493,12 +495,15 @@ namespace OsuMate.Services.Trainer
           previousShape is not { Count: > 0 }
           || Vector2.Distance(head, previousShape[0]) - shapeRadius - prevShapeRadius >= minSeparation;
 
-        foreach (bool flip in new[] { false, true })
+        foreach (bool flip in FlipOptions)
         {
           for (int s = 0; s < rotationSamples; s++)
           {
             float rotation = (float)(2.0 * Math.PI * (s + random.NextDouble()) / rotationSamples);
             float overflow = ComputeRotatedOverflow(head, collisionOffsets, flip, rotation, rx, ry);
+            if (overflow > 0f && overflow >= bestPenalty)
+              continue;
+
             float overlapDeficit = skipOverlapCheck
               ? 0f
               : ComputeRotatedOverlapDeficit(head, collisionOffsets, flip, rotation, previousShape!, minSeparation);

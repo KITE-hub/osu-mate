@@ -24,12 +24,22 @@ namespace OsuMate.Services
           return false;
         }
 
+        string extension = Path.GetExtension(path);
+        if (
+          !extension.Equals(".exe", StringComparison.OrdinalIgnoreCase)
+          && !extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+          LogUtils.DebugLogger($"OsuLauncherService.TryAutoLaunch: unsupported file type: {path}", true);
+          return false;
+        }
+
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
         return true;
       }
       catch (Exception e)
       {
-        LogUtils.DebugLogger("OsuLauncherService.TryAutoLaunch failed: " + e.Message, true);
+        LogUtils.DebugLogger("OsuLauncherService.TryAutoLaunch failed: " + e, true);
         return false;
       }
     }

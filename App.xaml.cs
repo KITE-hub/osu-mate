@@ -31,7 +31,7 @@ namespace OsuMate
           true,
           writeToFile: true
         );
-        args.Handled = true;
+        args.Handled = Utils.DispatcherUtils.IsRecoverable(args.Exception);
       };
 
       AppDomain.CurrentDomain.UnhandledException += (s, args) =>
@@ -72,35 +72,38 @@ namespace OsuMate
         }
         catch (Exception ex)
         {
-          Utils.LogUtils.DebugLogger("Auto launch osu failed: " + ex.Message, true);
+          Utils.LogUtils.DebugLogger("Auto launch osu failed: " + ex, true);
         }
       });
 
       ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-      ServiceProvider.GetRequiredService<WindowManagerService>();
+      var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
+      mainWindow.Show();
 
-      var uiThread = new Thread(() =>
-      {
-        var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
-        mainWindow.Show();
-        Dispatcher.Run();
-      });
-      uiThread.SetApartmentState(ApartmentState.STA);
-      uiThread.IsBackground = false;
-      uiThread.Start();
+      ServiceProvider.GetRequiredService<AppLifecycle>().Start();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+      try
+      {
+        (ServiceProvider as IDisposable)?.Dispose();
+      }
+      catch (Exception ex)
+      {
+        Utils.LogUtils.DebugLogger("ServiceProvider dispose failed: " + ex, true, writeToFile: true);
+      }
+
       Utils.TimerResolution.End();
       base.OnExit(e);
     }
 
     private void ConfigureServices(IServiceCollection services)
     {
-      services.AddSingleton<Dispatcher>(_ => Dispatcher.CurrentDispatcher);
+      services.AddSingleton<Dispatcher>(_ => Current.Dispatcher);
 
+      services.AddSingleton<ConfigStore>();
       services.AddSingleton<OsuMemoryService>();
       services.AddSingleton<RawInputService>();
       services.AddSingleton<OsuProcessMonitorService>();
@@ -127,6 +130,7 @@ namespace OsuMate
       services.AddSingleton<PlayLogViewModel>();
       services.AddSingleton<MainViewModel>();
       services.AddSingleton<WindowManagerService>();
+      services.AddSingleton<AppLifecycle>();
 
       services.AddSingleton<BeatmapTrainerService>();
       services.AddSingleton<TrainerViewModel>();

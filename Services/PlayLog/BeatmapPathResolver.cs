@@ -12,7 +12,15 @@ namespace OsuMate.Services.PlayLog
 {
   public class BeatmapPathResolver
   {
+    private static readonly TimeSpan RescanInterval = TimeSpan.FromMinutes(5);
+
     private readonly OsuMemoryService _memory;
+    private readonly object _scanLock = new();
+    private string _scannedSongsPath = "";
+    private DateTime _lastScanAtUtc = DateTime.MinValue;
+    private readonly ConcurrentDictionary<string, DateTime> _missingFileNameAtUtc = new(
+      StringComparer.OrdinalIgnoreCase
+    );
 
     private Dictionary<int, OsuMate.Services.StableDb.BeatmapInfo>? _idMapCache;
     private Dictionary<string, OsuMate.Services.StableDb.BeatmapInfo>? _idMapCacheSource;
@@ -35,11 +43,16 @@ namespace OsuMate.Services.PlayLog
         return null;
       if (!md5Map.TryGetValue(md5, out var info))
         return null;
-      if (string.IsNullOrEmpty(info.FolderName) || string.IsNullOrEmpty(info.OsuFileName))
+      return ResolveExistingPath(info.FolderName, info.OsuFileName);
+    }
+
+    private string? ResolveExistingPath(string? folderName, string? osuFileName)
+    {
+      if (string.IsNullOrWhiteSpace(folderName) || string.IsNullOrWhiteSpace(osuFileName))
         return null;
 
-      var path = Path.Combine(_memory.SongsPath, info.FolderName, info.OsuFileName);
-      return File.Exists(path) ? path : null;
+      var path = SafePath.CombineWithin(_memory.SongsPath, folderName, osuFileName);
+      return path != null && File.Exists(path) ? path : null;
     }
 
     public string? FindBeatmapPathById(
@@ -64,42 +77,55 @@ namespace OsuMate.Services.PlayLog
 
       if (!_idMapCache.TryGetValue(beatmapId, out var beatmapInfo))
         return null;
-      if (
-        string.IsNullOrEmpty(beatmapInfo.FolderName)
-        || string.IsNullOrEmpty(beatmapInfo.OsuFileName)
-      )
-        return null;
-
-      var path = Path.Combine(_memory.SongsPath, beatmapInfo.FolderName, beatmapInfo.OsuFileName);
-      return File.Exists(path) ? path : null;
+      return ResolveExistingPath(beatmapInfo.FolderName, beatmapInfo.OsuFileName);
     }
 
     public string? FindBeatmapPath(int beatmapId)
     {
-      if (!_memory.IsDirectoryLoaded)
+      if (beatmapId <= 0 || !_memory.IsDirectoryLoaded)
         return null;
       try
       {
         if (_pathByBeatmapId.TryGetValue(beatmapId, out var cachedPath) && File.Exists(cachedPath))
           return cachedPath;
 
-        foreach (var dir in Directory.GetDirectories(_memory.SongsPath))
-        {
-          foreach (var file in Directory.GetFiles(dir, "*.osu"))
-          {
-            var id = ReadBeatmapIdFromFile(file);
-            if (id > 0)
-              _pathByBeatmapId[id] = file;
-            if (id == beatmapId)
-              return file;
-          }
-        }
+        ScanSongsFolderIfStale();
+        if (_pathByBeatmapId.TryGetValue(beatmapId, out var scannedPath) && File.Exists(scannedPath))
+          return scannedPath;
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger("BeatmapPathResolver.FindBeatmapPath failed: " + ex.Message, true);
+        LogUtils.DebugLogger("BeatmapPathResolver.FindBeatmapPath failed: " + ex, true);
       }
       return null;
+    }
+
+    private void ScanSongsFolderIfStale()
+    {
+      lock (_scanLock)
+      {
+        string songsPath = _memory.SongsPath;
+        if (songsPath == _scannedSongsPath && DateTime.UtcNow - _lastScanAtUtc < RescanInterval)
+          return;
+
+        try
+        {
+          foreach (var dir in Directory.EnumerateDirectories(songsPath))
+          {
+            foreach (var file in Directory.EnumerateFiles(dir, "*.osu"))
+            {
+              var id = ReadBeatmapIdFromFile(file);
+              if (id > 0)
+                _pathByBeatmapId[id] = file;
+            }
+          }
+        }
+        finally
+        {
+          _scannedSongsPath = songsPath;
+          _lastScanAtUtc = DateTime.UtcNow;
+        }
+      }
     }
 
     public string? ResolveBeatmapFilePath(
@@ -112,15 +138,9 @@ namespace OsuMate.Services.PlayLog
         if (!_memory.IsDirectoryLoaded || string.IsNullOrWhiteSpace(_memory.SongsPath))
           return null;
 
-        if (
-          !string.IsNullOrWhiteSpace(beatmap.FolderName)
-          && !string.IsNullOrWhiteSpace(beatmap.OsuFileName)
-        )
-        {
-          var candidate = Path.Combine(_memory.SongsPath, beatmap.FolderName, beatmap.OsuFileName);
-          if (File.Exists(candidate))
-            return candidate;
-        }
+        var candidate = ResolveExistingPath(beatmap.FolderName, beatmap.OsuFileName);
+        if (candidate != null)
+          return candidate;
 
         if (beatmap.Id > 0)
         {
@@ -137,8 +157,14 @@ namespace OsuMate.Services.PlayLog
           )
             return cachedPath;
 
+          if (
+            _missingFileNameAtUtc.TryGetValue(beatmap.OsuFileName, out var missedAt)
+            && DateTime.UtcNow - missedAt < RescanInterval
+          )
+            return null;
+
           var fallback = Directory
-            .GetFiles(_memory.SongsPath, "*.osu", SearchOption.AllDirectories)
+            .EnumerateFiles(_memory.SongsPath, "*.osu", SearchOption.AllDirectories)
             .FirstOrDefault(f =>
               Path.GetFileName(f).Equals(beatmap.OsuFileName, StringComparison.OrdinalIgnoreCase)
             );
@@ -147,6 +173,8 @@ namespace OsuMate.Services.PlayLog
             _pathByFileName[beatmap.OsuFileName] = fallback;
             return fallback;
           }
+
+          _missingFileNameAtUtc[beatmap.OsuFileName] = DateTime.UtcNow;
         }
 
         return null;
@@ -154,7 +182,7 @@ namespace OsuMate.Services.PlayLog
       catch (Exception ex)
       {
         LogUtils.DebugLogger(
-          "BeatmapPathResolver.ResolveBeatmapFilePath failed: " + ex.Message,
+          "BeatmapPathResolver.ResolveBeatmapFilePath failed: " + ex,
           true
         );
         return null;
@@ -174,7 +202,7 @@ namespace OsuMate.Services.PlayLog
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger("BeatmapPathResolver.ComputeMd5 failed: " + ex.Message, true);
+        LogUtils.DebugLogger("BeatmapPathResolver.ComputeMd5 failed: " + ex, true);
         return "";
       }
     }

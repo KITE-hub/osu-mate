@@ -9,16 +9,15 @@ namespace OsuMate.Views
   public partial class InGameOverlayWindow : Window
   {
     private bool _isDraggable = false;
-    public bool IsDragging { get; private set; } = false;
+    public bool IsDragging => _drag.IsDragging;
     public event Action<double, double>? PositionChanged;
 
-    private Point _dragStartMouse;
-    private double _dragStartLeft;
-    private double _dragStartTop;
+    private readonly Behaviors.WindowDragController _drag;
 
     public InGameOverlayWindow(InGameOverlayViewModel vm)
     {
       InitializeComponent();
+      _drag = new Behaviors.WindowDragController(this, (l, t) => PositionChanged?.Invoke(l, t));
       DataContext = vm;
     }
 
@@ -37,30 +36,11 @@ namespace OsuMate.Views
     {
       if (!_isDraggable)
         return;
-      _dragStartMouse = PointToScreen(e.GetPosition(this));
-      _dragStartLeft = Left;
-      _dragStartTop = Top;
-      IsDragging = true;
-      CaptureMouse();
-      e.Handled = true;
+      _drag.Begin(e);
     }
 
-    private void Window_MouseMove(object sender, MouseEventArgs e)
-    {
-      if (!IsDragging)
-        return;
-      var current = PointToScreen(e.GetPosition(this));
-      Left = _dragStartLeft + (current.X - _dragStartMouse.X);
-      Top = _dragStartTop + (current.Y - _dragStartMouse.Y);
-    }
+    private void Window_MouseMove(object sender, MouseEventArgs e) => _drag.Move(e);
 
-    private void Window_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-      if (!IsDragging)
-        return;
-      IsDragging = false;
-      ReleaseMouseCapture();
-      PositionChanged?.Invoke(Left, Top);
-    }
+    private void Window_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => _drag.End();
   }
 }

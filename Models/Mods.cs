@@ -1,7 +1,9 @@
-﻿namespace OsuMate.Models;
-
-internal class Mods
+﻿namespace OsuMate.Models
 {
-  internal string[] Calculation { get; set; } = [];
-  internal string[] Display { get; set; } = [];
+
+  internal class Mods
+  {
+    internal string[] Calculation { get; set; } = [];
+    internal string[] Display { get; set; } = [];
+  }
 }

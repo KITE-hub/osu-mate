@@ -5,8 +5,8 @@ namespace OsuMate.Services.PlayLog
 {
   public readonly record struct BeatmapPlayStats(
     double? BestPp,
-    DateTime? BestPpAchievedAt,
-    DateTime? LatestPlayedAt
+    DateTimeOffset? BestPpAchievedAt,
+    DateTimeOffset? LatestPlayedAt
   );
 
   internal static class BestPpCalculator
@@ -21,8 +21,8 @@ namespace OsuMate.Services.PlayLog
         return default;
 
       double? bestPp = null;
-      DateTime? bestPpPlayedAt = null;
-      DateTime? latestPlayedAt = null;
+      DateTimeOffset? bestPpPlayedAt = null;
+      DateTimeOffset? latestPlayedAt = null;
 
       foreach (var entry in entries)
       {

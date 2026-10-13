@@ -102,7 +102,6 @@ namespace OsuMate.ViewModels
       _service = service;
       _settings = settings;
       _dispatcher = Dispatcher.CurrentDispatcher;
-      _service.AttachUiDispatcher(_dispatcher);
       _activityGridViewModel = activityGridViewModel;
       _activityChartViewModel = activityChartViewModel;
       _playStatsChartViewModel = playStatsChartViewModel;
@@ -243,7 +242,7 @@ namespace OsuMate.ViewModels
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger("PlayLogViewModel.LoadAsync failed: " + ex.Message, true);
+        LogUtils.DebugLogger("PlayLogViewModel.LoadAsync failed: " + ex, true);
         StatusText = "Failed to load.";
       }
       finally

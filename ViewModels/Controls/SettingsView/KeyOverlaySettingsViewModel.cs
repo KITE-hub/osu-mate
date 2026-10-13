@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using OsuMate.Models;
 using OsuMate.Utils;
 
@@ -9,6 +10,31 @@ namespace OsuMate.ViewModels
     public event Action? OnApplyKeyOverlayPositionRequested;
     public event Action? OnSaveKeyOverlayFlowLengthRequested;
     public event Action? OnApplyKeyOverlayFlowLengthRequested;
+
+    private ICommand? _rotateLeftCommand;
+    private ICommand? _rotateRightCommand;
+    private ICommand? _savePositionCommand;
+    private ICommand? _applyPositionCommand;
+    private ICommand? _saveFlowLengthCommand;
+    private ICommand? _applyFlowLengthCommand;
+
+    public ICommand RotateLeftCommand =>
+      _rotateLeftCommand ??= new RelayCommand(_ => KeyOverlayRotation -= 90);
+
+    public ICommand RotateRightCommand =>
+      _rotateRightCommand ??= new RelayCommand(_ => KeyOverlayRotation += 90);
+
+    public ICommand SavePositionCommand =>
+      _savePositionCommand ??= new RelayCommand(_ => RequestSaveKeyOverlayPosition());
+
+    public ICommand ApplyPositionCommand =>
+      _applyPositionCommand ??= new RelayCommand(_ => RequestApplyKeyOverlayPosition());
+
+    public ICommand SaveFlowLengthCommand =>
+      _saveFlowLengthCommand ??= new RelayCommand(_ => RequestSaveKeyOverlayFlowLength());
+
+    public ICommand ApplyFlowLengthCommand =>
+      _applyFlowLengthCommand ??= new RelayCommand(_ => RequestApplyKeyOverlayFlowLength());
 
     public void RequestSaveKeyOverlayPosition() => OnSaveKeyOverlayPositionRequested?.Invoke();
 
@@ -124,7 +150,7 @@ namespace OsuMate.ViewModels
 
     public double KeyOverlayDurationMs
     {
-      get => _presetConfig().KeyOverlayDurationMs <= 0 ? 1000 : _presetConfig().KeyOverlayDurationMs;
+      get => _presetConfig().KeyOverlayDurationMs <= 0 ? PresetConfig.DefaultKeyOverlayDurationMs : _presetConfig().KeyOverlayDurationMs;
       set
       {
         _presetConfig().KeyOverlayDurationMs = Math.Round(Math.Clamp(value, 200, 1500) / 10) * 10;

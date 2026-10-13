@@ -22,7 +22,7 @@ namespace OsuMate.Services.PlayLog
 
       return new PlayLogEntry
       {
-        PlayedAt = PlayLogKeyBuilder.FileTimeToLocal(score.TimestampTicks),
+        PlayedAt = PlayLogKeyBuilder.TicksToLocalTime(score.TimestampTicks),
         DedupeKey = key,
         OnlineScoreId = score.OnlineScoreId == 0 ? null : score.OnlineScoreId,
         ReplayMd5 = string.IsNullOrWhiteSpace(score.ReplayMd5) ? null : score.ReplayMd5,

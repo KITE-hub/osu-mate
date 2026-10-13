@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using OsuMate.Models;
 using OsuMate.Utils;
+using System.Globalization;
 
 namespace OsuMate.Services.PlayLog
 {
@@ -18,6 +19,7 @@ namespace OsuMate.Services.PlayLog
       WriteIndented = true,
       Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
       DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+      NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
     };
 
     public string LogOutputDir { get; } =
@@ -26,13 +28,13 @@ namespace OsuMate.Services.PlayLog
     public void SaveEntry(
       PlayLogEntry entry,
       string? oldDedupeKey = null,
-      DateTime? oldPlayedAt = null
+      DateTimeOffset? oldPlayedAt = null
     )
     {
       try
       {
         Directory.CreateDirectory(LogOutputDir);
-        string fileName = entry.PlayedAt.ToString("yyyy-MM-dd") + ".json";
+        string fileName = entry.PlayedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + ".json";
         string path = Path.Combine(LogOutputDir, fileName);
 
         lock (_saveFileLock)
@@ -45,7 +47,7 @@ namespace OsuMate.Services.PlayLog
           catch (JsonException ex)
           {
             LogUtils.DebugLogger(
-              $"PlayLogRepository.SaveEntry: {path} is corrupted, recovering with a fresh file: {ex.Message}",
+              $"PlayLogRepository.SaveEntry: {path} is corrupted, recovering with a fresh file: {ex}",
               true
             );
             QuarantineCorruptedFile(path);
@@ -89,13 +91,13 @@ namespace OsuMate.Services.PlayLog
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger("PlayLogRepository.SaveEntry failed: " + ex.Message, true);
+        LogUtils.DebugLogger("PlayLogRepository.SaveEntry failed: " + ex, true);
       }
     }
 
     public void SaveEntries(IEnumerable<PlayLogEntry> entries)
     {
-      foreach (var group in entries.GroupBy(e => e.PlayedAt.ToString("yyyy-MM-dd")))
+      foreach (var group in entries.GroupBy(e => e.PlayedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)))
       {
         SaveEntryGroup(group.Key, [.. group]);
       }
@@ -121,7 +123,7 @@ namespace OsuMate.Services.PlayLog
           catch (JsonException ex)
           {
             LogUtils.DebugLogger(
-              $"PlayLogRepository.SaveEntries: {path} is corrupted, recovering with a fresh file: {ex.Message}",
+              $"PlayLogRepository.SaveEntries: {path} is corrupted, recovering with a fresh file: {ex}",
               true
             );
             QuarantineCorruptedFile(path);
@@ -142,13 +144,13 @@ namespace OsuMate.Services.PlayLog
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger("PlayLogRepository.SaveEntries failed: " + ex.Message, true);
+        LogUtils.DebugLogger("PlayLogRepository.SaveEntries failed: " + ex, true);
       }
     }
 
-    private void RemoveFromDateFile(DateTime date, string dedupeKey)
+    private void RemoveFromDateFile(DateTimeOffset date, string dedupeKey)
     {
-      string fileName = date.ToString("yyyy-MM-dd") + ".json";
+      string fileName = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + ".json";
       string path = Path.Combine(LogOutputDir, fileName);
 
       List<PlayLogEntry> existing;
@@ -159,7 +161,7 @@ namespace OsuMate.Services.PlayLog
       catch (JsonException ex)
       {
         LogUtils.DebugLogger(
-          $"PlayLogRepository.RemoveFromDateFile: {path} is corrupted, skipping cleanup: {ex.Message}",
+          $"PlayLogRepository.RemoveFromDateFile: {path} is corrupted, skipping cleanup: {ex}",
           true
         );
         return;
@@ -174,7 +176,7 @@ namespace OsuMate.Services.PlayLog
     private static void WriteEntriesToFile(string path, List<PlayLogEntry> entries)
     {
       var ordered = entries.OrderBy(e => e.PlayedAt).ToList();
-      string json = JsonSerializer.Serialize(ordered, JsonOpts);
+      string json = JsonSerializer.Serialize(ordered.Select(PlayLogEntryDto.FromEntry).ToList(), JsonOpts);
 
       string tempPath = path + ".tmp";
       File.WriteAllText(tempPath, json, System.Text.Encoding.UTF8);
@@ -190,7 +192,7 @@ namespace OsuMate.Services.PlayLog
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger("PlayLogRepository.QuarantineCorruptedFile failed: " + ex.Message, true);
+        LogUtils.DebugLogger("PlayLogRepository.QuarantineCorruptedFile failed: " + ex, true);
       }
     }
 
@@ -209,7 +211,7 @@ namespace OsuMate.Services.PlayLog
         catch (JsonException ex)
         {
           LogUtils.DebugLogger(
-            $"PlayLogRepository.LoadAllFromDisk: Skipped because failed to read {file}: {ex.Message}",
+            $"PlayLogRepository.LoadAllFromDisk: Skipped because failed to read {file}: {ex}",
             true
           );
         }
@@ -222,7 +224,8 @@ namespace OsuMate.Services.PlayLog
       if (!File.Exists(path))
         return [];
       var json = File.ReadAllText(path, System.Text.Encoding.UTF8);
-      return JsonSerializer.Deserialize<List<PlayLogEntry>>(json, JsonOpts) ?? [];
+      var dtos = JsonSerializer.Deserialize<List<PlayLogEntryDto>>(json, JsonOpts) ?? [];
+      return [.. dtos.Select(d => d.ToEntry())];
     }
   }
 }

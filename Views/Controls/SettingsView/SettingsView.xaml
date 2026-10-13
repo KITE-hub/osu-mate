@@ -281,8 +281,8 @@
                       Content="✕"
                       Width="24"
                       FontSize="11"
-                      Tag="{Binding}"
-                      Click="RemoveTargetPlayerName_Click"
+                      Command="{Binding DataContext.RemoveTargetPlayerNameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                      CommandParameter="{Binding}"
                       Style="{StaticResource SettingsButtonStyle}"
                     />
                   </Grid>
@@ -417,7 +417,7 @@
             Width="45"
             FontSize="11"
             Margin="6,0,0,0"
-            Click="NewPreset_Click"
+            Command="{Binding NewPresetCommand}"
             Style="{StaticResource SettingsButtonStyle}"
           />
           <Button
@@ -425,7 +425,7 @@
             Width="45"
             FontSize="11"
             Margin="6,0,0,0"
-            Click="DuplicatePreset_Click"
+            Command="{Binding DuplicatePresetCommand}"
             Style="{StaticResource SettingsButtonStyle}"
           />
           <Button
@@ -463,7 +463,8 @@
             Content="Rename"
             Width="60"
             FontSize="11"
-            Click="RenamePreset_Click"
+            Command="{Binding RenamePresetCommand}"
+            CommandParameter="{Binding Text, ElementName=PresetNameBox}"
             Style="{StaticResource SettingsButtonStyle}"
           />
         </Grid>
@@ -478,7 +479,7 @@
             HorizontalAlignment="Left"
           />
           <CheckBox
-            IsChecked="{Binding StartupPositionEnabled}"
+            IsChecked="{Binding Position.StartupPositionEnabled}"
             Style="{StaticResource ToggleSwitchStyle}"
             VerticalAlignment="Center"
             HorizontalAlignment="Right"
@@ -500,7 +501,7 @@
           />
           <TextBlock
             Grid.Column="1"
-            Text="{Binding AppPositionText}"
+            Text="{Binding Position.AppPositionText}"
             Style="{StaticResource TextCaptionStyle}"
             VerticalAlignment="Center"
           />
@@ -538,7 +539,7 @@
           />
           <TextBlock
             Grid.Column="1"
-            Text="{Binding OsuPositionText}"
+            Text="{Binding Position.OsuPositionText}"
             Style="{StaticResource TextCaptionStyle}"
             VerticalAlignment="Center"
           />
@@ -562,7 +563,7 @@
         </Grid>
       </StackPanel>
 
-      <StackPanel Margin="{StaticResource SectionSpacing}">
+      <StackPanel Margin="{StaticResource SectionSpacing}" DataContext="{Binding URBar}">
         <Grid Height="22" Margin="{StaticResource RowSpacing}">
           <TextBlock
             Text="URBar"
@@ -595,7 +596,7 @@
             Style="{StaticResource RotateButtonStyle}"
             Margin="0"
             VerticalAlignment="Center"
-            Click="URBarRotateLeft_Click"
+            Command="{Binding RotateLeftCommand}"
           >
             <Polygon
               Points="0,4 6,0 6,8"
@@ -623,7 +624,7 @@
             Style="{StaticResource RotateButtonStyle}"
             Margin="0"
             VerticalAlignment="Center"
-            Click="URBarRotateRight_Click"
+            Command="{Binding RotateRightCommand}"
           >
             <Polygon
               Points="6,4 0,0 0,8"
@@ -658,7 +659,7 @@
               Content="Save"
               Width="40"
               FontSize="11"
-              Click="SaveURBarSize_Click"
+              Command="{Binding SaveSizeCommand}"
               Margin="0,0,6,0"
               Style="{StaticResource SettingsButtonStyle}"
             />
@@ -666,7 +667,7 @@
               Content="Apply"
               Width="45"
               FontSize="11"
-              Click="ApplyURBarSize_Click"
+              Command="{Binding ApplySizeCommand}"
               Style="{StaticResource SettingsButtonStyle}"
             />
           </StackPanel>
@@ -696,7 +697,7 @@
               Content="Save"
               Width="40"
               FontSize="11"
-              Click="SaveURBarPosition_Click"
+              Command="{Binding SavePositionCommand}"
               Margin="0,0,6,0"
               Style="{StaticResource SettingsButtonStyle}"
             />
@@ -704,7 +705,7 @@
               Content="Apply"
               Width="45"
               FontSize="11"
-              Click="ApplyURBarPosition_Click"
+              Command="{Binding ApplyPositionCommand}"
               Style="{StaticResource SettingsButtonStyle}"
             />
           </StackPanel>
@@ -892,7 +893,7 @@
             Style="{StaticResource RotateButtonStyle}"
             Margin="0"
             VerticalAlignment="Center"
-            Click="KeyOverlayRotateLeft_Click"
+            Command="{Binding RotateLeftCommand}"
           >
             <Polygon
               Points="0,4 6,0 6,8"
@@ -920,7 +921,7 @@
             Style="{StaticResource RotateButtonStyle}"
             Margin="0"
             VerticalAlignment="Center"
-            Click="KeyOverlayRotateRight_Click"
+            Command="{Binding RotateRightCommand}"
           >
             <Polygon
               Points="6,4 0,0 0,8"
@@ -961,7 +962,7 @@
               Content="Save"
               Width="40"
               FontSize="11"
-              Click="SaveKeyOverlayFlowLength_Click"
+              Command="{Binding SaveFlowLengthCommand}"
               Margin="0,0,6,0"
               Style="{StaticResource SettingsButtonStyle}"
             />
@@ -969,7 +970,7 @@
               Content="Apply"
               Width="45"
               FontSize="11"
-              Click="ApplyKeyOverlayFlowLength_Click"
+              Command="{Binding ApplyFlowLengthCommand}"
               Style="{StaticResource SettingsButtonStyle}"
             />
           </StackPanel>
@@ -999,7 +1000,7 @@
               Content="Save"
               Width="40"
               FontSize="11"
-              Click="SaveKeyOverlayPosition_Click"
+              Command="{Binding SavePositionCommand}"
               Margin="0,0,6,0"
               Style="{StaticResource SettingsButtonStyle}"
             />
@@ -1007,7 +1008,7 @@
               Content="Apply"
               Width="45"
               FontSize="11"
-              Click="ApplyKeyOverlayPosition_Click"
+              Command="{Binding ApplyPositionCommand}"
               Style="{StaticResource SettingsButtonStyle}"
             />
           </StackPanel>
@@ -1031,7 +1032,7 @@
         </StackPanel>
       </StackPanel>
 
-      <StackPanel Margin="{StaticResource SectionSpacing}">
+      <StackPanel Margin="{StaticResource SectionSpacing}" DataContext="{Binding Overlay}">
         <Grid Height="22" Margin="{StaticResource RowSpacing}">
           <TextBlock
             Text="In-Game Overlay"
@@ -1096,7 +1097,7 @@
               Content="Save"
               Width="40"
               FontSize="11"
-              Click="SaveOverlayPosition_Click"
+              Command="{Binding SavePositionCommand}"
               Margin="0,0,6,0"
               Style="{StaticResource SettingsButtonStyle}"
             />
@@ -1104,7 +1105,7 @@
               Content="Apply"
               Width="45"
               FontSize="11"
-              Click="ApplyOverlayPosition_Click"
+              Command="{Binding ApplyPositionCommand}"
               Style="{StaticResource SettingsButtonStyle}"
             />
           </StackPanel>

@@ -12,23 +12,14 @@ namespace OsuMate.Services
   public class OsuMemoryService
   {
     private readonly StructuredOsuMemoryReader _sreader = StructuredOsuMemoryReader.GetInstance(
-      new("osu!")
+      new(ProcessUtils.OsuProcessName)
     );
 
     private readonly OsuBaseAddresses _baseAddresses = new();
 
     private readonly OsuDirectoryResolver _directoryResolver = new();
-    private readonly RawInputService _rawInput;
     private readonly HitErrorSnapshotStore _hitErrorStore;
     private readonly UrTimelineStore _urTimelineStore;
-    private static readonly TimeSpan KeyConfigRecheckInterval = TimeSpan.FromSeconds(1);
-    private readonly object _keyConfigLock = new();
-    private string _keyConfigPath = string.Empty;
-    private DateTime _keyConfigLastWriteTimeUtc;
-    private DateTime _keyConfigLastCheckedUtc = DateTime.MinValue;
-    private Dictionary<string, string> _keyConfigValues = [];
-    private bool _keyConfigReloading;
-    private volatile bool _keyConfigDirty;
 
     public event Action? OnMemoryRead;
     public event Action<IntPtr>? OnOsuWindowFound;
@@ -72,26 +63,47 @@ namespace OsuMate.Services
 
     public OsuMemoryService(RawInputService rawInput)
     {
-      _rawInput = rawInput;
+      _keyOverlay = new KeyOverlayInputService(rawInput, () => OsuDirectory, () => IsPlaying);
       _hitErrorStore = new HitErrorSnapshotStore(_baseAddresses);
       _urTimelineStore = new UrTimelineStore(_baseAddresses);
     }
 
     internal OsuBaseAddresses GetBaseAddressSnapshot() => _baseAddresses;
 
-    internal (string BeatmapPath, string BeatmapMd5) GetCurrentBeatmap()
+    private sealed record BeatmapPathSnapshot(string FolderName, string OsuFileName, string Md5);
+
+    private volatile BeatmapPathSnapshot? _beatmapSnapshot;
+
+    private void PublishBeatmapSnapshot()
     {
       var beatmap = _baseAddresses.Beatmap;
+      var next = new BeatmapPathSnapshot(
+        beatmap.FolderName?.Trim() ?? string.Empty,
+        beatmap.OsuFileName?.Trim() ?? string.Empty,
+        beatmap.Md5?.Trim() ?? string.Empty
+      );
+
+      if (!next.Equals(_beatmapSnapshot))
+        _beatmapSnapshot = next;
+    }
+
+    internal (string BeatmapPath, string BeatmapMd5) GetCurrentBeatmap()
+    {
+      var snapshot = _beatmapSnapshot;
+      if (snapshot == null)
+        return (string.Empty, string.Empty);
+
       try
       {
         return (
-          Path.Combine(SongsPath, beatmap.FolderName?.Trim() ?? string.Empty, beatmap.OsuFileName?.Trim() ?? string.Empty),
-          beatmap.Md5?.Trim() ?? string.Empty
+          SafePath.CombineWithin(SongsPath, snapshot.FolderName, snapshot.OsuFileName)
+            ?? string.Empty,
+          snapshot.Md5
         );
       }
       catch (Exception e)
       {
-        LogUtils.DebugLogger($"OsuMemoryService.GetCurrentBeatmap failed: {e.Message}", true);
+        LogUtils.DebugLogger($"OsuMemoryService.GetCurrentBeatmap failed: {e}", true);
         return (string.Empty, string.Empty);
       }
     }
@@ -108,452 +120,13 @@ namespace OsuMate.Services
     internal (bool Reset, List<(double timeSec, double offsetMs)> NewItems) GetURTimelineSnapshot() =>
       _urTimelineStore.GetSnapshot();
 
-    private readonly record struct LaneBinding(Keys Key, Keys MouseFallback);
-
-    private sealed class ResolvedKeyLayout
-    {
-      public static readonly ResolvedKeyLayout Empty = new([], []);
-
-      public string[] Labels { get; }
-      public LaneBinding[] Bindings { get; }
-      public KeyOverlayRole[]? Roles { get; }
-      public KeyOverlaySnapshot BlankSnapshot { get; }
-
-      public ResolvedKeyLayout(
-        string[] labels,
-        LaneBinding[] bindings,
-        KeyOverlayRole[]? roles = null
-      )
-      {
-        Labels = labels;
-        Bindings = bindings;
-        Roles = roles;
-        if (labels.Length == 0)
-        {
-          BlankSnapshot = KeyOverlaySnapshot.Empty;
-          return;
-        }
-        var keys = new KeyOverlayKeyState[labels.Length];
-        for (var i = 0; i < labels.Length; i++)
-          keys[i] = new KeyOverlayKeyState(labels[i], false, roles?[i] ?? KeyOverlayRole.Normal);
-        BlankSnapshot = new KeyOverlaySnapshot(keys);
-      }
-    }
-
-    private readonly object _layoutLock = new();
-    private ResolvedKeyLayout _resolvedLayout = ResolvedKeyLayout.Empty;
-    private int _resolvedGamemode = int.MinValue;
-    private int _resolvedManiaKeyCount = int.MinValue;
-
-    private readonly object _liveTransitionLock = new();
-    private readonly List<RawInputService.KeyTransition> _rawTransitionBuffer = [];
-    private LaneBinding[] _liveTransitionBindings = [];
-    private int[] _liveTransitionHoldCount = [];
-    private bool[] _liveTransitionPressed = [];
-    private KeyOverlaySnapshot _cachedLiveSnapshot = KeyOverlaySnapshot.Empty;
+    private readonly KeyOverlayInputService _keyOverlay;
 
     internal KeyOverlaySnapshot DrainKeyOverlayUpdate(
       int gamemode,
       int? maniaKeyCount,
       List<KeyOverlayTransition> transitions
-    )
-    {
-      var layout = ResolveLayout(gamemode, gamemode == 3 ? maniaKeyCount : null, IsPlaying);
-      if (layout.Labels.Length == 0)
-      {
-        DiscardRawInputTransitions();
-        return KeyOverlaySnapshot.Empty;
-      }
-
-      return DrainLiveKeyOverlaySnapshot(layout, transitions);
-    }
-
-    private void DiscardRawInputTransitions()
-    {
-      lock (_liveTransitionLock)
-      {
-        _rawTransitionBuffer.Clear();
-        _rawInput.DrainTransitions(_rawTransitionBuffer);
-      }
-    }
-
-    private void EnsureLiveTransitionState(ResolvedKeyLayout layout)
-    {
-      if (ReferenceEquals(_liveTransitionBindings, layout.Bindings))
-        return;
-      _liveTransitionBindings = layout.Bindings;
-      _liveTransitionHoldCount = new int[layout.Bindings.Length];
-      _liveTransitionPressed = new bool[layout.Bindings.Length];
-      _cachedLiveSnapshot = layout.BlankSnapshot;
-
-      var activeKeys = new List<Keys>(layout.Bindings.Length * 2);
-      foreach (var b in layout.Bindings)
-      {
-        activeKeys.Add(b.Key);
-        activeKeys.Add(b.MouseFallback);
-      }
-      _rawInput.SetActiveKeys(activeKeys);
-    }
-
-    private KeyOverlaySnapshot DrainLiveKeyOverlaySnapshot(ResolvedKeyLayout layout, List<KeyOverlayTransition> transitions)
-    {
-      lock (_liveTransitionLock)
-      {
-        EnsureLiveTransitionState(layout);
-
-        _rawTransitionBuffer.Clear();
-        _rawInput.DrainTransitions(_rawTransitionBuffer);
-
-        var bindings = _liveTransitionBindings;
-        var holdCount = _liveTransitionHoldCount;
-        var pressed = _liveTransitionPressed;
-
-        foreach (var raw in _rawTransitionBuffer)
-        {
-          for (var lane = 0; lane < bindings.Length; lane++)
-          {
-            var binding = bindings[lane];
-            if (raw.Key != binding.Key && raw.Key != binding.MouseFallback)
-              continue;
-
-            holdCount[lane] = Math.Max(0, holdCount[lane] + (raw.IsDown ? 1 : -1));
-            var nowPressed = holdCount[lane] > 0;
-            if (nowPressed == pressed[lane])
-              continue;
-
-            pressed[lane] = nowPressed;
-            transitions.Add(new KeyOverlayTransition(lane, nowPressed, raw.TimestampTicks));
-          }
-        }
-
-        if (transitions.Count == 0 && _cachedLiveSnapshot.Keys.Length == layout.Labels.Length)
-          return _cachedLiveSnapshot;
-
-        var keys = new KeyOverlayKeyState[layout.Labels.Length];
-        for (var i = 0; i < keys.Length; i++)
-          keys[i] = new KeyOverlayKeyState(layout.Labels[i], pressed[i], layout.Roles?[i] ?? KeyOverlayRole.Normal);
-        _cachedLiveSnapshot = new KeyOverlaySnapshot(keys);
-        return _cachedLiveSnapshot;
-      }
-    }
-
-    private ResolvedKeyLayout ResolveLayout(
-      int gamemode,
-      int? maniaKeyCount,
-      bool isActiveSession
-    )
-    {
-      var configChanged = EnsureKeyConfigCache(isActiveSession);
-      var maniaCount = maniaKeyCount ?? -1;
-
-      lock (_layoutLock)
-      {
-        if (
-          !configChanged
-          && _resolvedGamemode == gamemode
-          && _resolvedManiaKeyCount == maniaCount
-        )
-          return _resolvedLayout;
-
-        _resolvedGamemode = gamemode;
-        _resolvedManiaKeyCount = maniaCount;
-        _resolvedLayout = BuildLayout(gamemode, maniaKeyCount);
-        return _resolvedLayout;
-      }
-    }
-
-    private ResolvedKeyLayout BuildLayout(
-      int gamemode,
-      int? maniaKeyCount
-    ) =>
-      gamemode switch
-      {
-        0 => BuildStandardLayout(),
-        1 => BuildTaikoLayout(),
-        2 => BuildFixedLayout(
-          ("keyFruitsDash", "LeftShift", Keys.None),
-          ("keyFruitsLeft", "Left", Keys.None),
-          ("keyFruitsRight", "Right", Keys.None)
-        ),
-        3 when maniaKeyCount is >= 1 and <= 18 => BuildManiaLayout(maniaKeyCount.Value),
-        _ => ResolvedKeyLayout.Empty,
-      };
-
-    private ResolvedKeyLayout BuildStandardLayout()
-    {
-      var specs = new TaikoKeySpec[]
-      {
-        new("keyOsuLeft", "Z", Keys.LButton, KeyOverlayRole.Normal),
-        new("keyOsuRight", "X", Keys.RButton, KeyOverlayRole.Normal)
-      };
-      return BuildLayoutFromSpecs(specs, reorderByPhysicalPosition: false);
-    }
-
-    private ResolvedKeyLayout BuildTaikoLayout()
-    {
-      var specs = new TaikoKeySpec[]
-      {
-        new("keyTaikoInnerLeft", "X", Keys.None, KeyOverlayRole.TaikoDon),
-        new("keyTaikoInnerRight", "C", Keys.None, KeyOverlayRole.TaikoDon),
-        new("keyTaikoOuterLeft", "Z", Keys.None, KeyOverlayRole.TaikoKat),
-        new("keyTaikoOuterRight", "V", Keys.None, KeyOverlayRole.TaikoKat)
-      };
-      return BuildLayoutFromSpecs(specs, reorderByPhysicalPosition: true);
-    }
-
-    private readonly record struct TaikoKeySpec(
-      string ConfigKey,
-      string Fallback,
-      Keys MouseFallback,
-      KeyOverlayRole Role
-    );
-
-    private ResolvedKeyLayout BuildLayoutFromSpecs(
-      TaikoKeySpec[] specs,
-      bool reorderByPhysicalPosition
-    )
-    {
-      var resolvedNames = new string[specs.Length];
-      var resolvedKeys = new Keys[specs.Length];
-      for (var i = 0; i < specs.Length; i++)
-      {
-        resolvedNames[i] = GetConfiguredKeyNameLocked(specs[i].ConfigKey, specs[i].Fallback);
-        resolvedKeys[i] = TryParseKey(resolvedNames[i], out var parsedKey) ? parsedKey : Keys.None;
-      }
-
-      var order = new int[specs.Length];
-      for (var i = 0; i < order.Length; i++)
-        order[i] = i;
-
-      if (reorderByPhysicalPosition)
-      {
-        Array.Sort(order, (a, b) =>
-        {
-          var positionA = KeyboardPhysicalLayoutUtils.GetPhysicalPosition(resolvedKeys[a]);
-          var positionB = KeyboardPhysicalLayoutUtils.GetPhysicalPosition(resolvedKeys[b]);
-          return positionA != positionB ? positionA.CompareTo(positionB) : a.CompareTo(b);
-        });
-      }
-
-      var labels = new string[specs.Length];
-      var bindings = new LaneBinding[specs.Length];
-      var roles = new KeyOverlayRole[specs.Length];
-
-      for (var i = 0; i < order.Length; i++)
-      {
-        var spec = specs[order[i]];
-        labels[i] = resolvedNames[order[i]];
-        bindings[i] = new LaneBinding(resolvedKeys[order[i]], spec.MouseFallback);
-        roles[i] = spec.Role;
-      }
-
-      return new ResolvedKeyLayout(labels, bindings, roles);
-    }
-
-    private ResolvedKeyLayout BuildFixedLayout(params (string ConfigKey, string Fallback, Keys MouseFallback)[] specs)
-    {
-      var labels = new string[specs.Length];
-      var bindings = new LaneBinding[specs.Length];
-      for (var i = 0; i < specs.Length; i++)
-      {
-        var name = GetConfiguredKeyNameLocked(specs[i].ConfigKey, specs[i].Fallback);
-        labels[i] = name;
-        bindings[i] = new LaneBinding(
-          TryParseKey(name, out var key) ? key : Keys.None,
-          specs[i].MouseFallback
-        );
-      }
-      return new ResolvedKeyLayout(labels, bindings);
-    }
-
-    private ResolvedKeyLayout BuildManiaLayout(int keyCount)
-    {
-      var keys = ReadManiaLayoutLocked(keyCount);
-      if (keys.Length < keyCount)
-        keys = GetFallbackManiaLayout(keyCount);
-      else if (keys.Length > keyCount)
-        keys = keys[..keyCount];
-
-      var bindings = new LaneBinding[keyCount];
-      for (var i = 0; i < keyCount; i++)
-        bindings[i] = new LaneBinding(TryParseKey(keys[i], out var key) ? key : Keys.None, Keys.None);
-
-      return new ResolvedKeyLayout(keys, bindings);
-    }
-
-    private string[] ReadManiaLayoutLocked(int keyCount)
-    {
-      var prefix = $"ManiaLayouts{keyCount}K";
-      lock (_keyConfigLock)
-      {
-        return _keyConfigValues.TryGetValue(prefix, out var value)
-          ? value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-          : [];
-      }
-    }
-
-    private string GetConfiguredKeyNameLocked(string keyName, string fallback)
-    {
-      lock (_keyConfigLock)
-        return _keyConfigValues.TryGetValue(keyName, out var value) && !string.IsNullOrWhiteSpace(value)
-          ? value
-          : fallback;
-    }
-
-    private static string[] GetFallbackManiaLayout(int keyCount)
-    {
-      var fallback = new[]
-      {
-        "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
-        "Q", "W", "E", "R", "T", "Y", "U", "I", "O"
-      };
-      return fallback[..Math.Min(keyCount, fallback.Length)];
-    }
-
-    private bool EnsureKeyConfigCache(bool isActiveSession)
-    {
-      if (isActiveSession)
-        return ConsumeKeyConfigDirty();
-
-      var now = DateTime.UtcNow;
-      if (now - _keyConfigLastCheckedUtc >= KeyConfigRecheckInterval)
-        RequestKeyConfigReload(now);
-
-      return ConsumeKeyConfigDirty();
-    }
-
-    private bool ConsumeKeyConfigDirty()
-    {
-      if (!_keyConfigDirty)
-        return false;
-      _keyConfigDirty = false;
-      return true;
-    }
-
-    private void RequestKeyConfigReload(DateTime now)
-    {
-      lock (_keyConfigLock)
-      {
-        if (_keyConfigReloading)
-          return;
-        _keyConfigReloading = true;
-        _keyConfigLastCheckedUtc = now;
-      }
-
-      Task.Run(ReloadKeyConfig);
-    }
-
-    private void ReloadKeyConfig()
-    {
-      try
-      {
-        var path = FindKeyConfigPath();
-        if (!File.Exists(path))
-        {
-          lock (_keyConfigLock)
-          {
-            var hadValues = _keyConfigValues.Count > 0 || !string.IsNullOrEmpty(_keyConfigPath);
-            _keyConfigPath = string.Empty;
-            _keyConfigLastWriteTimeUtc = default;
-            _keyConfigValues = [];
-            if (hadValues)
-              _keyConfigDirty = true;
-          }
-          return;
-        }
-
-        DateTime lastWriteTimeUtc;
-        try
-        {
-          lastWriteTimeUtc = File.GetLastWriteTimeUtc(path);
-        }
-        catch (Exception e)
-        {
-          LogUtils.DebugLogger($"OsuMemoryService.ReloadKeyConfig failed: {e.Message}", true);
-          return;
-        }
-
-        lock (_keyConfigLock)
-        {
-          if (string.Equals(_keyConfigPath, path, StringComparison.Ordinal)
-              && _keyConfigLastWriteTimeUtc == lastWriteTimeUtc)
-            return;
-        }
-
-        var values = new Dictionary<string, string>(StringComparer.Ordinal);
-        try
-        {
-          foreach (var line in File.ReadLines(path))
-          {
-            var separator = line.IndexOf('=');
-            if (separator <= 0)
-              continue;
-
-            var key = line[..separator].Trim();
-            if (key.StartsWith("ManiaLayouts", StringComparison.Ordinal)
-                || key.StartsWith("keyOsu", StringComparison.Ordinal)
-                || key.StartsWith("keyTaiko", StringComparison.Ordinal)
-                || key.StartsWith("keyFruits", StringComparison.Ordinal))
-              values[key] = line[(separator + 1)..].Trim();
-          }
-
-          lock (_keyConfigLock)
-          {
-            _keyConfigPath = path;
-            _keyConfigLastWriteTimeUtc = lastWriteTimeUtc;
-            _keyConfigValues = values;
-          }
-          _keyConfigDirty = true;
-        }
-        catch (Exception e)
-        {
-          LogUtils.DebugLogger($"OsuMemoryService.ReloadKeyConfig failed: {e.Message}", true);
-        }
-      }
-      finally
-      {
-        lock (_keyConfigLock)
-          _keyConfigReloading = false;
-      }
-    }
-
-    private string FindKeyConfigPath()
-    {
-      try
-      {
-        return Directory
-          .EnumerateFiles(OsuDirectory, "osu!.*.cfg", SearchOption.TopDirectoryOnly)
-          .Where(path => !string.Equals(Path.GetFileName(path), "osu.cfg", StringComparison.OrdinalIgnoreCase))
-          .OrderByDescending(File.GetLastWriteTimeUtc)
-          .FirstOrDefault() ?? string.Empty;
-      }
-      catch (Exception e)
-      {
-        LogUtils.DebugLogger($"OsuMemoryService.FindKeyConfigPath failed: {e.Message}", true);
-        return string.Empty;
-      }
-    }
-
-    private static bool TryParseKey(string name, out Keys key)
-    {
-      if (Enum.TryParse<Keys>(name, true, out key) && key != Keys.None)
-        return true;
-
-      var normalized = name switch
-      {
-        "LeftControl" => "LControlKey",
-        "RightControl" => "RControlKey",
-        "LeftShift" => "LShiftKey",
-        "RightShift" => "RShiftKey",
-        "LeftWindows" => "LWin",
-        "RightWindows" => "RWin",
-        "Backspace" => "Back",
-        "Enter" => "Return",
-        _ => name,
-      };
-
-      return Enum.TryParse(normalized, true, out key) && key != Keys.None;
-    }
+    ) => _keyOverlay.DrainKeyOverlayUpdate(gamemode, maniaKeyCount, transitions);
 
     internal void SyncURTimeline(IReadOnlyList<int> hitErrors, double speedMultiplier) =>
       _urTimelineStore.Sync(hitErrors, speedMultiplier);
@@ -622,7 +195,7 @@ namespace OsuMate.Services
             }
             catch (Exception e)
             {
-              LogUtils.DebugLogger(e.Message, true);
+              LogUtils.DebugLogger(e.ToString(), true);
             }
           }
         },
@@ -654,6 +227,7 @@ namespace OsuMate.Services
                 continue;
 
               _sreader.TryRead(_baseAddresses.Beatmap);
+              PublishBeatmapSnapshot();
               _hitErrorStore.ReadPlayerMemory(_sreader);
               _sreader.TryRead(_baseAddresses.GeneralData);
               _sreader.TryRead(_baseAddresses.ResultsScreen);
@@ -673,10 +247,10 @@ namespace OsuMate.Services
               {
                 var prev = _prevStatus;
                 _prevStatus = newStatus;
-                OnStatusChanged?.Invoke(prev, newStatus);
+                InvokeIsolated(OnStatusChanged, prev, newStatus);
               }
 
-              OnMemoryRead?.Invoke();
+              InvokeIsolated(OnMemoryRead);
             }
             catch (TaskCanceledException)
             {
@@ -684,12 +258,52 @@ namespace OsuMate.Services
             }
             catch (Exception e)
             {
-              LogUtils.DebugLogger(e.Message, true);
+              LogUtils.DebugLogger("OsuMemoryService memory reader failed: " + e, true);
             }
           }
         },
         ct
       );
+    }
+
+    private static void InvokeIsolated(Action? handlers)
+    {
+      if (handlers == null)
+        return;
+
+      foreach (var handler in handlers.GetInvocationList().Cast<Action>())
+      {
+        try
+        {
+          handler();
+        }
+        catch (Exception e)
+        {
+          LogUtils.DebugLogger("OsuMemoryService.OnMemoryRead handler failed: " + e, true);
+        }
+      }
+    }
+
+    private static void InvokeIsolated(
+      Action<OsuMemoryStatus, OsuMemoryStatus>? handlers,
+      OsuMemoryStatus prev,
+      OsuMemoryStatus current
+    )
+    {
+      if (handlers == null)
+        return;
+
+      foreach (var handler in handlers.GetInvocationList().Cast<Action<OsuMemoryStatus, OsuMemoryStatus>>())
+      {
+        try
+        {
+          handler(prev, current);
+        }
+        catch (Exception e)
+        {
+          LogUtils.DebugLogger("OsuMemoryService.OnStatusChanged handler failed: " + e, true);
+        }
+      }
     }
 
     internal Task StopAsync()

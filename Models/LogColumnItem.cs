@@ -1,6 +1,6 @@
 namespace OsuMate.Models
 {
-  public class LogColumnItem : ObservableBase
+  public class LogColumnItem : ObservableBase, IPriorityItem
   {
     public int Id { get; set; }
     public string Label { get; set; } = "";

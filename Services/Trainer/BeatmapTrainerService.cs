@@ -1,6 +1,7 @@
 using System.IO;
 using System.IO.Compression;
 using OsuMate.Utils;
+using System.Globalization;
 
 namespace OsuMate.Services.Trainer
 {
@@ -19,6 +20,10 @@ namespace OsuMate.Services.Trainer
 
     internal const decimal DifficultyChangeThreshold = 0.001M;
 
+    private const int MaxOsuFileNameLength = 200;
+    private const int OsuFileNameDecorationLength = 13;
+    private const int MaxAudioBaseNameLength = 150;
+
     public BeatmapTrainerService(OsuMemoryService memory)
     {
       _memory = memory;
@@ -28,30 +33,16 @@ namespace OsuMate.Services.Trainer
     {
       if (!_memory.IsDirectoryLoaded)
         return null;
-      var beatmap = _memory.GetBaseAddressSnapshot().Beatmap;
-      string? folder = beatmap.FolderName?.Trim();
-      string? file = beatmap.OsuFileName?.Trim();
-      if (string.IsNullOrEmpty(folder) || string.IsNullOrEmpty(file))
-        return null;
 
-      try
-      {
-        string path = Path.Combine(_memory.SongsPath, folder, file);
-        return File.Exists(path) ? path : null;
-      }
-      catch (Exception ex)
-      {
-        LogUtils.DebugLogger(
-          $"BeatmapTrainerService.GetCurrentBeatmapPath failed: {ex.Message}",
-          true
-        );
-        return null;
-      }
+      var (path, _) = _memory.GetCurrentBeatmap();
+      return path.Length > 0 && File.Exists(path) ? path : null;
     }
 
     public static string? FindOriginalMap(string osutrainerMapPath)
     {
-      string dir = Path.GetDirectoryName(osutrainerMapPath)!;
+      string? dir = Path.GetDirectoryName(osutrainerMapPath);
+      if (dir == null)
+        return null;
 
       OsuBeatmapFile? trainerMap = null;
       try
@@ -60,7 +51,7 @@ namespace OsuMate.Services.Trainer
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger($"[Trainer] Failed to load generated beatmap: {ex.Message}", true);
+        LogUtils.DebugLogger($"[Trainer] Failed to load generated beatmap: {ex}", true);
         return null;
       }
 
@@ -71,14 +62,14 @@ namespace OsuMate.Services.Trainer
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger($"[Trainer] Failed to enumerate folders: {ex.Message}", true);
+        LogUtils.DebugLogger($"[Trainer] Failed to enumerate folders: {ex}", true);
         return null;
       }
 
       if (!string.IsNullOrEmpty(trainerMap.SourceOsuFileName))
       {
-        string candidatePath = Path.Combine(dir, trainerMap.SourceOsuFileName);
-        if (File.Exists(candidatePath))
+        string? candidatePath = SafePath.CombineWithin(dir, trainerMap.SourceOsuFileName);
+        if (candidatePath != null && File.Exists(candidatePath))
         {
           try
           {
@@ -89,7 +80,7 @@ namespace OsuMate.Services.Trainer
           catch (Exception ex)
           {
             LogUtils.DebugLogger(
-              $"[Trainer] Failed to load embedded original beatmap: {ex.Message}",
+              $"[Trainer] Failed to load embedded original beatmap: {ex}",
               true
             );
           }
@@ -122,7 +113,7 @@ namespace OsuMate.Services.Trainer
         catch (Exception ex)
         {
           LogUtils.DebugLogger(
-            $"[Trainer] Failed to load candidate beatmap ({osuFile}): {ex.Message}",
+            $"[Trainer] Failed to load candidate beatmap ({osuFile}): {ex}",
             true
           );
         }
@@ -145,7 +136,9 @@ namespace OsuMate.Services.Trainer
       {
         progress?.Invoke("Loading beatmap...");
         var original = OsuBeatmapFile.Load(beatmapPath);
-        string songDir = Path.GetDirectoryName(beatmapPath)!;
+        string songDir =
+          Path.GetDirectoryName(beatmapPath)
+          ?? throw new InvalidDataException($"Beatmap path has no directory: {beatmapPath}");
 
         List<string>? randomizedHitObjectLines = null;
         if (randomizeEnabled && RandomModApplier.IsSupported(original.Mode))
@@ -166,128 +159,18 @@ namespace OsuMate.Services.Trainer
           foreach (var req in requests)
           {
             ct.ThrowIfCancellationRequested();
-            string tempOsuPath = "";
-            try
-            {
-              if (req.Rate <= 0)
-                throw new ArgumentOutOfRangeException(
-                  nameof(requests),
-                  req.Rate,
-                  "rate must be greater than zero."
-                );
-
-              string rateStr = req.Rate.ToString("0.0#");
-              string newVersion = $"{original.Version} {rateStr}x";
-
-              var diffSuffixes = new List<string>();
-              if (randomizedHitObjectLines != null)
-                diffSuffixes.Add("Random");
-              if (disableSv)
-                diffSuffixes.Add("NoSV");
-              if (
-                req.ArOverride.HasValue
-                && original.ApproachRate >= 0
-                && Math.Abs(req.ArOverride.Value - original.ApproachRate)
-                  > DifficultyChangeThreshold
-              )
-                diffSuffixes.Add($"AR{req.ArOverride:F1}");
-              if (
-                req.OdOverride.HasValue
-                && original.OverallDifficulty >= 0
-                && Math.Abs(req.OdOverride.Value - original.OverallDifficulty)
-                  > DifficultyChangeThreshold
-              )
-                diffSuffixes.Add($"OD{req.OdOverride:F1}");
-              if (
-                req.HpOverride.HasValue
-                && original.HPDrainRate >= 0
-                && Math.Abs(req.HpOverride.Value - original.HPDrainRate) > DifficultyChangeThreshold
-              )
-                diffSuffixes.Add($"HP{req.HpOverride:F1}");
-              if (
-                req.CsOverride.HasValue
-                && original.CircleSize >= 0
-                && Math.Abs(req.CsOverride.Value - original.CircleSize) > DifficultyChangeThreshold
-              )
-                diffSuffixes.Add($"CS{req.CsOverride:F1}");
-              if (diffSuffixes.Count > 0)
-                newVersion += $" [{string.Join(" ", diffSuffixes)}]";
-
-              string audioBase = Path.GetFileNameWithoutExtension(original.AudioFilename);
-              string newAudioName = $"{audioBase} {req.Rate:0.000}x";
-              if (adjustPitchWithSpeed && Math.Abs(req.Rate - 1M) > 0.001M)
-                newAudioName += $" (pitch {(req.Rate < 1 ? "lowered" : "raised")})";
-              newAudioName += ".mp3";
-
-              string artist = OsuBeatmapFile.NormalizeForFilename(original.Artist);
-              string title = OsuBeatmapFile.NormalizeForFilename(original.Title);
-              string creator = OsuBeatmapFile.NormalizeForFilename(original.Creator);
-              string diffName = OsuBeatmapFile.NormalizeForFilename(newVersion);
-              string newOsuFilename = $"{artist} - {title} ({creator}) [{diffName}].osu";
-
-              var tags = new List<string>(original.Tags);
-              if (!tags.Contains("osutrainer"))
-                tags.Add("osutrainer");
-
-              string newAudioPath = Path.Combine(songDir, newAudioName);
-              bool needMp3 = !File.Exists(newAudioPath);
-
-              if (needMp3)
-              {
-                progress?.Invoke($"Generating audio... ({req.Rate:0.0#}x)");
-                string inAudio = Path.Combine(songDir, original.AudioFilename);
-                SongSpeedChanger.GenerateAudioFile(
-                  inAudio,
-                  newAudioPath,
-                  req.Rate,
-                  adjustPitchWithSpeed
-                );
-              }
-
-              progress?.Invoke($"Generating beatmap... ({req.Rate:0.0#}x)");
-              tempOsuPath = Path.GetTempFileName();
-
-              var mapToSave = OsuBeatmapFile.Load(beatmapPath);
-              mapToSave.Version = newVersion;
-              mapToSave.AudioFilename = newAudioName;
-              mapToSave.Tags = tags;
-              if (randomizedHitObjectLines != null)
-                mapToSave.ReplaceHitObjectLines(randomizedHitObjectLines);
-              mapToSave.SaveWithRate(
-                tempOsuPath,
-                req.Rate,
-                req.ArOverride,
-                req.OdOverride,
-                req.HpOverride,
-                req.CsOverride,
-                disableSv
-              );
-
-              osuFilesToAdd.Add((tempOsuPath, newOsuFilename));
-            }
-            catch (Exception ex)
-            {
-              LogUtils.DebugLogger(
-                $"[Trainer] Failed to generate Rate {req.Rate:0.0#}x: {ex.Message}",
-                true
-              );
-              failures.Add((req.Rate, ex.Message));
-              if (!string.IsNullOrEmpty(tempOsuPath))
-              {
-                try
-                {
-                  if (File.Exists(tempOsuPath))
-                    File.Delete(tempOsuPath);
-                }
-                catch (Exception delEx)
-                {
-                  LogUtils.DebugLogger(
-                    $"[Trainer] Failed to delete temporary file: {delEx.Message}",
-                    true
-                  );
-                }
-              }
-            }
+            var generated = TryGenerateRateBeatmap(
+              original,
+              songDir,
+              req,
+              adjustPitchWithSpeed,
+              disableSv,
+              randomizedHitObjectLines,
+              progress,
+              failures
+            );
+            if (generated.HasValue)
+              osuFilesToAdd.Add(generated.Value);
           }
 
           if (osuFilesToAdd.Count == 0)
@@ -313,22 +196,206 @@ namespace OsuMate.Services.Trainer
         finally
         {
           foreach (var (tempOsuPath, _) in osuFilesToAdd)
-          {
-            try
-            {
-              if (File.Exists(tempOsuPath))
-                File.Delete(tempOsuPath);
-            }
-            catch (Exception ex)
-            {
-              LogUtils.DebugLogger(
-                $"[Trainer] Failed to delete temporary file: {ex.Message}",
-                true
-              );
-            }
-          }
+            TryDeleteFile(tempOsuPath);
         }
       });
+    }
+
+    private static (string tempOsuPath, string newOsuFilename)? TryGenerateRateBeatmap(
+      OsuBeatmapFile original,
+      string songDir,
+      BatchGenerationRequest req,
+      bool adjustPitchWithSpeed,
+      bool disableSv,
+      List<string>? randomizedHitObjectLines,
+      Action<string>? progress,
+      List<(decimal rate, string reason)> failures
+    )
+    {
+      string tempOsuPath = "";
+      try
+      {
+        if (req.Rate <= 0)
+          throw new ArgumentOutOfRangeException(
+            nameof(req),
+            req.Rate,
+            "rate must be greater than zero."
+          );
+
+        string newVersion = BuildVersionName(
+          original,
+          req,
+          disableSv,
+          randomizedHitObjectLines != null
+        );
+        string newAudioName = BuildAudioName(original, req.Rate, adjustPitchWithSpeed);
+        string newOsuFilename = BuildOsuFilename(original, newVersion);
+
+        string? inAudio = SafePath.CombineWithin(songDir, original.AudioFilename);
+        if (inAudio == null)
+          throw new InvalidDataException(
+            $"AudioFilename points outside the beatmap folder: {original.AudioFilename}"
+          );
+
+        string newAudioPath = Path.Combine(songDir, newAudioName);
+        if (!File.Exists(newAudioPath))
+        {
+          progress?.Invoke($"Generating audio... ({req.Rate:0.0#}x)");
+          SongSpeedChanger.GenerateAudioFile(inAudio, newAudioPath, req.Rate, adjustPitchWithSpeed);
+        }
+
+        progress?.Invoke($"Generating beatmap... ({req.Rate:0.0#}x)");
+        tempOsuPath = Path.GetTempFileName();
+
+        var tags = new List<string>(original.Tags);
+        if (!tags.Contains("osutrainer"))
+          tags.Add("osutrainer");
+
+        OsuBeatmapWriter.Write(
+          original,
+          tempOsuPath,
+          new BeatmapEditOptions(
+            newVersion,
+            newAudioName,
+            tags,
+            req.Rate,
+            req.ArOverride,
+            req.OdOverride,
+            req.HpOverride,
+            req.CsOverride,
+            disableSv,
+            randomizedHitObjectLines
+          )
+        );
+
+        return (tempOsuPath, newOsuFilename);
+      }
+      catch (Exception ex)
+      {
+        LogUtils.DebugLogger($"[Trainer] Failed to generate Rate {req.Rate:0.0#}x: {ex}", true);
+        failures.Add((req.Rate, ex.Message));
+        if (!string.IsNullOrEmpty(tempOsuPath))
+          TryDeleteFile(tempOsuPath);
+        return null;
+      }
+    }
+
+    private static string BuildVersionName(
+      OsuBeatmapFile original,
+      BatchGenerationRequest req,
+      bool disableSv,
+      bool randomized
+    )
+    {
+      string rateStr = req.Rate.ToString("0.0#", CultureInfo.InvariantCulture);
+      string newVersion = $"{original.Version} {rateStr}x";
+
+      var diffSuffixes = new List<string>();
+      if (randomized)
+        diffSuffixes.Add("Random");
+      if (disableSv)
+        diffSuffixes.Add("NoSV");
+      diffSuffixes.AddRange(BuildDifficultySuffixes(original, req));
+
+      return diffSuffixes.Count > 0 ? $"{newVersion} [{string.Join(" ", diffSuffixes)}]" : newVersion;
+    }
+
+    private static IEnumerable<string> BuildDifficultySuffixes(
+      OsuBeatmapFile original,
+      BatchGenerationRequest req
+    )
+    {
+      var overrides = new (string Label, decimal? Requested, decimal Original)[]
+      {
+        ("AR", req.ArOverride, original.ApproachRate),
+        ("OD", req.OdOverride, original.OverallDifficulty),
+        ("HP", req.HpOverride, original.HPDrainRate),
+        ("CS", req.CsOverride, original.CircleSize),
+      };
+
+      foreach (var (label, requested, originalValue) in overrides)
+      {
+        if (!requested.HasValue)
+          continue;
+
+        var resolved = TrainerCalculationService.ResolveOverride(
+          originalValue >= 0 ? originalValue : null,
+          requested.Value
+        );
+        if (resolved.HasValue)
+          yield return string.Create(CultureInfo.InvariantCulture, $"{label}{resolved.Value:F1}");
+      }
+    }
+
+    private static string BuildAudioName(
+      OsuBeatmapFile original,
+      decimal rate,
+      bool adjustPitchWithSpeed
+    )
+    {
+      string audioBase = Path.GetFileNameWithoutExtension(original.AudioFilename);
+      if (audioBase.Length > MaxAudioBaseNameLength)
+        audioBase = audioBase[..MaxAudioBaseNameLength].TrimEnd(' ', '.');
+
+      string newAudioName = string.Create(CultureInfo.InvariantCulture, $"{audioBase} {rate:0.000}x");
+      if (adjustPitchWithSpeed && Math.Abs(rate - 1M) > 0.001M)
+        newAudioName += $" (pitch {(rate < 1 ? "lowered" : "raised")})";
+      return newAudioName + ".mp3";
+    }
+
+    private static readonly HashSet<char> InvalidFileNameChars = [.. Path.GetInvalidFileNameChars()];
+
+    private static string NormalizeForFilename(string s)
+    {
+      var value = string.Concat(
+        (s ?? string.Empty).Where(c => !InvalidFileNameChars.Contains(c) && !char.IsControl(c))
+      ).TrimEnd(' ', '.');
+      if (string.IsNullOrWhiteSpace(value))
+        return "untitled";
+
+      return value.Length <= 120 ? value : value[..120].TrimEnd(' ', '.');
+    }
+
+    private static string BuildOsuFilename(OsuBeatmapFile original, string newVersion)
+    {
+      string[] parts = FitToBudget(
+        [
+          NormalizeForFilename(original.Artist),
+          NormalizeForFilename(original.Title),
+          NormalizeForFilename(original.Creator),
+          NormalizeForFilename(newVersion),
+        ],
+        MaxOsuFileNameLength - OsuFileNameDecorationLength
+      );
+      return $"{parts[0]} - {parts[1]} ({parts[2]}) [{parts[3]}].osu";
+    }
+
+    private static string[] FitToBudget(string[] parts, int budget)
+    {
+      var fitted = (string[])parts.Clone();
+      int lastIndex = fitted.Length - 1;
+
+      while (fitted.Sum(p => p.Length) > budget)
+      {
+        int longest = 0;
+        for (int i = 1; i < fitted.Length; i++)
+        {
+          if (fitted[i].Length > fitted[longest].Length)
+            longest = i;
+        }
+
+        if (fitted[longest].Length <= 1)
+          break;
+
+        fitted[longest] =
+          longest == lastIndex
+            ? fitted[longest][1..].TrimStart(' ')
+            : fitted[longest][..^1].TrimEnd(' ', '.');
+        if (fitted[longest].Length == 0)
+          fitted[longest] = "_";
+      }
+
+      return fitted;
     }
 
     private static void AddNewBeatmapsToSongFolder(
@@ -341,38 +408,60 @@ namespace OsuMate.Services.Trainer
         $"{Path.GetFileName(songDir)}-{Guid.NewGuid():N}.osz"
       );
 
+      bool launched = false;
       try
       {
-        ZipFile.CreateFromDirectory(songDir, oszPath);
-      }
-      catch (Exception ex)
-      {
-        LogUtils.DebugLogger($"[Trainer] .osz creation error: {ex.Message}", true);
-        throw;
-      }
-
-      using (var archive = ZipFile.Open(oszPath, ZipArchiveMode.Update))
-      {
-        foreach (var osu in osuFiles)
+        try
         {
-          archive.CreateEntryFromFile(osu.tempOsuPath, osu.newOsuFilename);
+          ZipFile.CreateFromDirectory(songDir, oszPath, CompressionLevel.Fastest, false);
+        }
+        catch (Exception ex)
+        {
+          LogUtils.DebugLogger($"[Trainer] .osz creation error: {ex}", true);
+          throw;
+        }
+
+        using (var archive = ZipFile.Open(oszPath, ZipArchiveMode.Update))
+        {
+          foreach (var osu in osuFiles)
+          {
+            archive.CreateEntryFromFile(osu.tempOsuPath, osu.newOsuFilename);
+          }
+        }
+
+        using var proc = new System.Diagnostics.Process();
+        proc.StartInfo.FileName = oszPath;
+        proc.StartInfo.UseShellExecute = true;
+        try
+        {
+          proc.Start();
+          launched = true;
+        }
+        catch (Exception ex)
+        {
+          LogUtils.DebugLogger($"[Trainer] .osz launch error: {ex}", true);
+          throw new InvalidOperationException(
+            "Failed to open .osz file.\nPlease check if .osz files are associated with osu!.",
+            ex
+          );
         }
       }
+      finally
+      {
+        if (!launched)
+          TryDeleteFile(oszPath);
+      }
+    }
 
-      var proc = new System.Diagnostics.Process();
-      proc.StartInfo.FileName = oszPath;
-      proc.StartInfo.UseShellExecute = true;
+    private static void TryDeleteFile(string path)
+    {
       try
       {
-        proc.Start();
+        File.Delete(path);
       }
       catch (Exception ex)
       {
-        LogUtils.DebugLogger($"[Trainer] .osz launch error: {ex.Message}", true);
-        throw new InvalidOperationException(
-          "Failed to open .osz file.\nPlease check if .osz files are associated with osu!.",
-          ex
-        );
+        LogUtils.DebugLogger($"[Trainer] Failed to delete temp file {path}: {ex}", true);
       }
     }
   }

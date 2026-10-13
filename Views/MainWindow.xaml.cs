@@ -5,6 +5,7 @@ using System.Windows.Input;
 using Microsoft.Win32;
 using OsuMate.Services;
 using OsuMate.Services.PlayLog;
+using OsuMate.Utils;
 using OsuMate.ViewModels;
 
 namespace OsuMate.Views
@@ -16,6 +17,7 @@ namespace OsuMate.Views
     private readonly PlayLogViewModel _playLogVm;
     private readonly TrainerViewModel _trainerVm;
     private readonly WindowManagerService _windowManager;
+    private readonly AppLifecycle _lifecycle;
 
     private enum TabKind
     {
@@ -36,7 +38,8 @@ namespace OsuMate.Views
       SettingsViewModel settingsVm,
       PlayLogViewModel playLogVm,
       TrainerViewModel trainerVm,
-      WindowManagerService windowManager
+      WindowManagerService windowManager,
+      AppLifecycle lifecycle
     )
     {
       InitializeComponent();
@@ -46,21 +49,19 @@ namespace OsuMate.Views
       _playLogVm = playLogVm;
       _trainerVm = trainerVm;
       _windowManager = windowManager;
+      _lifecycle = lifecycle;
       _windowManager.AttachMainWindow(this);
-      _settingsVm.AttachUiDispatcher(Dispatcher);
 
       if (!_settingsVm.IsDarkMode)
         _mainViewModel.Theme.Toggle();
       _mainViewModel.Theme.SetFont(_settingsVm.FontFamily);
       _mainViewModel.Theme.SetHue(_settingsVm.ThemeHue);
-      _mainViewModel.OnThemeChanged();
+      ApplyThemeToViews();
+      _mainViewModel.Theme.ThemeChanged += ApplyThemeToViews;
+      _mainViewModel.SetOverlayFontSize(_settingsVm.Overlay.OverlayFontSize);
+      _mainViewModel.SetOverlayShowValueFirst(_settingsVm.Overlay.IsShowValueFirst);
 
-      _playLogVm.PlayStatsChartVM.ApplyTheme(_mainViewModel.Theme.Current);
-      _playLogVm.ActivityChartVM.ApplyTheme(_mainViewModel.Theme.Current);
-      _mainViewModel.SetOverlayFontSize(_settingsVm.OverlayFontSize);
-      _mainViewModel.SetOverlayShowValueFirst(_settingsVm.IsShowValueFirst);
-
-      _settingsVm.PropertyChanged += (_, e) =>
+      System.ComponentModel.PropertyChangedEventHandler onSettingsChanged = (_, e) =>
       {
         switch (e.PropertyName)
         {
@@ -68,9 +69,6 @@ namespace OsuMate.Views
             if (_mainViewModel.Theme.IsDark != _settingsVm.IsDarkMode)
             {
               _mainViewModel.Theme.Toggle();
-              _mainViewModel.OnThemeChanged();
-              _playLogVm.PlayStatsChartVM.ApplyTheme(_mainViewModel.Theme.Current);
-              _playLogVm.ActivityChartVM.ApplyTheme(_mainViewModel.Theme.Current);
 
               Dispatcher.BeginInvoke(
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle,
@@ -80,27 +78,23 @@ namespace OsuMate.Views
             break;
           case nameof(SettingsViewModel.FontFamily):
             _mainViewModel.Theme.SetFont(_settingsVm.FontFamily);
-            _mainViewModel.OnThemeChanged();
-            _playLogVm.PlayStatsChartVM.ApplyTheme(_mainViewModel.Theme.Current);
-            _playLogVm.ActivityChartVM.ApplyTheme(_mainViewModel.Theme.Current);
             SettingsPanel.InvalidateBitmapCache();
             break;
           case nameof(SettingsViewModel.ThemeHue):
             _mainViewModel.Theme.SetHue(_settingsVm.ThemeHue);
-            _mainViewModel.OnThemeChanged();
-            _playLogVm.PlayStatsChartVM.ApplyTheme(_mainViewModel.Theme.Current);
-            _playLogVm.ActivityChartVM.ApplyTheme(_mainViewModel.Theme.Current);
             break;
-          case nameof(SettingsViewModel.OverlayFontSize):
-            _mainViewModel.SetOverlayFontSize(_settingsVm.OverlayFontSize);
+          case nameof(OverlaySettingsViewModel.OverlayFontSize):
+            _mainViewModel.SetOverlayFontSize(_settingsVm.Overlay.OverlayFontSize);
             Interlocked.Increment(ref _suppressCount);
             _ = Task.Delay(1000).ContinueWith(_ => Interlocked.Decrement(ref _suppressCount));
             break;
-          case nameof(SettingsViewModel.IsShowValueFirst):
-            _mainViewModel.SetOverlayShowValueFirst(_settingsVm.IsShowValueFirst);
+          case nameof(OverlaySettingsViewModel.IsShowValueFirst):
+            _mainViewModel.SetOverlayShowValueFirst(_settingsVm.Overlay.IsShowValueFirst);
             break;
         }
       };
+      _settingsVm.PropertyChanged += onSettingsChanged;
+      _settingsVm.Overlay.PropertyChanged += onSettingsChanged;
 
       DataContext = _mainViewModel;
       MainPanel.DataContext = _mainViewModel;
@@ -110,27 +104,19 @@ namespace OsuMate.Views
 
       Loaded += (_, _) =>
       {
-        if (_settingsVm.AppPositionEnabled)
+        if (_settingsVm.Position.AppPositionEnabled)
         {
-          this.Left = _settingsVm.AppX;
-          this.Top = _settingsVm.AppY;
+          this.Left = _settingsVm.Position.AppX;
+          this.Top = _settingsVm.Position.AppY;
         }
         _windowWidth = this.ActualWidth;
         _windowHeight = this.ActualHeight;
       };
 
-      _settingsVm.Items.CollectionChanged += (_, _) => SyncOverlayIds();
-      foreach (var item in _settingsVm.Items)
+      _settingsVm.Overlay.Items.CollectionChanged += (_, _) => SyncOverlayIds();
+      foreach (var item in _settingsVm.Overlay.Items)
         item.PropertyChanged += (_, _) => SyncOverlayIds();
       SyncOverlayIds();
-
-      _mainViewModel.AttachUiDispatcher(Dispatcher);
-      _mainViewModel.Start();
-
-      _ = Task.Run(async () =>
-      {
-        await _playLogVm.LoadAsync();
-      });
 
       TabMain.Tag = "Active";
       TabTrainer.Tag = null;
@@ -140,9 +126,16 @@ namespace OsuMate.Views
       TrainerPanel.SuspendBinding();
     }
 
+    private void ApplyThemeToViews()
+    {
+      _mainViewModel.OnThemeChanged();
+      _playLogVm.PlayStatsChartVM.ApplyTheme(_mainViewModel.Theme.Current);
+      _playLogVm.ActivityChartVM.ApplyTheme(_mainViewModel.Theme.Current);
+    }
+
     private void SyncOverlayIds()
     {
-      var ids = _settingsVm.Items.Where(i => i.IsEnabled).Select(i => i.Id).ToList();
+      var ids = _settingsVm.Overlay.Items.Where(i => i.IsEnabled).Select(i => i.Id).ToList();
       _mainViewModel.SetEnabledOverlayIds(ids);
 
       Interlocked.Increment(ref _suppressCount);
@@ -291,14 +284,19 @@ namespace OsuMate.Views
 
     protected override async void OnClosed(EventArgs e)
     {
-      _windowManager.HideOverlays();
-      _windowManager.Dispose();
-      await _mainViewModel.StopAsync();
-      _trainerVm.Dispose();
-      _playLogVm.Dispose();
-      Application.Current.Dispatcher.Invoke(() => Application.Current.Shutdown());
-      base.OnClosed(e);
-      System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown();
+      try
+      {
+        await _lifecycle.StopAsync();
+      }
+      catch (Exception ex)
+      {
+        LogUtils.DebugLogger("MainWindow.OnClosed cleanup failed: " + ex, true, writeToFile: true);
+      }
+      finally
+      {
+        base.OnClosed(e);
+        Application.Current.Shutdown();
+      }
     }
   }
 }

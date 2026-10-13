@@ -10,7 +10,7 @@ namespace OsuMate.Services.PlayLog
 
       foreach (var entry in entries)
       {
-        var date = DateOnly.FromDateTime(entry.PlayedAt);
+        var date = DateOnly.FromDateTime(entry.PlayedAt.LocalDateTime);
         var hits =
           entry.Count300 + entry.Count100 + entry.Count50 + entry.CountGeki + entry.CountKatu;
 

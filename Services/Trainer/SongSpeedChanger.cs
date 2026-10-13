@@ -17,51 +17,31 @@ namespace OsuMate.Services.Trainer
     )
     {
       string ext = Path.GetExtension(inFile).ToLowerInvariant();
-      string temp1 = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ext);
-      string temp2 = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".wav");
+      var owned = new List<IDisposable>();
+      string? tempWavPath = null;
 
       try
       {
-        File.Copy(inFile, temp1, overwrite: true);
+        var input = Own(
+          new FileStream(
+            inFile,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete
+          ),
+          owned
+        );
 
-        if (ext == ".mp3")
-        {
-          using var mp3 = new Mp3FileReader(temp1);
-          using var wav = WaveFormatConversionStream.CreatePcmStream(mp3);
-          WaveFileWriter.CreateWaveFile(temp2, wav);
-        }
-        else if (ext == ".ogg")
-        {
-          using var vorbis = new VorbisWaveReader(temp1);
-          WaveFileWriter.CreateWaveFile(temp2, vorbis.ToWaveProvider16());
-        }
-        else if (ext == ".wav")
-        {
-          using var wavIn = new WaveFileReader(temp1);
-          if (wavIn.WaveFormat.Encoding == NAudio.Wave.WaveFormatEncoding.Pcm)
-          {
-            WaveFileWriter.CreateWaveFile(temp2, wavIn);
-          }
-          else
-          {
-            using var pcm = WaveFormatConversionStream.CreatePcmStream(wavIn);
-            WaveFileWriter.CreateWaveFile(temp2, pcm);
-          }
-        }
-        else
-        {
-          throw new NotSupportedException($"Unsupported audio format: {ext}");
-        }
+        var source = OpenPcmSource(ext, input, owned, out tempWavPath);
 
         double pct = ((double)effectiveMultiplier - 1.0) * 100.0;
 
-        using var wavReader = new WaveFileReader(temp2);
-        using var floatStream = new WaveChannel32(wavReader) { PadWithZeroes = false };
+        var floatStream = Own(new WaveChannel32(source) { PadWithZeroes = false }, owned);
 
         var processor = new SoundTouchProcessor
         {
-          SampleRate = wavReader.WaveFormat.SampleRate,
-          Channels = wavReader.WaveFormat.Channels,
+          SampleRate = source.WaveFormat.SampleRate,
+          Channels = source.WaveFormat.Channels,
         };
 
         if (adjustPitchWithSpeed)
@@ -73,8 +53,8 @@ namespace OsuMate.Services.Trainer
           processor.TempoChange = pct;
         }
 
-        using var soundTouchStream = new SoundTouchWaveStream(floatStream, processor);
-        using var pcm16Stream = new Wave32To16Stream(soundTouchStream);
+        var soundTouchStream = Own(new SoundTouchWaveStream(floatStream, processor), owned);
+        var pcm16Stream = Own(new Wave32To16Stream(soundTouchStream), owned);
 
         string outputTempFile = outFile + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
@@ -99,18 +79,63 @@ namespace OsuMate.Services.Trainer
       }
       finally
       {
-        try
-        {
-          if (File.Exists(temp1))
-            File.Delete(temp1);
-        }
-        catch { }
-        try
-        {
-          if (File.Exists(temp2))
-            File.Delete(temp2);
-        }
-        catch { }
+        for (int i = owned.Count - 1; i >= 0; i--)
+          owned[i].Dispose();
+
+        if (tempWavPath != null)
+          TryDeleteFile(tempWavPath);
+      }
+    }
+
+    private static WaveStream OpenPcmSource(
+      string ext,
+      Stream input,
+      List<IDisposable> owned,
+      out string? tempWavPath
+    )
+    {
+      tempWavPath = null;
+      switch (ext)
+      {
+        case ".mp3":
+          return Own(new Mp3FileReader(input), owned);
+
+        case ".wav":
+          var wavIn = Own(new WaveFileReader(input), owned);
+          return wavIn.WaveFormat.Encoding == NAudio.Wave.WaveFormatEncoding.Pcm
+            ? wavIn
+            : Own(WaveFormatConversionStream.CreatePcmStream(wavIn), owned);
+
+        case ".ogg":
+          tempWavPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".wav");
+          using (var vorbis = new VorbisWaveReader(input))
+          {
+            WaveFileWriter.CreateWaveFile(tempWavPath, vorbis.ToWaveProvider16());
+          }
+          return Own(new WaveFileReader(tempWavPath), owned);
+
+        default:
+          throw new NotSupportedException($"Unsupported audio format: {ext}");
+      }
+    }
+
+    private static T Own<T>(T disposable, List<IDisposable> owned)
+      where T : IDisposable
+    {
+      owned.Add(disposable);
+      return disposable;
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+      try
+      {
+        if (File.Exists(path))
+          File.Delete(path);
+      }
+      catch (Exception ex)
+      {
+        OsuMate.Utils.LogUtils.DebugLogger($"SongSpeedChanger: failed to delete {path}: {ex}", true);
       }
     }
   }

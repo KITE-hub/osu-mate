@@ -39,13 +39,7 @@ namespace OsuMate.ViewModels
 
     private readonly CancellationTokenSource _cts = new();
 
-    private readonly Dispatcher _primaryDispatcher;
-    private Dispatcher? _uiDispatcher;
-
-    public void AttachUiDispatcher(Dispatcher dispatcher)
-    {
-      _uiDispatcher = dispatcher;
-    }
+    private readonly Dispatcher _uiDispatcher;
 
     public void SetOverlayFontSize(double fontSize)
     {
@@ -74,7 +68,7 @@ namespace OsuMate.ViewModels
       _ppService = ppService;
       _settings = settings;
       _playLogService = playLogService;
-      _primaryDispatcher = primaryDispatcher;
+      _uiDispatcher = primaryDispatcher;
       _ppService.OnCalculated += UpdateUI;
       _memory.OnMemoryRead += UpdateFastUI;
       _memory.OnMemoryRead += UpdateKeyOverlayFromMemoryRead;
@@ -86,7 +80,7 @@ namespace OsuMate.ViewModels
       URDistGraph = new(Theme.Current);
       _ppService.OnStrainDataUpdated += (data, strains, labels, speed) =>
       {
-        _uiDispatcher?.BeginInvoke(() =>
+        _uiDispatcher.BeginInvoke(() =>
         {
           StrainGraph.SetData(
             strains,
@@ -111,11 +105,10 @@ namespace OsuMate.ViewModels
         Info.UpdatePlayedAt(stats.LatestPlayedAt, stats.BestPpAchievedAt);
       }
 
-      var dispatcher = _uiDispatcher;
-      if (dispatcher == null || dispatcher.CheckAccess())
+      if (_uiDispatcher.CheckAccess())
         Apply();
       else
-        dispatcher.BeginInvoke(Apply);
+        _uiDispatcher.BeginInvoke(Apply);
     }
 
     private IEnumerable<IThemeable> Themeables => [StrainGraph, URTimeGraph, URDistGraph];
@@ -131,7 +124,7 @@ namespace OsuMate.ViewModels
       _memory.StartProcessMonitor(_cts.Token);
 
       _memory.StartMemoryReader(() => _settings.DataUpdateIntervalMs, _cts.Token);
-      _ppService.Start(_primaryDispatcher, () => _settings.DataUpdateIntervalMs, _cts.Token);
+      _ppService.Start(_uiDispatcher, () => _settings.DataUpdateIntervalMs, _cts.Token);
     }
 
     public async Task StopAsync()
@@ -184,11 +177,7 @@ namespace OsuMate.ViewModels
         (baseAddresses.GeneralData.AudioTime * speedMultiplier - data.FirstObjectTimeModified)
         / 1000.0;
 
-      var uiDispatcher = _uiDispatcher;
-      if (uiDispatcher == null)
-        return;
-
-      uiDispatcher.BeginInvoke(() =>
+      _uiDispatcher.BeginInvoke(() =>
       {
         Info.UpdateMapInfo(data, isPlaying, baseAddresses.GeneralData.AudioTime, speedMultiplier);
         Info.UpdatePp(data, isPlaying, isResultScreen);
@@ -346,13 +335,9 @@ namespace OsuMate.ViewModels
         });
       }
 
-      var uiDispatcher = _uiDispatcher;
-      if (
-        uiDispatcher != null
-        && Interlocked.CompareExchange(ref _fastInfoDispatchPending, 1, 0) == 0
-      )
+      if (Interlocked.CompareExchange(ref _fastInfoDispatchPending, 1, 0) == 0)
       {
-        uiDispatcher.BeginInvoke(() =>
+        _uiDispatcher.BeginInvoke(() =>
         {
           try
           {

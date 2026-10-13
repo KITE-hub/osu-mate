@@ -11,105 +11,82 @@ using osu.Game.Rulesets.Osu;
 using osu.Game.Rulesets.Taiko;
 using OsuMate.Models;
 
-namespace OsuMate.Services.Osu;
-
-internal static class RulesetHelper
+namespace OsuMate.Services.Osu
 {
-  public static Ruleset GetRuleset(int mode)
+
+  internal static class RulesetHelper
   {
-    return mode switch
+    public static Ruleset GetRuleset(int mode)
     {
-      0 => new OsuRuleset(),
-      1 => new TaikoRuleset(),
-      2 => new CatchRuleset(),
-      3 => new ManiaRuleset(),
-      _ => throw new ArgumentException("Invalid ruleset ID provided."),
-    };
-  }
-
-  public static DifficultyCalculator GetExtendedDifficultyCalculator(
-    RulesetInfo ruleset,
-    IWorkingBeatmap working
-  )
-  {
-    return ruleset.OnlineID switch
-    {
-      0 => new PPCalculation.ExtendedOsuDifficultyCalculator(ruleset, working),
-      1 => new PPCalculation.ExtendedTaikoDifficultyCalculator(ruleset, working),
-      2 => new PPCalculation.ExtendedCatchDifficultyCalculator(ruleset, working),
-      3 => new PPCalculation.ExtendedManiaDifficultyCalculator(ruleset, working),
-      _ => throw new ArgumentException("Invalid ruleset ID provided."),
-    };
-  }
-
-  public static Mod[] GetMods(Ruleset ruleset, CalculateArgs args) => GetMods(ruleset, args.Mods);
-
-  public static Mod[] GetMods(Ruleset ruleset, string[] modAcronyms)
-  {
-    var availableMods = ruleset.CreateAllMods();
-
-    var classicMod = availableMods.OfType<ModClassic>().FirstOrDefault();
-
-    if (modAcronyms.Length == 0)
-    {
-      return classicMod != null ? [classicMod] : [];
-    }
-
-    var mods = new List<Mod>();
-
-    foreach (var modString in modAcronyms)
-    {
-      var mod = availableMods.FirstOrDefault(m =>
-        string.Equals(m.Acronym, modString, StringComparison.OrdinalIgnoreCase)
-      );
-      if (mod != null)
+      return mode switch
       {
-        mods.Add(mod);
-      }
+        0 => new OsuRuleset(),
+        1 => new TaikoRuleset(),
+        2 => new CatchRuleset(),
+        3 => new ManiaRuleset(),
+        _ => throw new ArgumentException("Invalid ruleset ID provided."),
+      };
     }
 
-    if (classicMod != null)
-      mods.Add(classicMod);
+    public static DifficultyCalculator GetExtendedDifficultyCalculator(
+      RulesetInfo ruleset,
+      IWorkingBeatmap working
+    )
+    {
+      return ruleset.OnlineID switch
+      {
+        0 => new PPCalculation.ExtendedOsuDifficultyCalculator(ruleset, working),
+        1 => new PPCalculation.ExtendedTaikoDifficultyCalculator(ruleset, working),
+        2 => new PPCalculation.ExtendedCatchDifficultyCalculator(ruleset, working),
+        3 => new PPCalculation.ExtendedManiaDifficultyCalculator(ruleset, working),
+        _ => throw new ArgumentException("Invalid ruleset ID provided."),
+      };
+    }
 
-    return [.. mods];
-  }
+    public static Mod[] GetMods(Ruleset ruleset, CalculateArgs args) => GetMods(ruleset, args.Mods);
 
-  public static double GetSpeedMultiplier(string[] mods)
-  {
-    if (mods.Contains("dt") || mods.Contains("nc"))
-      return 1.0 / 1.5;
-    if (mods.Contains("ht"))
-      return 1.0 / 0.75;
-    return 1.0;
-  }
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, Mod[]> ModTemplates = new();
 
-  public static (double modMultiplier, double modDivider) ModMultiplierModDividerCalculator(
-    string[] mods
-  )
-  {
-    double modMultiplier = 1;
-    double modDivider = 1;
+    private static Mod[] GetModTemplates(Ruleset ruleset) =>
+      ModTemplates.GetOrAdd(ruleset.RulesetInfo.OnlineID, _ => ruleset.CreateAllMods().ToArray());
 
-    if (mods.Contains("ez"))
-      modMultiplier *= 0.5;
-    if (mods.Contains("nf"))
-      modMultiplier *= 0.5;
-    if (mods.Contains("ht"))
-      modMultiplier *= 0.5;
+    public static Mod[] GetMods(Ruleset ruleset, string[] modAcronyms)
+    {
+      var availableMods = GetModTemplates(ruleset);
 
-    if (mods.Contains("hr"))
-      modDivider /= 1.08;
-    if (mods.Contains("dt"))
-      modDivider /= 1.1;
-    if (mods.Contains("nc"))
-      modDivider /= 1.1;
-    if (mods.Contains("fi"))
-      modDivider /= 1.06;
-    if (mods.Contains("hd"))
-      modDivider /= 1.06;
-    if (mods.Contains("fl"))
-      modDivider /= 1.06;
+      var classicMod = availableMods.OfType<ModClassic>().FirstOrDefault();
 
-    return (modMultiplier, modDivider);
+      if (modAcronyms.Length == 0)
+      {
+        return classicMod != null ? [classicMod.DeepClone()] : [];
+      }
+
+      var mods = new List<Mod>();
+
+      foreach (var modString in modAcronyms)
+      {
+        var mod = availableMods.FirstOrDefault(m =>
+          string.Equals(m.Acronym, modString, StringComparison.OrdinalIgnoreCase)
+        );
+        if (mod != null)
+        {
+          mods.Add(mod.DeepClone());
+        }
+      }
+
+      if (classicMod != null)
+        mods.Add(classicMod.DeepClone());
+
+      return [.. mods];
+    }
+
+    public static double GetTimeScale(string[] mods)
+    {
+      if (mods.Contains("dt") || mods.Contains("nc"))
+        return 1.0 / 1.5;
+      if (mods.Contains("ht"))
+        return 1.0 / 0.75;
+      return 1.0;
+    }
   }
 }

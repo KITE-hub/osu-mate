@@ -1,11 +1,16 @@
 using System.Diagnostics;
 using System.Linq;
+using OsuMate.Services.Osu;
 using OsuMate.Utils;
 
 namespace OsuMate.Services
 {
   public class OsuProcessMonitorService : IDisposable
   {
+    private const int ActiveDelayMs = 16;
+    private const int IdleDelayMs = 1000;
+    private const int HeartbeatMs = 250;
+
     private Process? _osuProcess;
     private readonly object _processLock = new();
 
@@ -31,10 +36,20 @@ namespace OsuMate.Services
         if (_osuProcess == null || _osuProcess.HasExited)
         {
           _osuProcess?.Dispose();
-          var processes = Process.GetProcessesByName("osu!");
-          _osuProcess = processes.FirstOrDefault();
-          foreach (var process in processes.Skip(1))
-            process.Dispose();
+          _osuProcess = null;
+
+          var (running, _, _, pid) = ProcessUtils.GetOsuProcess();
+          if (running)
+          {
+            try
+            {
+              _osuProcess = Process.GetProcessById(pid);
+            }
+            catch (ArgumentException)
+            {
+              _osuProcess = null;
+            }
+          }
         }
         return _osuProcess != null;
       }
@@ -45,19 +60,34 @@ namespace OsuMate.Services
       CancellationToken ct
     )
     {
+      int delayMs = ActiveDelayMs;
+      bool hasLast = false;
+      long lastDispatchTick = 0;
+      Win32Interop.Win32Rect lastRect = default;
+
       while (!ct.IsCancellationRequested)
       {
         try
         {
-          await Task.Delay(16, ct).ConfigureAwait(false);
+          await Task.Delay(delayMs, ct).ConfigureAwait(false);
           if (ct.IsCancellationRequested)
             break;
 
-          if (!EnsureProcess())
+          if (!EnsureProcess() || !TryGetOsuWindowRect(out var rect))
+          {
+            delayMs = IdleDelayMs;
+            hasLast = false;
             continue;
-          if (!TryGetOsuWindowRect(out var rect))
+          }
+
+          delayMs = ActiveDelayMs;
+          long now = Environment.TickCount64;
+          if (hasLast && AreEqual(rect, lastRect) && now - lastDispatchTick < HeartbeatMs)
             continue;
 
+          lastRect = rect;
+          lastDispatchTick = now;
+          hasLast = true;
           await onWindowRectAvailable(rect).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -66,10 +96,13 @@ namespace OsuMate.Services
         }
         catch (Exception ex)
         {
-          LogUtils.DebugLogger("OsuProcessMonitorService tracking failed: " + ex.Message, true);
+          LogUtils.DebugLogger("OsuProcessMonitorService tracking failed: " + ex, true);
         }
       }
     }
+
+    private static bool AreEqual(Win32Interop.Win32Rect a, Win32Interop.Win32Rect b) =>
+      a.Left == b.Left && a.Top == b.Top && a.Right == b.Right && a.Bottom == b.Bottom;
 
     public void Dispose()
     {

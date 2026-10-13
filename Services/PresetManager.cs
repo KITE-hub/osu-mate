@@ -1,12 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using OsuMate.Models;
-using OsuMate.Utils;
 
 namespace OsuMate.Services
 {
   public class PresetManager
   {
+    private readonly ConfigStore _config;
     private readonly RootConfig _root;
 
     public ObservableCollection<Preset> Presets { get; } = [];
@@ -17,9 +17,10 @@ namespace OsuMate.Services
 
     public event Action<PresetConfig>? ActivePresetChanged;
 
-    public PresetManager(RootConfig root)
+    public PresetManager(ConfigStore config)
     {
-      _root = root;
+      _config = config;
+      _root = config.Root;
 
       var active =
         _root.Presets.FirstOrDefault(p => p.Id == _root.ActivePresetId) ?? _root.Presets[0];
@@ -28,6 +29,18 @@ namespace OsuMate.Services
 
       foreach (var preset in _root.Presets)
         Presets.Add(preset);
+    }
+
+    private void AddPreset(Preset preset)
+    {
+      _root.Presets.Add(preset);
+      Presets.Add(preset);
+    }
+
+    private void RemovePreset(Preset preset)
+    {
+      _root.Presets.Remove(preset);
+      Presets.Remove(preset);
     }
 
     public Preset? SelectedPreset
@@ -62,22 +75,21 @@ namespace OsuMate.Services
         Name = string.IsNullOrWhiteSpace(name) ? "New Preset" : name.Trim(),
         Config = new PresetConfig(),
       };
-      _root.Presets.Add(preset);
-      Presets.Add(preset);
+      AddPreset(preset);
       SwitchToPreset(preset.Id);
       return preset;
     }
 
     public Preset DuplicatePreset(string sourceId, string newName)
     {
-      var source = Presets.FirstOrDefault(p => p.Id == sourceId) ?? Presets.First();
+      var source = Presets.FirstOrDefault(p => p.Id == sourceId) 
+        ?? throw new ArgumentException($"Preset not found: {sourceId}", nameof(sourceId));
       var preset = new Preset
       {
         Name = string.IsNullOrWhiteSpace(newName) ? source.Name + " - Copy" : newName.Trim(),
         Config = CloneConfig(source.Config),
       };
-      _root.Presets.Add(preset);
-      Presets.Add(preset);
+      AddPreset(preset);
       SwitchToPreset(preset.Id);
       return preset;
     }
@@ -103,8 +115,7 @@ namespace OsuMate.Services
         return false;
 
       bool wasActive = ActivePresetId == id;
-      _root.Presets.Remove(preset);
-      Presets.Remove(preset);
+      RemovePreset(preset);
 
       if (wasActive)
         SwitchToPreset(Presets[0].Id);
@@ -122,10 +133,7 @@ namespace OsuMate.Services
 
     public void Save()
     {
-      var active = _root.Presets.FirstOrDefault(p => p.Id == ActivePresetId);
-      if (active != null)
-        active.Config = ActiveConfig;
-      ConfigUtils.SaveRootConfig(_root);
+      _config.Save();
     }
   }
 }
