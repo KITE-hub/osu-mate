@@ -10,6 +10,7 @@ namespace OsuMate.Services
     private const long StableDurationMs = 300;
 
     private readonly OsuMemoryService _memory;
+    private readonly PpCalculationService _ppService;
     private readonly PresetManager _presetManager;
     private readonly ModePresetConfig _config;
     private readonly Dispatcher _uiDispatcher;
@@ -22,12 +23,14 @@ namespace OsuMate.Services
 
     public ModePresetSwitcher(
       OsuMemoryService memory,
+      PpCalculationService ppService,
       PresetManager presetManager,
       ConfigStore config,
       Dispatcher uiDispatcher
     )
     {
       _memory = memory;
+      _ppService = ppService;
       _presetManager = presetManager;
       _config = config.Root.ModePresets;
       _uiDispatcher = uiDispatcher;
@@ -69,7 +72,7 @@ namespace OsuMate.Services
         return;
       }
 
-      int mode = _memory.CurrentOsuGamemode;
+      int mode = _ppService.EffectiveGamemode;
       if (!OsuMode.IsValid(mode))
         return;
 
@@ -80,7 +83,7 @@ namespace OsuMate.Services
         _candidateSinceMs = now;
       }
 
-      if (mode == _appliedMode || now - _candidateSinceMs < StableDurationMs || _memory.IsPlaying)
+      if (mode == _appliedMode || now - _candidateSinceMs < StableDurationMs)
         return;
 
       _appliedMode = mode;

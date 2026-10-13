@@ -233,7 +233,7 @@ namespace OsuMate.ViewModels
       {
         _keyOverlayTransitionBuffer.Clear();
 
-        int gamemode = _memory.CurrentOsuGamemode;
+        int gamemode = _ppService.EffectiveGamemode;
         var currentMap = _memory.GetCurrentBeatmap();
         string beatmapMd5 = !string.IsNullOrEmpty(currentMap.BeatmapMd5)
           ? currentMap.BeatmapMd5
