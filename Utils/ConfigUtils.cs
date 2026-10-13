@@ -152,6 +152,8 @@ namespace OsuMate.Utils
         root.Presets.Add(new Preset { Name = "Default", Config = new PresetConfig() });
       if (root.Presets.All(p => p.Id != root.ActivePresetId))
         root.ActivePresetId = root.Presets[0].Id;
+      root.ModePresets ??= new ModePresetConfig();
+      root.ModePresets.Normalize(root.Presets.Select(p => p.Id).ToHashSet());
       return root;
     }
   }

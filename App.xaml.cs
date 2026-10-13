@@ -104,11 +104,13 @@ namespace OsuMate
       services.AddSingleton<Dispatcher>(_ => Current.Dispatcher);
 
       services.AddSingleton<ConfigStore>();
+      services.AddSingleton<PresetManager>();
       services.AddSingleton<OsuMemoryService>();
       services.AddSingleton<RawInputService>();
       services.AddSingleton<OsuProcessMonitorService>();
       services.AddSingleton<OsuLauncherService>();
       services.AddSingleton<PpCalculationService>();
+      services.AddSingleton<ModePresetSwitcher>();
       services.AddSingleton<SettingsViewModel>();
 
       services.AddSingleton<ThemeSettings>(_ => ThemeSettings.Dark());

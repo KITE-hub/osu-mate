@@ -5,6 +5,7 @@ namespace OsuMate.Services
 {
   public sealed class AppLifecycle(
     WindowManagerService windowManager,
+    ModePresetSwitcher modePresetSwitcher,
     MainViewModel mainViewModel,
     PlayLogViewModel playLogViewModel,
     TrainerViewModel trainerViewModel
@@ -14,6 +15,7 @@ namespace OsuMate.Services
     {
       windowManager.Start();
       mainViewModel.Start();
+      modePresetSwitcher.Start();
 
       _ = Task.Run(async () =>
       {
@@ -30,6 +32,7 @@ namespace OsuMate.Services
 
     public async Task StopAsync()
     {
+      modePresetSwitcher.Dispose();
       windowManager.HideOverlays();
       windowManager.Dispose();
       await mainViewModel.StopAsync();

@@ -470,6 +470,56 @@
         </Grid>
       </StackPanel>
 
+      <StackPanel Margin="{StaticResource SectionSpacing}" DataContext="{Binding ModePresets}">
+        <Grid Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock
+            Text="Auto Switch by Mode"
+            Style="{StaticResource TextTitleStyle}"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Left"
+          />
+          <CheckBox
+            IsChecked="{Binding AutoSwitchEnabled}"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Right"
+            Style="{StaticResource ToggleSwitchStyle}"
+          />
+        </Grid>
+
+        <ItemsControl ItemsSource="{Binding Rows}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+                <TextBlock
+                  Text="{Binding Label}"
+                  FontSize="12"
+                  VerticalAlignment="Center"
+                  Width="160"
+                  Foreground="{DynamicResource TextBrush}"
+                />
+                <ComboBox
+                  ItemsSource="{Binding PresetOptions}"
+                  SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                  Width="150"
+                  VerticalAlignment="Center"
+                  Style="{StaticResource ThemedComboBox}"
+                >
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock
+                        Text="{Binding Name}"
+                        FontSize="12"
+                        Foreground="{DynamicResource TextBrush}"
+                      />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+
       <StackPanel Margin="{StaticResource SectionSpacing}">
         <Grid Height="22" Margin="{StaticResource RowSpacing}">
           <TextBlock

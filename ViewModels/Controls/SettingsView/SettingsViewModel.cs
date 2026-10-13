@@ -16,6 +16,7 @@ namespace OsuMate.ViewModels
 
     public URBarSettingsViewModel URBar { get; }
     public KeyOverlaySettingsViewModel KeyOverlay { get; }
+    public ModePresetSettingsViewModel ModePresets { get; }
 
     public PositionSettingsViewModel Position { get; }
 
@@ -58,6 +59,7 @@ namespace OsuMate.ViewModels
 
     public SettingsViewModel(
       OsuMemoryService memory,
+      PresetManager presetManager,
       ConfigStore config,
       System.Windows.Threading.Dispatcher uiDispatcher
     )
@@ -75,7 +77,7 @@ namespace OsuMate.ViewModels
         _uiDispatcher.BeginInvoke(() => OnPropertyChanged(nameof(OsuExeDirectoryText)));
       };
 
-      _presetManager = new PresetManager(config);
+      _presetManager = presetManager;
 
       _saveTimer = new System.Windows.Threading.DispatcherTimer(
         System.Windows.Threading.DispatcherPriority.Background,
@@ -93,6 +95,12 @@ namespace OsuMate.ViewModels
       KeyOverlay = new KeyOverlaySettingsViewModel(() => PresetConfig, Save, DebouncedSave);
 
       Position = new PositionSettingsViewModel(() => PresetConfig, Save);
+
+      ModePresets = new ModePresetSettingsViewModel(
+        _root.ModePresets,
+        _presetManager.Presets,
+        _presetManager.Save
+      );
 
       _presetManager.ActivePresetChanged += ApplyPresetConfig;
 

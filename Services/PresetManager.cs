@@ -39,6 +39,7 @@ namespace OsuMate.Services
 
     private void RemovePreset(Preset preset)
     {
+      _root.ModePresets.RemovePreset(preset.Id);
       _root.Presets.Remove(preset);
       Presets.Remove(preset);
     }
