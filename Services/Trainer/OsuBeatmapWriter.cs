@@ -9,10 +9,6 @@ namespace OsuMate.Services.Trainer
     public static void Write(OsuBeatmapFile source, string outputPath, BeatmapEditOptions options)
     {
       decimal rate = options.Rate;
-      decimal? arOverride = options.ArOverride;
-      decimal? odOverride = options.OdOverride;
-      decimal? hpOverride = options.HpOverride;
-      decimal? csOverride = options.CsOverride;
       bool disableSv = options.DisableSv;
 
       if (rate <= 0)
@@ -37,6 +33,7 @@ namespace OsuMate.Services.Trainer
         {
           section = OsuBeatmapFile.ParseSection(line);
           outLines.Add(raw);
+          outLines.AddRange(GeneratedLinesAfterHeader(section, options));
           continue;
         }
 
@@ -50,7 +47,7 @@ namespace OsuMate.Services.Trainer
               int newPt = pt < 0 ? pt : (int)Math.Round(pt / (double)rate);
               outLines.Add($"PreviewTime: {newPt}");
             }
-            else
+            else if (!(options.Mode.HasValue && OsuBeatmapFile.TryKV(line, "Mode", out _)))
               outLines.Add(raw);
             break;
 
@@ -68,20 +65,20 @@ namespace OsuMate.Services.Trainer
             break;
 
           case OsuBeatmapFile.Section.Difficulty:
-            outLines.Add(
-              OverrideDifficultyLine(raw, arOverride, odOverride, hpOverride, csOverride)
-            );
+            outLines.Add(OverrideDifficultyLine(raw, options));
             break;
 
           case OsuBeatmapFile.Section.Events:
 
-            var eventLine = FilterAndScaleEventLine(raw, rate);
+            var eventLine = FilterAndScaleEventLine(raw, rate, options.RemoveBreaks);
             if (eventLine != null)
               outLines.Add(eventLine);
             break;
 
           case OsuBeatmapFile.Section.TimingPoints:
-            var tpLine = ScaleTimingPointLine(raw, rate, disableSv);
+            var tpLine = options.TimingPointLines == null
+              ? ScaleTimingPointLine(raw, rate, disableSv)
+              : (line == "" ? raw : null);
             if (tpLine != null)
               outLines.Add(tpLine);
             break;
@@ -115,25 +112,40 @@ namespace OsuMate.Services.Trainer
       File.WriteAllLines(outputPath, outLines, Encoding.UTF8);
     }
 
-    private static string OverrideDifficultyLine(
-      string raw,
-      decimal? ar,
-      decimal? od,
-      decimal? hp,
-      decimal? cs
+    private static string BuildModeLine(int mode) => $"Mode: {mode}";
+
+    private static IEnumerable<string> GeneratedLinesAfterHeader(
+      OsuBeatmapFile.Section section,
+      BeatmapEditOptions options
     )
+    {
+      if (section == OsuBeatmapFile.Section.General && options.Mode.HasValue)
+        yield return BuildModeLine(options.Mode.Value);
+      else if (section == OsuBeatmapFile.Section.TimingPoints && options.TimingPointLines != null)
+        foreach (var timingPointLine in options.TimingPointLines)
+          yield return timingPointLine;
+    }
+
+    private static readonly (string Key, Func<BeatmapEditOptions, decimal?> GetOverride)[] DifficultyOverrides =
+    [
+      ("ApproachRate", o => o.ArOverride),
+      ("OverallDifficulty", o => o.OdOverride),
+      ("HPDrainRate", o => o.HpOverride),
+      ("CircleSize", o => o.CsOverride),
+      ("SliderMultiplier", o => o.SliderMultiplierOverride),
+    ];
+
+    private static string OverrideDifficultyLine(string raw, BeatmapEditOptions options)
     {
       var line = raw.Trim();
       if (line == "")
         return raw;
-      if (ar.HasValue && OsuBeatmapFile.TryKVDecimal(line, "ApproachRate", out _))
-        return $"ApproachRate:{ar.Value.ToString("F10", CultureInfo.InvariantCulture)}";
-      if (od.HasValue && OsuBeatmapFile.TryKVDecimal(line, "OverallDifficulty", out _))
-        return $"OverallDifficulty:{od.Value.ToString("F10", CultureInfo.InvariantCulture)}";
-      if (hp.HasValue && OsuBeatmapFile.TryKVDecimal(line, "HPDrainRate", out _))
-        return $"HPDrainRate:{hp.Value.ToString("F10", CultureInfo.InvariantCulture)}";
-      if (cs.HasValue && OsuBeatmapFile.TryKVDecimal(line, "CircleSize", out _))
-        return $"CircleSize:{cs.Value.ToString("F10", CultureInfo.InvariantCulture)}";
+
+      foreach (var (key, getOverride) in DifficultyOverrides)
+      {
+        if (getOverride(options) is { } value && OsuBeatmapFile.TryKVDecimal(line, key, out _))
+          return $"{key}:{value.ToString("F10", CultureInfo.InvariantCulture)}";
+      }
       return raw;
     }
 
@@ -270,7 +282,7 @@ namespace OsuMate.Services.Trainer
       return string.Join(",", parts);
     }
 
-    private static string? FilterAndScaleEventLine(string raw, decimal rate)
+    private static string? FilterAndScaleEventLine(string raw, decimal rate, bool removeBreaks)
     {
       var line = raw.Trim();
       if (line == "" || line.StartsWith("//", StringComparison.Ordinal))
@@ -296,6 +308,8 @@ namespace OsuMate.Services.Trainer
 
       if ((eventType == "2" || eventType == "Break") && parts.Length >= 3)
       {
+        if (removeBreaks)
+          return null;
         if (
           double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double st)
         )

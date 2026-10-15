@@ -1,40 +1,9 @@
-using System.Globalization;
-
 namespace OsuMate.Services.Trainer
 {
   internal readonly record struct BpmSummary(decimal Dominant, decimal Min, decimal Max);
 
   internal static class BeatmapBpmCalculator
   {
-    internal static void TryAddTimingPoint(string line, List<(double time, double beatLength)> bpmPoints)
-    {
-      var parts = line.Split(',');
-      if (parts.Length < 7)
-        return;
-      if (
-        !double.TryParse(
-          parts[0],
-          NumberStyles.Float,
-          CultureInfo.InvariantCulture,
-          out double time
-        )
-      )
-        return;
-      if (
-        !double.TryParse(
-          parts[1],
-          NumberStyles.Float,
-          CultureInfo.InvariantCulture,
-          out double beatLength
-        )
-      )
-        return;
-      if (!int.TryParse(parts[6].Trim(), out int uninherited))
-        return;
-      if (uninherited == 1 && beatLength > 0)
-        bpmPoints.Add((time, beatLength));
-    }
-
     internal static BpmSummary? Compute(List<(double time, double beatLength)> pts, double lastHitObjectTime)
     {
       if (pts.Count == 0)

@@ -491,7 +491,12 @@
                   <LineBreak />
                   <Run Text="It removes all inherited timing points (green lines) for constant 1.0x scroll speed." />
                   <LineBreak />
-                  <Run Text="Kiai and 'Omit first bar line' are turned off, and volume is fixed to 100%." />
+                  <LineBreak />
+                  <Run Text="OD: 10 (constant)" />
+                  <LineBreak />
+                  <Run Text="Kiai and 'Omit first bar line': Off (constant)" />
+                  <LineBreak />
+                  <Run Text="Volume: 100% (constant)" />
                   <LineBreak />
                   <LineBreak />
                   <Run Text="Support for each mode is as follows." />
@@ -547,8 +552,169 @@
         IsEnabled="{Binding CanGenerate}"
         Click="Generate_Click"
         Style="{StaticResource AccentButtonStyle}"
-        Margin="0,4,0,8"
+        Margin="0,0,0,18"
       />
+
+      <StackPanel Margin="{StaticResource SectionSpacing}">
+        <Grid Margin="{StaticResource RowSpacing}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+
+          <TextBlock
+            Grid.Column="0"
+            Text="Offset Map"
+            Style="{StaticResource TextTitleStyle}"
+            VerticalAlignment="Center"
+          />
+
+          <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+            <StackPanel
+              Orientation="Horizontal"
+              Background="Transparent"
+              Margin="0,0,16,0"
+              ToolTipService.InitialShowDelay="100"
+            >
+              <StackPanel.ToolTip>
+                <ToolTip>
+                  <ToolTip.Style>
+                    <Style TargetType="ToolTip" BasedOn="{StaticResource TrackerToolTipStyle}">
+                      <Setter Property="Width" Value="200" />
+                      <Setter Property="MaxWidth" Value="200" />
+                    </Style>
+                  </ToolTip.Style>
+                  <TextBlock TextWrapping="Wrap">
+                    <Run Text="16th max BPM:" />
+                    <LineBreak />
+                    <Run Text="It decides the note spacing of the map." />
+                    <LineBreak />
+                    <Run Text="Range: 10 - 1000" />
+                    <LineBreak />
+                    <LineBreak />
+                    <Run Text="If the BPM of a section is between half of this value and this value, notes are placed at 16th intervals." />
+                    <LineBreak />
+                    <Run Text="Otherwise the interval is doubled or halved until it fits (4th, 8th, 32nd, ...), so the spacing stays about the same in every section." />
+                    <LineBreak />
+                    <LineBreak />
+                    <Run Text="Example (240):" />
+                    <LineBreak />
+                    <Run Text="120 - 240 BPM: 16th" />
+                    <LineBreak />
+                    <Run Text="over 240 - 480 BPM: 8th" />
+                    <LineBreak />
+                    <Run Text="60 - under 120 BPM: 32nd" />
+                    <LineBreak />
+                  </TextBlock>
+                </ToolTip>
+              </StackPanel.ToolTip>
+              <TextBlock
+                Text="16th max BPM:"
+                VerticalAlignment="Center"
+                FontSize="12"
+                Foreground="{DynamicResource TextBrush}"
+              />
+              <TextBox
+                Text="{Binding OffsetMapSixteenthMaxBpm, UpdateSourceTrigger=LostFocus}"
+                Style="{StaticResource RateTextBoxStyle}"
+                Margin="6,0,0,0"
+                KeyDown="RateTextBox_KeyDown"
+              />
+            </StackPanel>
+
+            <StackPanel
+              Orientation="Horizontal"
+              Background="Transparent"
+              ToolTipService.InitialShowDelay="100"
+            >
+              <StackPanel.ToolTip>
+                <ToolTip>
+                  <ToolTip.Style>
+                    <Style TargetType="ToolTip" BasedOn="{StaticResource TrackerToolTipStyle}">
+                      <Setter Property="Width" Value="200" />
+                      <Setter Property="MaxWidth" Value="200" />
+                    </Style>
+                  </ToolTip.Style>
+                  <TextBlock TextWrapping="Wrap">
+                    <Run Text="Scroll BPM:" />
+                    <LineBreak />
+                    <Run Text="The scroll speed of the notes, expressed as a BPM. A higher value scrolls faster." />
+                    <LineBreak />
+                    <Run Text="Range: 10 - 1000" />
+                    <LineBreak />
+                    <LineBreak />
+                    <Run Text="The speed is the same in every section even if the BPM of the map changes (the inherited timing line (green line) multiplier is set for each section)." />
+                    <LineBreak />
+                    <LineBreak />
+                    <Run Text="The multiplier can only be between 0.1x and 10x in osu!. If the BPM of a section is extremely low or high compared to this value, the speed of that section differs from the specified one." />
+                    <LineBreak />
+                  </TextBlock>
+                </ToolTip>
+              </StackPanel.ToolTip>
+              <TextBlock
+                Text="Scroll BPM:"
+                VerticalAlignment="Center"
+                FontSize="12"
+                Foreground="{DynamicResource TextBrush}"
+              />
+              <TextBox
+                Text="{Binding OffsetMapScrollBpm, UpdateSourceTrigger=LostFocus}"
+                Style="{StaticResource RateTextBoxStyle}"
+                Margin="6,0,0,0"
+                KeyDown="RateTextBox_KeyDown"
+              />
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+      </StackPanel>
+
+      <Button
+        x:Name="GenerateOffsetMapButton"
+        Content="Generate offset map"
+        Height="36"
+        FontSize="14"
+        FontWeight="Bold"
+        IsEnabled="{Binding CanGenerate}"
+        Click="GenerateOffsetMap_Click"
+        Style="{StaticResource AccentButtonStyle}"
+        Margin="0,0,0,8"
+        ToolTipService.InitialShowDelay="100"
+        ToolTipService.ShowOnDisabled="True"
+      >
+        <Button.ToolTip>
+          <ToolTip>
+            <ToolTip.Style>
+              <Style TargetType="ToolTip" BasedOn="{StaticResource TrackerToolTipStyle}">
+                <Setter Property="Width" Value="200" />
+                <Setter Property="MaxWidth" Value="200" />
+              </Style>
+            </ToolTip.Style>
+            <TextBlock TextWrapping="Wrap">
+              <Run Text="Generate offset map:" />
+              <LineBreak />
+              <Run Text="It creates a special osu!taiko difficulty of the current original map to check the offset (timing)." />
+              <LineBreak />
+              <LineBreak />
+              <Run Text="How to use: play and check Local offset help and UR bar. If your hits are biased early or late, please adjust the offset by following the Local offset help." />
+              <LineBreak />
+              <LineBreak />
+              <Run Text="Notes: ddkkddkk...(evenly spaced)" />
+              <LineBreak />
+              <Run Text="OD: 10 (constant)" />
+              <LineBreak />
+              <Run Text="Scroll speed: Following the Scroll BPM" />
+              <LineBreak />
+              <Run Text="Kiai and 'Omit first bar line': Off (constant)" />
+              <LineBreak />
+              <Run Text="Volume: 100% (constant)" />
+              <LineBreak />
+              <Run Text="It's from the first measure after the preview point to the end of the original map." />
+              <LineBreak />
+              <Run Text="The original red lines are kept as they are, so the notes follow the timing of the original map." />
+            </TextBlock>
+          </ToolTip>
+        </Button.ToolTip>
+      </Button>
 
       <TextBlock
         Text="{Binding StatusMessage}"

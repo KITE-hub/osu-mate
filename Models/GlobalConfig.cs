@@ -32,6 +32,10 @@ namespace OsuMate.Models
 
     public int BatchCount { get; set; } = 4;
 
+    public decimal OffsetMapSixteenthMaxBpm { get; set; } = 240M;
+
+    public decimal OffsetMapScrollBpm { get; set; } = 240M;
+
     public int DataUpdateIntervalMs { get; set; } = 33;
   }
 }

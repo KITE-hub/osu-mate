@@ -46,6 +46,14 @@ namespace OsuMate.Services.Trainer
     public decimal MinBpm { get; private set; }
     public decimal MaxBpm { get; private set; }
 
+    public int PreviewTime { get; private set; } = -1;
+
+    public double LastHitObjectTime { get; private set; }
+
+    private readonly List<UninheritedTimingPoint> _uninheritedTimingPoints = [];
+
+    public IReadOnlyList<UninheritedTimingPoint> UninheritedTimingPoints => _uninheritedTimingPoints;
+
     private List<string> _rawLines = [];
 
     internal enum Section
@@ -146,7 +154,11 @@ namespace OsuMate.Services.Trainer
             break;
 
           case Section.TimingPoints:
-            BeatmapBpmCalculator.TryAddTimingPoint(line, bpmPoints);
+            if (TimingPointParser.TryParseUninherited(line, out var timingPoint))
+            {
+              bpmPoints.Add((timingPoint.Time, timingPoint.BeatLength));
+              _uninheritedTimingPoints.Add(timingPoint);
+            }
             break;
 
           case Section.HitObjects:
@@ -155,7 +167,9 @@ namespace OsuMate.Services.Trainer
         }
       }
 
-      var bpm = BeatmapBpmCalculator.Compute(bpmPoints, lastHitObjectTime);
+      LastHitObjectTime = lastHitObjectTime;
+
+      var bpm =BeatmapBpmCalculator.Compute(bpmPoints, lastHitObjectTime);
       if (bpm is { } summary)
       {
         DominantBpm = summary.Dominant;
@@ -232,6 +246,8 @@ namespace OsuMate.Services.Trainer
             AudioFilename = af;
           if (TryKV(line, "Mode", out var modeStr) && int.TryParse(modeStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out int mode))
             Mode = mode;
+          if (TryKV(line, "PreviewTime", out var previewStr) && int.TryParse(previewStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out int previewTime))
+            PreviewTime = previewTime;
           break;
 
         case Section.Metadata:

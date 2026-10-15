@@ -24,6 +24,10 @@ namespace OsuMate.Services.Trainer
     private const int OsuFileNameDecorationLength = 13;
     private const int MaxAudioBaseNameLength = 150;
 
+    private const decimal OffsetMapOverallDifficulty = 10M;
+    private const decimal OffsetMapSliderMultiplier = 1.4M;
+    private const string OffsetMapVersionSuffix = "OffsetMap";
+
     public BeatmapTrainerService(OsuMemoryService memory)
     {
       _memory = memory;
@@ -136,9 +140,7 @@ namespace OsuMate.Services.Trainer
       {
         progress?.Invoke("Loading beatmap...");
         var original = OsuBeatmapFile.Load(beatmapPath);
-        string songDir =
-          Path.GetDirectoryName(beatmapPath)
-          ?? throw new InvalidDataException($"Beatmap path has no directory: {beatmapPath}");
+        string songDir = ResolveSongDirectory(beatmapPath);
 
         List<string>? randomizedHitObjectLines = null;
         if (randomizeEnabled && RandomModApplier.IsSupported(original.Mode))
@@ -201,6 +203,82 @@ namespace OsuMate.Services.Trainer
       });
     }
 
+    public async Task GenerateOffsetMapAsync(
+      string beatmapPath,
+      OffsetMapRequest request,
+      Action<string>? progress = null,
+      CancellationToken ct = default
+    )
+    {
+      await Task.Run(() =>
+      {
+        progress?.Invoke("Loading beatmap...");
+        var original = OsuBeatmapFile.Load(beatmapPath);
+        string songDir = ResolveSongDirectory(beatmapPath);
+
+        var plan = OffsetMapBuilder.Build(original, request);
+        ct.ThrowIfCancellationRequested();
+
+        string newVersion = $"{original.Version} {OffsetMapVersionSuffix}";
+        string newOsuFilename = BuildOsuFilename(original, newVersion);
+        string tempOsuPath = Path.GetTempFileName();
+
+        try
+        {
+          progress?.Invoke("Generating offset map...");
+          OsuBeatmapWriter.Write(
+            original,
+            tempOsuPath,
+            new BeatmapEditOptions(
+              newVersion,
+              original.AudioFilename,
+              BuildTrainerTags(original),
+              Rate: 1M,
+              OdOverride: OffsetMapOverallDifficulty,
+              HitObjectLines: plan.HitObjectLines,
+              Mode: Models.OsuMode.Taiko,
+              SliderMultiplierOverride: OffsetMapSliderMultiplier,
+              TimingPointLines: plan.TimingPointLines,
+              RemoveBreaks: true
+            )
+          );
+
+          ct.ThrowIfCancellationRequested();
+          progress?.Invoke("Creating .osz...");
+          AddNewBeatmapsToSongFolder(songDir, [(tempOsuPath, newOsuFilename)]);
+          progress?.Invoke(BuildOffsetMapDoneMessage(plan));
+        }
+        finally
+        {
+          TryDeleteFile(tempOsuPath);
+        }
+      });
+    }
+
+    private static string BuildOffsetMapDoneMessage(OffsetMapPlan plan)
+    {
+      var notices = new List<string>();
+      if (plan.UsedFallbackStart)
+        notices.Add("PreviewTime not set - started from the first timing point");
+      if (plan.ClampedScrollSectionCount > 0)
+        notices.Add($"scroll speed clamped in {plan.ClampedScrollSectionCount} section(s)");
+
+      string summary = $"Done! {plan.HitObjectLines.Count} notes";
+      return notices.Count == 0 ? summary : $"{summary} ({string.Join(" / ", notices)})";
+    }
+
+    private static string ResolveSongDirectory(string beatmapPath) =>
+      Path.GetDirectoryName(beatmapPath)
+      ?? throw new InvalidDataException($"Beatmap path has no directory: {beatmapPath}");
+
+    private static List<string> BuildTrainerTags(OsuBeatmapFile original)
+    {
+      var tags = new List<string>(original.Tags);
+      if (!tags.Contains("osutrainer"))
+        tags.Add("osutrainer");
+      return tags;
+    }
+
     private static (string tempOsuPath, string newOsuFilename)? TryGenerateRateBeatmap(
       OsuBeatmapFile original,
       string songDir,
@@ -247,17 +325,13 @@ namespace OsuMate.Services.Trainer
         progress?.Invoke($"Generating beatmap... ({req.Rate:0.0#}x)");
         tempOsuPath = Path.GetTempFileName();
 
-        var tags = new List<string>(original.Tags);
-        if (!tags.Contains("osutrainer"))
-          tags.Add("osutrainer");
-
         OsuBeatmapWriter.Write(
           original,
           tempOsuPath,
           new BeatmapEditOptions(
             newVersion,
             newAudioName,
-            tags,
+            BuildTrainerTags(original),
             req.Rate,
             req.ArOverride,
             req.OdOverride,

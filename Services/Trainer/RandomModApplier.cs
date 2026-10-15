@@ -633,9 +633,9 @@ namespace OsuMate.Services.Trainer
 
     private static List<string> ApplyTaiko(IReadOnlyList<string> lines, Random random)
     {
-      const int normalBit = 1;
-      const int whistleBit = 2;
-      const int finishBit = 4;
+      const int normalBit = TaikoHitSound.Normal;
+      const int whistleBit = TaikoHitSound.Whistle;
+      const int finishBit = TaikoHitSound.Finish;
 
       var result = new List<string>(lines.Count);
 

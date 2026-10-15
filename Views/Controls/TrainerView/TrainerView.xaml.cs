@@ -41,5 +41,12 @@ namespace OsuMate.Views.Controls
         return;
       await Vm.GenerateAsync();
     }
+
+    private async void GenerateOffsetMap_Click(object sender, RoutedEventArgs e)
+    {
+      if (Vm == null)
+        return;
+      await Vm.GenerateOffsetMapAsync();
+    }
   }
 }

@@ -37,7 +37,7 @@ A companion desktop tool for **osu!** (Windows, C# / WPF).
 
   </details>
 
-- **Trainer**: generation of speed-changed charts (via NAudio + SoundTouch.Net), randomized charts (excluding osu!catch Mode) and No SV charts (excluding osu!standard & osu!catch Mode)
+- **Trainer**: generation of speed-changed maps, randomized maps (excluding osu!catch Mode) and No SV maps (excluding osu!standard & osu!catch Mode), and offset-check osu!taiko maps
 
   <details>
   <summary>Screenshot</summary>

@@ -10,6 +10,10 @@ namespace OsuMate.Services.Trainer
     decimal? HpOverride = null,
     decimal? CsOverride = null,
     bool DisableSv = false,
-    IReadOnlyList<string>? HitObjectLines = null
+    IReadOnlyList<string>? HitObjectLines = null,
+    int? Mode = null,
+    decimal? SliderMultiplierOverride = null,
+    IReadOnlyList<string>? TimingPointLines = null,
+    bool RemoveBreaks = false
   );
 }

@@ -182,6 +182,45 @@ namespace OsuMate.ViewModels
     private void SaveBatchCount(int value) =>
       _config.Update(g => g.BatchCount = value);
 
+    private static decimal ClampBpmSetting(decimal value) =>
+      Math.Clamp(value, OffsetMapBuilder.MinBpmSetting, OffsetMapBuilder.MaxBpmSetting);
+
+    private decimal _offsetMapSixteenthMaxBpm = 300M;
+    public decimal OffsetMapSixteenthMaxBpm
+    {
+      get => _offsetMapSixteenthMaxBpm;
+      set
+      {
+        var clamped = ClampBpmSetting(value);
+        bool changed = _offsetMapSixteenthMaxBpm != clamped;
+        _offsetMapSixteenthMaxBpm = clamped;
+        OnPropertyChanged();
+        if (changed)
+          SaveOffsetMapSixteenthMaxBpm(clamped);
+      }
+    }
+
+    private void SaveOffsetMapSixteenthMaxBpm(decimal value) =>
+      _config.Update(g => g.OffsetMapSixteenthMaxBpm = value);
+
+    private decimal _offsetMapScrollBpm = 200M;
+    public decimal OffsetMapScrollBpm
+    {
+      get => _offsetMapScrollBpm;
+      set
+      {
+        var clamped = ClampBpmSetting(value);
+        bool changed = _offsetMapScrollBpm != clamped;
+        _offsetMapScrollBpm = clamped;
+        OnPropertyChanged();
+        if (changed)
+          SaveOffsetMapScrollBpm(clamped);
+      }
+    }
+
+    private void SaveOffsetMapScrollBpm(decimal value) =>
+      _config.Update(g => g.OffsetMapScrollBpm = value);
+
     public ObservableCollection<BatchPreviewItem> BatchPreviews { get; } = new();
 
     private void UpdateBatchPreviews()
@@ -498,6 +537,8 @@ namespace OsuMate.ViewModels
       _batchStartRate = globalConfig.BatchStartRate;
       _batchStep = globalConfig.BatchStep;
       _batchCount = globalConfig.BatchCount;
+      _offsetMapSixteenthMaxBpm = ClampBpmSetting(globalConfig.OffsetMapSixteenthMaxBpm);
+      _offsetMapScrollBpm = ClampBpmSetting(globalConfig.OffsetMapScrollBpm);
 
       _pollTimer = new System.Threading.Timer(PollBeatmap, null, 2000, 2000);
     }
@@ -615,9 +656,67 @@ namespace OsuMate.ViewModels
       });
     }
 
-    public async Task GenerateAsync()
+    public Task GenerateAsync() =>
+      RunGenerationAsync(
+        (beatmapPath, ct) =>
+          _trainerService.GenerateBeatmapsBatchAsync(
+            beatmapPath,
+            BuildBatchRequests(),
+            AdjustPitchWithSpeed,
+            IsRandomEnabled && IsRandomAvailable,
+            DisableSv && IsDisableSvAvailable,
+            ReportStatus,
+            ct
+          )
+      );
+
+    public Task GenerateOffsetMapAsync() =>
+      RunGenerationAsync(
+        (beatmapPath, ct) =>
+          _trainerService.GenerateOffsetMapAsync(
+            beatmapPath,
+            new OffsetMapRequest(OffsetMapSixteenthMaxBpm, OffsetMapScrollBpm),
+            ReportStatus,
+            ct
+          )
+      );
+
+    private List<BatchGenerationRequest> BuildBatchRequests()
     {
-      if (string.IsNullOrEmpty(_effectiveBeatmapPath))
+      var requests = new List<BatchGenerationRequest>();
+      for (int i = 0; i < BatchCount; i++)
+      {
+        decimal rate = BatchStartRate + (BatchStep * i);
+        if (rate > 2.0M)
+          break;
+
+        requests.Add(
+          new BatchGenerationRequest
+          {
+            Rate = rate,
+            ArOverride = TrainerCalculationService.ResolveOverride(
+              _ar.Original,
+              ArScaledFor(rate)
+            ),
+            OdOverride = TrainerCalculationService.ResolveOverride(
+              _od.Original,
+              _od.Scaled(rate)
+            ),
+            HpOverride = TrainerCalculationService.ResolveOverride(_hp.Original, HpBase),
+            CsOverride = TrainerCalculationService.ResolveOverride(_cs.Original, CsBase),
+          }
+        );
+      }
+      return requests;
+    }
+
+    private void ReportStatus(string message) =>
+      _dispatcher.BeginInvoke(() => StatusMessage = message);
+
+    private async Task RunGenerationAsync(Func<string, CancellationToken, Task> generate)
+    {
+      string beatmapPath = _effectiveBeatmapPath;
+      if (string.IsNullOrEmpty(beatmapPath))
       {
         StatusMessage = "Please select a beatmap in osu!";
         return;
@@ -628,40 +727,7 @@ namespace OsuMate.ViewModels
       _generationCts = new System.Threading.CancellationTokenSource();
       try
       {
-        var requests = new List<BatchGenerationRequest>();
-        for (int i = 0; i < BatchCount; i++)
-        {
-          decimal rate = BatchStartRate + (BatchStep * i);
-          if (rate > 2.0M)
-            break;
-
-          requests.Add(
-            new BatchGenerationRequest
-            {
-              Rate = rate,
-              ArOverride = TrainerCalculationService.ResolveOverride(
-                _ar.Original,
-                ArScaledFor(rate)
-              ),
-              OdOverride = TrainerCalculationService.ResolveOverride(
-                _od.Original,
-                _od.Scaled(rate)
-              ),
-              HpOverride = TrainerCalculationService.ResolveOverride(_hp.Original, HpBase),
-              CsOverride = TrainerCalculationService.ResolveOverride(_cs.Original, CsBase),
-            }
-          );
-        }
-
-        await _trainerService.GenerateBeatmapsBatchAsync(
-          _effectiveBeatmapPath,
-          requests,
-          AdjustPitchWithSpeed,
-          IsRandomEnabled && IsRandomAvailable,
-          DisableSv && IsDisableSvAvailable,
-          msg => _dispatcher.BeginInvoke(() => StatusMessage = msg),
-          _generationCts.Token
-        );
+        await generate(beatmapPath, _generationCts.Token);
       }
       catch (OperationCanceledException)
       {
