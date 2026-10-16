@@ -77,7 +77,7 @@ namespace OsuMate.Services.Trainer
         {
           try
           {
-            var candidate = OsuBeatmapFile.Load(candidatePath);
+            var candidate = OsuBeatmapFile.LoadHeaderOnly(candidatePath);
             if (!candidate.IsOsuTrainerMap)
               return candidatePath;
           }
@@ -99,7 +99,7 @@ namespace OsuMate.Services.Trainer
           continue;
         try
         {
-          var candidate = OsuBeatmapFile.Load(osuFile);
+          var candidate = OsuBeatmapFile.LoadHeaderOnly(osuFile);
           if (candidate.IsOsuTrainerMap)
             continue;
           if (string.IsNullOrEmpty(candidate.Version))

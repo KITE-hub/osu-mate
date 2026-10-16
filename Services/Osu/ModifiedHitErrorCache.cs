@@ -15,6 +15,8 @@ namespace OsuMate.Services.Osu
     private int _lastValue;
     private double _speedMultiplier;
 
+    internal int Version { get; private set; }
+
     internal (List<int> Values, int TotalCount) Sync(
       IReadOnlyList<int> hitErrors,
       double speedMultiplier
@@ -40,7 +42,10 @@ namespace OsuMate.Services.Osu
       _lastValue = _totalCount > 0 ? hitErrors[_totalCount - 1] : 0;
 
       if (changed)
+      {
+        Version++;
         RebuildOrdered();
+      }
 
       return (_ordered, _totalCount);
     }

@@ -19,10 +19,13 @@ namespace OsuMate.ViewModels
 
     private List<(double timeSec, double offsetMs)> _data = [];
     private Dictionary<HitResult, double> _hitWindows = [];
+    private HitJudgementWindows _windows;
     private double _maxWindow = 0;
     private int _previousDataCount = 0;
 
     private readonly Dictionary<double, int> _histogram = [];
+    private double _histogramMinKey = double.MaxValue;
+    private double _histogramMaxKey = double.MinValue;
     private double _offsetSum = 0;
     private DateTime _lastRenderedAt = DateTime.MinValue;
 
@@ -96,11 +99,9 @@ namespace OsuMate.ViewModels
     )
     {
       _data = data;
-      _hitWindows = hitWindows;
-      _maxWindow = HitJudgementHelper.GetMaxWindow(hitWindows);
+      ApplyHitWindows(hitWindows);
 
-      _histogram.Clear();
-      _offsetSum = 0;
+      ResetHistogram();
       _previousDataCount = 0;
       AccumulateNewData(data, 0, data.Count);
 
@@ -115,8 +116,7 @@ namespace OsuMate.ViewModels
     )
     {
       IsPlaying = isPlaying;
-      _hitWindows = hitWindows;
-      _maxWindow = HitJudgementHelper.GetMaxWindow(hitWindows);
+      ApplyHitWindows(hitWindows);
 
       if (data.Count == _previousDataCount)
       {
@@ -126,8 +126,7 @@ namespace OsuMate.ViewModels
 
       if (data.Count < _previousDataCount)
       {
-        _histogram.Clear();
-        _offsetSum = 0;
+        ResetHistogram();
         _previousDataCount = 0;
       }
 
@@ -144,6 +143,24 @@ namespace OsuMate.ViewModels
         RefreshSeries();
     }
 
+    private void ApplyHitWindows(Dictionary<HitResult, double> hitWindows)
+    {
+      if (ReferenceEquals(_hitWindows, hitWindows))
+        return;
+
+      _hitWindows = hitWindows;
+      _windows = new HitJudgementWindows(hitWindows);
+      _maxWindow = _windows.Max;
+    }
+
+    private void ResetHistogram()
+    {
+      _histogram.Clear();
+      _histogramMinKey = double.MaxValue;
+      _histogramMaxKey = double.MinValue;
+      _offsetSum = 0;
+    }
+
     private void AccumulateNewData(
       List<(double timeSec, double offsetMs)> data,
       int fromIndex,
@@ -155,6 +172,10 @@ namespace OsuMate.ViewModels
         double offset = data[i].offsetMs;
         double key = Math.Floor(offset);
         _histogram[key] = _histogram.TryGetValue(key, out int count) ? count + 1 : 1;
+        if (key < _histogramMinKey)
+          _histogramMinKey = key;
+        if (key > _histogramMaxKey)
+          _histogramMaxKey = key;
         _offsetSum += offset;
       }
     }
@@ -183,24 +204,7 @@ namespace OsuMate.ViewModels
       yMin = -maxWindow;
       yMax = maxWindow;
 
-      var dict = new Dictionary<double, int>(_histogram);
-      for (double i = Math.Floor(yMin); i <= Math.Ceiling(yMax); i += 1.0)
-        dict.TryAdd(i, 0);
-
-      var sortedDict = dict.OrderBy(x => x.Key).ToList();
-
-      var compressedDict = new Dictionary<double, int>();
-      for (int i = 0; i < sortedDict.Count; i += 5)
-      {
-        double yValue = sortedDict[i].Key;
-        int sum = sortedDict.Skip(i).Take(5).Sum(x => x.Value);
-        compressedDict[yValue] = sum;
-      }
-
-      var yValues = compressedDict.Select(x => x.Key).ToArray();
-      var xValues = compressedDict.Select(x => (double)x.Value / dataCount).ToArray();
-
-      if (yValues.Length < 2)
+      if (!TryBuildCompressedHistogram(yMin, yMax, dataCount, out double[] yValues, out double[] xValues))
         return false;
 
       xMax = Math.Ceiling(xValues.Max() * 10) / 10;
@@ -213,11 +217,64 @@ namespace OsuMate.ViewModels
         double x = spline.Interpolate(y);
         if (x < 0)
           x = 0;
-        int judgement = HitJudgementHelper.GetJudgement(y, _hitWindows);
+        int judgement = _windows.GetJudgement(y);
         points.Add(new CurvePoint(x, y, judgement));
       }
 
       return true;
+    }
+
+    private bool TryBuildCompressedHistogram(
+      double yMin,
+      double yMax,
+      int dataCount,
+      out double[] yValues,
+      out double[] xValues
+    )
+    {
+      double low = Math.Floor(yMin);
+      double high = Math.Ceiling(yMax);
+
+      if (_histogram.Count == 0 || (_histogramMinKey >= low && _histogramMaxKey <= high))
+      {
+        int length = (int)(high - low) + 1;
+        int groupCount = (length + 4) / 5;
+        yValues = new double[groupCount];
+        xValues = new double[groupCount];
+
+        for (int group = 0; group < groupCount; group++)
+        {
+          int start = group * 5;
+          int end = Math.Min(start + 5, length);
+          int sum = 0;
+          for (int i = start; i < end; i++)
+            sum += _histogram.GetValueOrDefault(low + i);
+
+          yValues[group] = low + start;
+          xValues[group] = (double)sum / dataCount;
+        }
+
+        return groupCount >= 2;
+      }
+
+      var dict = new Dictionary<double, int>(_histogram);
+      for (double i = low; i <= high; i += 1.0)
+        dict.TryAdd(i, 0);
+
+      var sortedDict = dict.OrderBy(x => x.Key).ToList();
+
+      var compressedDict = new Dictionary<double, int>();
+      for (int i = 0; i < sortedDict.Count; i += 5)
+      {
+        double yValue = sortedDict[i].Key;
+        int sum = sortedDict.Skip(i).Take(5).Sum(x => x.Value);
+        compressedDict[yValue] = sum;
+      }
+
+      yValues = compressedDict.Select(x => x.Key).ToArray();
+      xValues = compressedDict.Select(x => (double)x.Value / dataCount).ToArray();
+
+      return yValues.Length >= 2;
     }
 
     private void EnsureSegmentPool()

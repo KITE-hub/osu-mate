@@ -130,7 +130,7 @@ namespace OsuMate.Views.Controls
 
       double labelGap = Math.Max(1, canvasH * 0.015);
 
-      foreach (var (judgement, msValue, from, to) in segments.OrderBy(s => s.from))
+      foreach (var (judgement, msValue, from, to) in segments)
       {
         double f = flipped ? 1 - to : from;
         double t = flipped ? 1 - from : to;
@@ -246,7 +246,7 @@ namespace OsuMate.Views.Controls
 
       double labelGapV = Math.Max(1, canvasW * 0.015);
 
-      foreach (var (judgement, msValue, from, to) in segments.OrderBy(s => s.from))
+      foreach (var (judgement, msValue, from, to) in segments)
       {
         double f = flipped ? 1 - to : from;
         double t = flipped ? 1 - from : to;

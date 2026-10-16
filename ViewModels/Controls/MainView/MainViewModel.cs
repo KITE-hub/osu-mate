@@ -54,6 +54,7 @@ namespace OsuMate.ViewModels
     public void SetEnabledOverlayIds(List<int> ids)
     {
       _enabledOverlayIds = ids;
+      _ppService.RequestRefresh();
     }
 
     public MainViewModel(
@@ -99,6 +100,8 @@ namespace OsuMate.ViewModels
 
     private void OnBestPpChanged(BeatmapPlayStats stats)
     {
+      _ppService.RequestRefresh();
+
       void Apply()
       {
         Info.UpdateBestPp(stats.BestPp);
@@ -177,25 +180,22 @@ namespace OsuMate.ViewModels
         (baseAddresses.GeneralData.AudioTime * speedMultiplier - data.FirstObjectTimeModified)
         / 1000.0;
 
-      _uiDispatcher.BeginInvoke(() =>
-      {
-        Info.UpdateMapInfo(data, isPlaying, baseAddresses.GeneralData.AudioTime, speedMultiplier);
-        Info.UpdatePp(data, isPlaying, isResultScreen);
-        Info.UpdateJudge(data, hits, gamemode);
-        StrainGraph.Update(baseAddresses.GeneralData.AudioTime, dataUpdateIntervalMs);
+      Info.UpdateMapInfo(data, isPlaying, baseAddresses.GeneralData.AudioTime, speedMultiplier);
+      Info.UpdatePp(data, isPlaying, isResultScreen);
+      Info.UpdateJudge(data, hits, gamemode);
+      StrainGraph.Update(baseAddresses.GeneralData.AudioTime, dataUpdateIntervalMs);
 
-        if (urReset)
-          _urTimelineAccumulated.Clear();
-        _urTimelineAccumulated.AddRange(urNewItems);
+      if (urReset)
+        _urTimelineAccumulated.Clear();
+      _urTimelineAccumulated.AddRange(urNewItems);
 
-        URTimeGraph.Update(_urTimelineAccumulated, currentTimeSec, isPlaying, dataUpdateIntervalMs);
-        URDistGraph.Update(
-          _urTimelineAccumulated,
-          data.ModifiedHitWindows,
-          isPlaying,
-          dataUpdateIntervalMs
-        );
-      });
+      URTimeGraph.Update(_urTimelineAccumulated, currentTimeSec, isPlaying, dataUpdateIntervalMs);
+      URDistGraph.Update(
+        _urTimelineAccumulated,
+        data.ModifiedHitWindows,
+        isPlaying,
+        dataUpdateIntervalMs
+      );
     }
 
     private readonly object _keyOverlayLock = new();
@@ -205,7 +205,6 @@ namespace OsuMate.ViewModels
     private string _keyOverlayLastBeatmapMd5 = string.Empty;
 
     private int _fastUiDispatchPending;
-    private int _fastInfoDispatchPending;
 
     private readonly ModifiedHitErrorCache _modifiedHitErrorCache = new();
 
@@ -234,9 +233,9 @@ namespace OsuMate.ViewModels
         _keyOverlayTransitionBuffer.Clear();
 
         int gamemode = _ppService.EffectiveGamemode;
-        var currentMap = _memory.GetCurrentBeatmap();
-        string beatmapMd5 = !string.IsNullOrEmpty(currentMap.BeatmapMd5)
-          ? currentMap.BeatmapMd5
+        string snapshotMd5 = _memory.GetCurrentBeatmapMd5();
+        string beatmapMd5 = !string.IsNullOrEmpty(snapshotMd5)
+          ? snapshotMd5
           : (_ppService.CurrentBeatmapMd5 ?? string.Empty);
         int? maniaKeyCount = _ppService.CurrentManiaKeyCount;
 
@@ -297,71 +296,60 @@ namespace OsuMate.ViewModels
       HitErrorStatsAccumulator.Result? stats =
         hitErrors.Count > 0 ? _ppService.GetHitErrorStats(speedMultiplier) : null;
 
-      if (Interlocked.CompareExchange(ref _fastUiDispatchPending, 1, 0) == 0)
+      if (Interlocked.CompareExchange(ref _fastUiDispatchPending, 1, 0) != 0)
+        return;
+
+      _uiDispatcher.BeginInvoke(() =>
       {
-        Application.Current.Dispatcher.BeginInvoke(() =>
+        try
         {
-          try
+          var (hitErrorsModifiedInt, hitErrorsModifiedTotalCount) = _modifiedHitErrorCache.Sync(
+            hitErrors,
+            speedMultiplier
+          );
+
+          URBar.Update(
+            hitErrorsModifiedInt,
+            hitErrorsModifiedTotalCount,
+            _modifiedHitErrorCache.Version,
+            _ppService.CurrentHitWindows,
+            isPlaying
+          );
+
+          Info.UpdateHits(hits);
+
+          if (stats is { } s)
           {
-            var (hitErrorsModifiedInt, hitErrorsModifiedTotalCount) = _modifiedHitErrorCache.Sync(
-              hitErrors,
-              speedMultiplier
+            InGameOverlay.UpdateFast(
+              hits,
+              accuracy,
+              s.ModifiedAvg,
+              s.ModifiedStdev,
+              s.RawUR,
+              s.ModifiedUR,
+              gamemode
             );
-
-            URBar.Update(
-              hitErrorsModifiedInt,
-              hitErrorsModifiedTotalCount,
-              _ppService.CurrentHitWindows,
-              isPlaying
+            Info.UpdateAccFast(
+              accuracy,
+              isPlaying,
+              s.RobustAvg,
+              s.ModifiedAvg,
+              s.ModifiedStdev,
+              s.RawUR,
+              s.ModifiedUR
             );
-
-            if (stats is { } s)
-              InGameOverlay.UpdateFast(
-                hits,
-                accuracy,
-                s.ModifiedAvg,
-                s.ModifiedStdev,
-                s.RawUR,
-                s.ModifiedUR,
-                gamemode
-              );
-            else
-              InGameOverlay.UpdateFast(hits, accuracy, null, null, null, null, gamemode);
           }
-          finally
+          else
           {
-            Interlocked.Exchange(ref _fastUiDispatchPending, 0);
+            InGameOverlay.UpdateFast(hits, accuracy, null, null, null, null, gamemode);
+            Info.UpdateAccFast(accuracy, isPlaying, null, null, null, null, null);
           }
-        });
-      }
-
-      if (Interlocked.CompareExchange(ref _fastInfoDispatchPending, 1, 0) == 0)
-      {
-        _uiDispatcher.BeginInvoke(() =>
+        }
+        finally
         {
-          try
-          {
-            Info.UpdateHits(hits);
-
-            if (stats is { } s)
-              Info.UpdateAccFast(
-                accuracy,
-                isPlaying,
-                s.RobustAvg,
-                s.ModifiedAvg,
-                s.ModifiedStdev,
-                s.RawUR,
-                s.ModifiedUR
-              );
-            else
-              Info.UpdateAccFast(accuracy, isPlaying, null, null, null, null, null);
-          }
-          finally
-          {
-            Interlocked.Exchange(ref _fastInfoDispatchPending, 0);
-          }
-        });
-      }
+          Interlocked.Exchange(ref _fastUiDispatchPending, 0);
+        }
+      });
     }
   }
 }

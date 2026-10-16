@@ -51,12 +51,13 @@ namespace OsuMate.Services.StableDb
       return BitConverter.ToDouble(_primitiveBuffer, 0);
     }
 
-    protected string? ReadString()
+    private bool TryReadStringLength(out int length)
     {
+      length = 0;
       byte marker = ReadByte();
       if (marker == 0x00)
       {
-        return null;
+        return false;
       }
       if (marker != 0x0b)
       {
@@ -64,9 +65,22 @@ namespace OsuMate.Services.StableDb
         throw new InvalidDataException($"Unexpected string marker 0x{marker:x2}{offsetInfo}.");
       }
 
-      int length = ReadULeb128();
+      length = ReadULeb128();
       if (length < 0 || length > MaxStringBytes)
         throw new InvalidDataException($"Invalid string length {length}.");
+      return true;
+    }
+
+    protected void SkipString()
+    {
+      if (TryReadStringLength(out int length))
+        Skip(length);
+    }
+
+    protected string? ReadString()
+    {
+      if (!TryReadStringLength(out int length))
+        return null;
       if (length == 0)
         return string.Empty;
 

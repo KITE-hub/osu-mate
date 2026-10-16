@@ -170,7 +170,11 @@ namespace OsuMate.Services
     {
       _urBarSize.SetValue(_settingsVm.URBar.URBarWidth, _settingsVm.URBar.URBarHeight);
       DispatcherUtils.RunOnPrimary(() =>
-        _urBarWindow.SetSettingsMode(_isSettingsOpen, _urBarSize.Width, _urBarSize.Height)
+        _urBarWindow.SetSettingsMode(
+          _isSettingsOpen && !_mainViewModel.IsPlaying,
+          _urBarSize.Width,
+          _urBarSize.Height
+        )
       );
     }
 

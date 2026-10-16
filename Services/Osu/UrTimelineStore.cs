@@ -9,6 +9,8 @@ namespace OsuMate.Services.Osu
     private readonly object _lock = new();
     private readonly OsuBaseAddresses _baseAddresses;
 
+    private static readonly List<(double timeSec, double offsetMs)> NoItems = [];
+
     private readonly List<(double timeSec, double offsetMs)> _urTimelineData = [];
     private int _urTimelineEpoch = 0;
     private int _urTimelineSnapshotCursor = 0;
@@ -16,8 +18,20 @@ namespace OsuMate.Services.Osu
     private int _lastHitErrorValue = 0;
     private int _previousHitCount = 0;
     private double _previousAudioTime = 0;
+    private int _version;
 
     internal double FirstObjectTimeModified { get; set; } = 0;
+
+    internal int Version
+    {
+      get
+      {
+        lock (_lock)
+        {
+          return _version;
+        }
+      }
+    }
 
     internal UrTimelineStore(OsuBaseAddresses baseAddresses)
     {
@@ -32,7 +46,10 @@ namespace OsuMate.Services.Osu
           _urTimelineSnapshotEpoch != _urTimelineEpoch
           || _urTimelineData.Count < _urTimelineSnapshotCursor;
         int fromIndex = reset ? 0 : _urTimelineSnapshotCursor;
-        var newItems = _urTimelineData.GetRange(fromIndex, _urTimelineData.Count - fromIndex);
+        var newItems =
+          fromIndex == _urTimelineData.Count
+            ? NoItems
+            : _urTimelineData.GetRange(fromIndex, _urTimelineData.Count - fromIndex);
         _urTimelineSnapshotCursor = _urTimelineData.Count;
         _urTimelineSnapshotEpoch = _urTimelineEpoch;
         return (reset, newItems);
@@ -54,6 +71,7 @@ namespace OsuMate.Services.Osu
 
         if (discontinuous)
         {
+          _version++;
           _urTimelineData.Clear();
           _urTimelineEpoch++;
           for (int i = 0; i < currentCount; i++)
@@ -63,6 +81,7 @@ namespace OsuMate.Services.Osu
         }
         else if (currentCount > _previousHitCount)
         {
+          _version++;
           int newHitCount = currentCount - _previousHitCount;
           bool canInterpolate = newHitCount > 1 && _previousAudioTime > 0 && _previousAudioTime < audioTime;
           for (int i = _previousHitCount; i < currentCount; i++)

@@ -256,6 +256,26 @@ namespace OsuMate.ViewModels
       set => SetField(ref _universalOffsetHelp, value);
     }
 
+    private readonly record struct MapInfoKey(
+      double OverallDifficulty,
+      double MinimumBpm,
+      double MaximumBpm,
+      int TotalHitObjectCount,
+      int FirstObjectTimeModified,
+      int LastObjectTimeModified
+    );
+
+    private readonly record struct StarRatingKey(double Current, double Total, bool IsPlaying);
+
+    private readonly record struct PlaybackTimeKey(long CurrentSeconds, long DurationSeconds);
+
+    private MapInfoKey? _lastMapInfoKey;
+    private StarRatingKey? _lastStarRatingKey;
+    private PlaybackTimeKey? _lastPlaybackTimeKey;
+    private double? _lastCurrentBpm;
+    private HitsResult? _lastHits;
+    private Dictionary<HitResult, double>? _lastHitWindows;
+
     internal void UpdateMapInfo(
       BeatmapData data,
       bool isPlaying,
@@ -270,24 +290,60 @@ namespace OsuMate.ViewModels
         Math.Round(data.CurrentDifficultyAttributes?.StarRating ?? 0, 2)
       );
 
-      Sr = isPlaying ? $"{currentSrValue:F2} / {srValue:F2}" : $"{srValue:F2}";
-      Od = MathUtils.IsNaNWithNum(data.OverallDifficulty).ToString("F1");
-      Bpm = MathUtils.IsNaNWithNum(data.Bpm.CurrentBpm).ToString("F1");
-      BpmRange =
-        $" ( {MathUtils.IsNaNWithNum(data.Bpm.MinimumBpm):F0} - {MathUtils.IsNaNWithNum(data.Bpm.MaximumBpm):F0} )";
-      HitObject = MathUtils.IsNaNWithNum(data.TotalHitObjectCount).ToString();
+      var starRatingKey = new StarRatingKey(currentSrValue, srValue, isPlaying);
+      if (_lastStarRatingKey != starRatingKey)
+      {
+        _lastStarRatingKey = starRatingKey;
+        Sr = isPlaying ? $"{currentSrValue:F2} / {srValue:F2}" : $"{srValue:F2}";
+      }
+
+      double currentBpm = MathUtils.IsNaNWithNum(data.Bpm.CurrentBpm);
+      if (_lastCurrentBpm != currentBpm)
+      {
+        _lastCurrentBpm = currentBpm;
+        Bpm = currentBpm.ToString("F1");
+      }
+
+      double duration = (data.LastObjectTimeModified - data.FirstObjectTimeModified) / 1000.0;
+
+      var mapInfoKey = new MapInfoKey(
+        data.OverallDifficulty,
+        data.Bpm.MinimumBpm,
+        data.Bpm.MaximumBpm,
+        data.TotalHitObjectCount,
+        data.FirstObjectTimeModified,
+        data.LastObjectTimeModified
+      );
+      if (_lastMapInfoKey != mapInfoKey)
+      {
+        _lastMapInfoKey = mapInfoKey;
+        Od = MathUtils.IsNaNWithNum(data.OverallDifficulty).ToString("F1");
+        BpmRange =
+          $" ( {MathUtils.IsNaNWithNum(data.Bpm.MinimumBpm):F0} - {MathUtils.IsNaNWithNum(data.Bpm.MaximumBpm):F0} )";
+        HitObject = MathUtils.IsNaNWithNum(data.TotalHitObjectCount).ToString();
+        double density =
+          MathUtils.IsNaNWithNum(data.TotalHitObjectCount) / (duration == 0 ? 1 : duration);
+        Density = density.ToString("F2");
+      }
 
       double currentTimeSec = (audioTime * speedMultiplier - data.FirstObjectTimeModified) / 1000.0;
-      double duration = (data.LastObjectTimeModified - data.FirstObjectTimeModified) / 1000.0;
-      Time = FormatPlaybackTime(currentTimeSec, duration);
-
-      double density =
-        MathUtils.IsNaNWithNum(data.TotalHitObjectCount) / (duration == 0 ? 1 : duration);
-      Density = density.ToString("F2");
+      var playbackTimeKey = new PlaybackTimeKey(
+        (long)Math.Max(0, currentTimeSec),
+        (long)Math.Max(0, duration)
+      );
+      if (_lastPlaybackTimeKey != playbackTimeKey)
+      {
+        _lastPlaybackTimeKey = playbackTimeKey;
+        Time = FormatPlaybackTime(currentTimeSec, duration);
+      }
     }
 
     internal void UpdateHits(HitsResult hits)
     {
+      if (hits.Equals(_lastHits))
+        return;
+
+      _lastHits = hits;
       HitGeki = hits.HitGeki.ToString();
       Hit300 = hits.Hit300.ToString();
       HitKatu = hits.HitKatu.ToString();
@@ -313,11 +369,15 @@ namespace OsuMate.ViewModels
     {
       UpdateHits(hits);
 
-      WindowPerfect = FormatHitWindow(data, HitResult.Perfect);
-      Window300 = FormatHitWindow(data, HitResult.Great);
-      Window200 = FormatHitWindow(data, HitResult.Good);
-      Window100 = FormatHitWindow(data, HitResult.Ok);
-      Window50 = FormatHitWindow(data, HitResult.Meh);
+      if (!ReferenceEquals(_lastHitWindows, data.ModifiedHitWindows))
+      {
+        _lastHitWindows = data.ModifiedHitWindows;
+        WindowPerfect = FormatHitWindow(data, HitResult.Perfect);
+        Window300 = FormatHitWindow(data, HitResult.Great);
+        Window200 = FormatHitWindow(data, HitResult.Good);
+        Window100 = FormatHitWindow(data, HitResult.Ok);
+        Window50 = FormatHitWindow(data, HitResult.Meh);
+      }
 
       IsGekiVisible = gamemode == OsuMode.Mania;
       IsKatuVisible = gamemode == OsuMode.Mania;
@@ -336,20 +396,37 @@ namespace OsuMate.ViewModels
       BestPpAchievedAt = Format(bestPpPlayedAt);
     }
 
+    private readonly record struct PpKey(
+      double Ss,
+      double Loss,
+      double Predicted,
+      double Current,
+      bool ShowLive
+    );
+
+    private PpKey? _lastPpKey;
+
     internal void UpdatePp(BeatmapData data, bool isPlaying, bool isResultScreen)
     {
-      SsPp = MathUtils.IsNaNWithNum(data.PerformanceAttributes?.Total).ToString("F2");
-      double currentPp = MathUtils.IsNaNWithNum(data.CurrentPerformanceAttributes?.Total);
+      var key = new PpKey(
+        MathUtils.IsNaNWithNum(data.PerformanceAttributes?.Total),
+        MathUtils.IsNaNWithNum(data.PerformanceAttributesLossMode?.Total),
+        MathUtils.IsNaNWithNum(data.PerformanceAttributesPredicted?.Total),
+        MathUtils.IsNaNWithNum(data.CurrentPerformanceAttributes?.Total),
+        isPlaying || isResultScreen
+      );
 
-      if (isPlaying || isResultScreen)
+      if (_lastPpKey == key)
+        return;
+      _lastPpKey = key;
+
+      SsPp = key.Ss.ToString("F2");
+
+      if (key.ShowLive)
       {
-        LossModePp = MathUtils
-          .IsNaNWithNum(data.PerformanceAttributesLossMode?.Total)
-          .ToString("F2");
-        PredictedPp = MathUtils
-          .IsNaNWithNum(data.PerformanceAttributesPredicted?.Total)
-          .ToString("F2");
-        CurrentPp = currentPp.ToString("F2");
+        LossModePp = key.Loss.ToString("F2");
+        PredictedPp = key.Predicted.ToString("F2");
+        CurrentPp = key.Current.ToString("F2");
       }
       else
       {
@@ -358,6 +435,11 @@ namespace OsuMate.ViewModels
         CurrentPp = "-";
       }
     }
+
+    private double? _lastAccuracy;
+    private (double? Avg, double? Stdev) _lastOffset;
+    private double? _lastRobustAvg;
+    private (double? Raw, double? Modified) _lastUr;
 
     internal void UpdateAccFast(
       double accuracy,
@@ -369,23 +451,30 @@ namespace OsuMate.ViewModels
       double? modifiedUR
     )
     {
-      Accuracy = accuracy.ToString("F2");
+      if (_lastAccuracy != accuracy)
+      {
+        _lastAccuracy = accuracy;
+        Accuracy = accuracy.ToString("F2");
+      }
 
       if (!isPlaying)
         return;
 
-      if (modifiedAvg.HasValue)
+      if (modifiedAvg.HasValue && _lastOffset != (modifiedAvg, modifiedStdev))
       {
+        _lastOffset = (modifiedAvg, modifiedStdev);
         ModifiedAvgOffset = MathUtils.FormatUnder4CharsSign(modifiedAvg.Value);
         ModifiedAvgOffsetStdev = " ± " + MathUtils.FormatUnder4Chars(modifiedStdev!.Value);
       }
-      if (robustAvg.HasValue)
+      if (robustAvg.HasValue && _lastRobustAvg != robustAvg)
       {
+        _lastRobustAvg = robustAvg;
         LocalOffsetHelp = MathUtils.FormatNaturalSign(robustAvg.Value) + " ms";
         UniversalOffsetHelp = MathUtils.FormatNaturalSign(-1 * robustAvg.Value) + " ms";
       }
-      if (rawUR.HasValue)
+      if (rawUR.HasValue && _lastUr != (rawUR, modifiedUR))
       {
+        _lastUr = (rawUR, modifiedUR);
         RawUR = MathUtils.IsNaNWithNum(rawUR.Value).ToString("F2");
         ModifiedUR = " ( " + MathUtils.IsNaNWithNum(modifiedUR!.Value).ToString("F2") + " )";
       }

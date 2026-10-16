@@ -28,7 +28,9 @@ namespace OsuMate.ViewModels
       bool resetCounts
     )
     {
-      Volatile.Write(ref _state, new KeyOverlayPublishedState(layout, isPlayActive));
+      var current = Volatile.Read(ref _state);
+      if (!ReferenceEquals(current.Layout, layout) || current.IsPlayActive != isPlayActive)
+        Volatile.Write(ref _state, new KeyOverlayPublishedState(layout, isPlayActive));
       if (resetCounts)
         _resetRequested = true;
       foreach (var transition in transitions)

@@ -53,12 +53,12 @@ namespace OsuMate.Services.StableDb
       }
 
       string artistAscii = ReadString() ?? "";
-      ReadString();
+      SkipString();
       string titleAscii = ReadString() ?? "";
-      ReadString();
+      SkipString();
       string creator = ReadString() ?? "";
       string difficulty = ReadString() ?? "";
-      ReadString();
+      SkipString();
       string md5 = ReadString() ?? "";
       string osuFileName = ReadString() ?? "";
       ReadByte();
@@ -120,10 +120,10 @@ namespace OsuMate.Services.StableDb
       ReadSingle();
       byte mode = ReadByte();
 
-      ReadString();
-      ReadString();
+      SkipString();
+      SkipString();
       ReadUInt16();
-      ReadString();
+      SkipString();
       ReadByte();
       ReadInt64();
       ReadByte();

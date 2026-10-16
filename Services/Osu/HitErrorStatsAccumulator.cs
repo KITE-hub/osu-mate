@@ -32,10 +32,26 @@ namespace OsuMate.Services.Osu
     private double _m2;
     private int _lastValue;
 
+    private long _version;
+    private long _cachedVersion = -1;
+    private double _cachedSpeedMultiplier;
+    private Result _cachedResult = Empty;
+
     private readonly long[] _bitCount = new long[BucketCount + 1];
     private readonly long[] _bitSum = new long[BucketCount + 1];
 
-    internal Result Sync(IReadOnlyList<int> hitErrors, double speedMultiplier)
+    internal long Version
+    {
+      get
+      {
+        lock (_lock)
+        {
+          return _version;
+        }
+      }
+    }
+
+    internal void Sync(IReadOnlyList<int> hitErrors)
     {
       lock (_lock)
       {
@@ -46,8 +62,6 @@ namespace OsuMate.Services.Osu
 
         for (int i = _count; i < newCount; i++)
           Add(hitErrors[i]);
-
-        return ComputeResult(speedMultiplier);
       }
     }
 
@@ -60,6 +74,18 @@ namespace OsuMate.Services.Osu
     }
 
     private Result ComputeResult(double speedMultiplier)
+    {
+      if (_cachedVersion == _version && _cachedSpeedMultiplier == speedMultiplier)
+        return _cachedResult;
+
+      var result = CalculateResult(speedMultiplier);
+      _cachedResult = result;
+      _cachedVersion = _version;
+      _cachedSpeedMultiplier = speedMultiplier;
+      return result;
+    }
+
+    private Result CalculateResult(double speedMultiplier)
     {
       if (_count == 0)
         return Empty;
@@ -209,6 +235,7 @@ namespace OsuMate.Services.Osu
 
     private void Add(int value)
     {
+      _version++;
       _count++;
       double delta = value - _mean;
       _mean += delta / _count;
@@ -223,6 +250,7 @@ namespace OsuMate.Services.Osu
 
     private void Reset()
     {
+      _version++;
       _count = 0;
       _mean = 0;
       _m2 = 0;

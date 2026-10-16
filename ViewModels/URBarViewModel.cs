@@ -21,6 +21,15 @@ namespace OsuMate.ViewModels
 
     private volatile bool _isDirty = false;
 
+    private static readonly List<int> NoHitErrors = [];
+
+    private HitJudgementWindows _windows;
+    private List<(int judgement, double msValue, double from, double to)> _centerLineSegments = [];
+
+    private int _lastHitErrorVersion = -1;
+    private bool _lastIsPlaying;
+    private IReadOnlyDictionary<HitResult, double>? _lastHitWindows;
+
     public List<int> HitErrors => _snapshot.HitErrors;
 
     public int HitErrorTotalCount => _snapshot.HitErrorTotalCount;
@@ -28,11 +37,32 @@ namespace OsuMate.ViewModels
     public void Update(
       List<int> hitErrors,
       int hitErrorTotalCount,
+      int hitErrorVersion,
       IReadOnlyDictionary<HitResult, double> hitWindows,
       bool isPlaying
     )
     {
-      var errors = isPlaying ? hitErrors : [];
+      if (
+        hitErrorVersion == _lastHitErrorVersion
+        && isPlaying == _lastIsPlaying
+        && ReferenceEquals(hitWindows, _lastHitWindows)
+      )
+        return;
+
+      _lastHitErrorVersion = hitErrorVersion;
+      _lastIsPlaying = isPlaying;
+      if (!ReferenceEquals(_snapshot.HitWindows, hitWindows))
+      {
+        _windows = new HitJudgementWindows(hitWindows);
+        _centerLineSegments =
+        [
+          .. HitJudgementHelper.GetCenterLineSegments(hitWindows).OrderBy(segment => segment.from),
+        ];
+      }
+
+      _lastHitWindows = hitWindows;
+
+      var errors = isPlaying ? hitErrors : NoHitErrors;
       var totalCount = isPlaying ? hitErrorTotalCount : 0;
 
       _snapshot = new HitSnapshot(errors, totalCount, hitWindows);
@@ -47,12 +77,11 @@ namespace OsuMate.ViewModels
       return true;
     }
 
-    public int GetJudgement(double offsetMs) =>
-      HitJudgementHelper.GetJudgement(offsetMs, _snapshot.HitWindows);
+    public int GetJudgement(double offsetMs) => _windows.GetJudgement(offsetMs);
 
-    public double GetMaxWindow() => HitJudgementHelper.GetMaxWindow(_snapshot.HitWindows);
+    public double GetMaxWindow() => _windows.Max;
 
     public List<(int judgement, double msValue, double from, double to)> GetCenterLineSegments() =>
-      HitJudgementHelper.GetCenterLineSegments(_snapshot.HitWindows);
+      _centerLineSegments;
   }
 }

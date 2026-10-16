@@ -34,11 +34,44 @@ namespace OsuMate.Services
 
     private const int ModsStableTicksRequired = 3;
     private const int MapRetryIntervalMs = 1000;
+    private const int MissingFileRetryIntervalMs = 250;
+
+    private string _resolvedPathFolder = string.Empty;
+    private string _resolvedPathFile = string.Empty;
+    private string _resolvedPathSongs = string.Empty;
+    private string _resolvedPath = string.Empty;
+
+    private string _missingBeatmapPath = string.Empty;
+    private long _missingBeatmapRetryNotBeforeMs;
+
+    private int? _parsedModsValue;
+    private string[] _parsedCalculationMods = [];
+
+    private bool _lastCalculationWasPlaying;
+
+    private readonly record struct CalculationKey(
+      bool IsPlaying,
+      bool IsResultScreen,
+      int OsuGamemode,
+      int Gamemode,
+      int AudioTime,
+      double Accuracy,
+      HitsResult Hits,
+      string[] Mods,
+      string MapPath,
+      long HitErrorVersion,
+      int UrTimelineVersion
+    );
+
+    private CalculationKey? _lastCalculationKey;
+    private int _refreshRequested;
 
     private readonly object _notifyLock = new();
     private PendingNotification? _pending;
 
     private long _mapRetryNotBeforeMs;
+
+    internal void RequestRefresh() => Interlocked.Exchange(ref _refreshRequested, 1);
 
     internal string[] PrevMods { get; private set; } = [];
     internal double CurrentSpeedMultiplier { get; private set; } = 1.0;
@@ -70,10 +103,7 @@ namespace OsuMate.Services
       if (hitErrorCount == 0)
         return;
 
-      _hitErrorStats.Sync(
-        new ArraySegment<int>(hitErrorArray, 0, hitErrorCount),
-        CurrentSpeedMultiplier
-      );
+      _hitErrorStats.Sync(new ArraySegment<int>(hitErrorArray, 0, hitErrorCount));
     }
 
     private Task? _tickTask;
@@ -120,7 +150,7 @@ namespace OsuMate.Services
         return;
 
       string beatmapPath = ResolveBeatmapPath();
-      if (beatmapPath != _preMapPath && !File.Exists(beatmapPath))
+      if (beatmapPath != _preMapPath && !IsBeatmapFileAvailable(beatmapPath))
         return;
 
       PrevMods = ResolveStableMods();
@@ -140,7 +170,7 @@ namespace OsuMate.Services
       if (_calculator == null)
         return;
 
-      var calculated = CalculatePp();
+      var calculated = CalculatePp(strainUpdated);
       if (calculated == null)
         return;
 
@@ -156,16 +186,41 @@ namespace OsuMate.Services
       );
     }
 
+    private bool IsBeatmapFileAvailable(string beatmapPath)
+    {
+      long now = Environment.TickCount64;
+      if (beatmapPath == _missingBeatmapPath && now < _missingBeatmapRetryNotBeforeMs)
+        return false;
+
+      if (File.Exists(beatmapPath))
+        return true;
+
+      _missingBeatmapPath = beatmapPath;
+      _missingBeatmapRetryNotBeforeMs = now + MissingFileRetryIntervalMs;
+      return false;
+    }
+
     private string ResolveBeatmapPath()
     {
       var beatmap = _memory.GetBaseAddressSnapshot().Beatmap;
+      string folder = beatmap.FolderName ?? "";
+      string file = beatmap.OsuFileName ?? "";
+      string songsPath = _memory.SongsPath;
+
+      if (
+        folder == _resolvedPathFolder
+        && file == _resolvedPathFile
+        && songsPath == _resolvedPathSongs
+      )
+        return _resolvedPath;
+
       try
       {
-        return Path.Combine(
-          _memory.SongsPath,
-          beatmap.FolderName?.Trim() ?? "",
-          beatmap.OsuFileName?.Trim() ?? ""
-        );
+        _resolvedPath = Path.Combine(songsPath, folder.Trim(), file.Trim());
+        _resolvedPathFolder = folder;
+        _resolvedPathFile = file;
+        _resolvedPathSongs = songsPath;
+        return _resolvedPath;
       }
       catch (Exception ex)
       {
@@ -174,16 +229,26 @@ namespace OsuMate.Services
       }
     }
 
+    private string[] ParseCalculationMods(int modsValue)
+    {
+      if (_parsedModsValue == modsValue)
+        return _parsedCalculationMods;
+
+      _parsedCalculationMods = OsuUtils.ParseMods(modsValue).Calculation;
+      _parsedModsValue = modsValue;
+      return _parsedCalculationMods;
+    }
+
     private string[] ResolveCurrentMods()
     {
       var baseAddresses = _memory.GetBaseAddressSnapshot();
       return _memory.CurrentStatus switch
       {
-        OsuMemoryStatus.Playing => OsuUtils.ParseMods(baseAddresses.Player.Mods.Value).Calculation,
-        OsuMemoryStatus.ResultsScreen => OsuUtils
-          .ParseMods(baseAddresses.ResultsScreen.Mods.Value)
-          .Calculation,
-        _ => OsuUtils.ParseMods(baseAddresses.GeneralData.Mods).Calculation,
+        OsuMemoryStatus.Playing => ParseCalculationMods(baseAddresses.Player.Mods.Value),
+        OsuMemoryStatus.ResultsScreen => ParseCalculationMods(
+          baseAddresses.ResultsScreen.Mods.Value
+        ),
+        _ => ParseCalculationMods(baseAddresses.GeneralData.Mods),
       };
     }
 
@@ -191,7 +256,7 @@ namespace OsuMate.Services
     {
       var observed = ResolveCurrentMods();
 
-      if (observed.SequenceEqual(_lastObservedMods))
+      if (RulesetHelper.ModsEqual(observed, _lastObservedMods))
       {
         if (_modsStableTickCount < ModsStableTicksRequired)
           _modsStableTickCount++;
@@ -202,12 +267,12 @@ namespace OsuMate.Services
         _modsStableTickCount = 1;
       }
 
-      return _modsStableTickCount >= ModsStableTicksRequired ? observed : PrevMods;
+      return _modsStableTickCount >= ModsStableTicksRequired ? _lastObservedMods : PrevMods;
     }
 
     private void RefreshSpeedMultiplierIfModsChanged()
     {
-      if (_lastSpeedMultiplierMods.SequenceEqual(PrevMods))
+      if (RulesetHelper.ModsEqual(_lastSpeedMultiplierMods, PrevMods))
         return;
 
       _lastSpeedMultiplierMods = PrevMods;
@@ -291,7 +356,11 @@ namespace OsuMate.Services
       ref string[] skillNames
     )
     {
-      if (strainUpdated || _calculator == null || PrevMods.SequenceEqual(_prevStrainMods))
+      if (
+        strainUpdated
+        || _calculator == null
+        || RulesetHelper.ModsEqual(PrevMods, _prevStrainMods)
+      )
         return;
       RefreshStrainData(ref strainUpdated, ref strains, ref skillNames);
     }
@@ -309,25 +378,67 @@ namespace OsuMate.Services
       _prevStrainMods = PrevMods;
     }
 
-    private (BeatmapData Data, HitsResult Hits, double SpeedMultiplier)? CalculatePp()
+    private (BeatmapData Data, HitsResult Hits, double SpeedMultiplier)? CalculatePp(
+      bool strainUpdated
+    )
     {
       var (hits, accuracy) = _memory.ReadHitsAndAccuracy();
+      bool isPlaying = _memory.IsPlaying;
 
-      if (hits.Equals(_previousHits) && _memory.IsPlaying && !hits.IsEmpty())
+      int audioTime = _memory.GetBaseAddressSnapshot().GeneralData.AudioTime;
+
+      var key = new CalculationKey(
+        isPlaying,
+        _memory.IsResultScreen,
+        _memory.CurrentOsuGamemode,
+        _currentGamemode,
+        audioTime,
+        accuracy,
+        hits,
+        PrevMods,
+        _preMapPath,
+        _hitErrorStats.Version,
+        _memory.UrTimelineVersion
+      );
+
+      bool refreshRequested = Interlocked.Exchange(ref _refreshRequested, 0) == 1;
+      if (
+        !refreshRequested
+        && !strainUpdated
+        && _lastCalculationKey is { } lastKey
+        && lastKey.Equals(key)
+      )
         return null;
-      if (_memory.IsPlaying)
-        _previousHits = hits.Clone();
+      _lastCalculationKey = key;
 
       var args = new CalculateArgs
       {
         Mods = PrevMods,
-        Time = _memory.GetBaseAddressSnapshot().GeneralData.AudioTime,
+        Time = audioTime,
         Combo = hits.Combo,
         Score = hits.Score,
         Accuracy = accuracy,
       };
 
-      var data = _calculator!.Calculate(args, _memory.IsPlaying, _memory.IsResultScreen, hits);
+      if (
+        !strainUpdated
+        && isPlaying
+        && _lastCalculationWasPlaying
+        && !hits.IsEmpty()
+        && hits.Equals(_previousHits)
+        && LastCalculatedData is { } lastData
+      )
+      {
+        var refreshed = _calculator!.RefreshTimeDependentData(lastData, args);
+        LastCalculatedData = refreshed;
+        return (refreshed, hits, CurrentSpeedMultiplier);
+      }
+
+      if (isPlaying)
+        _previousHits = hits.Clone();
+      _lastCalculationWasPlaying = isPlaying;
+
+      var data = _calculator!.Calculate(args, isPlaying, _memory.IsResultScreen, hits);
       _memory.FirstObjectTimeModified = data.FirstObjectTimeModified;
       CurrentHitWindows = data.ModifiedHitWindows;
 

@@ -87,6 +87,8 @@ namespace OsuMate.Services
         _beatmapSnapshot = next;
     }
 
+    internal string GetCurrentBeatmapMd5() => _beatmapSnapshot?.Md5 ?? string.Empty;
+
     internal (string BeatmapPath, string BeatmapMd5) GetCurrentBeatmap()
     {
       var snapshot = _beatmapSnapshot;
@@ -114,8 +116,14 @@ namespace OsuMate.Services
     internal (int[] Array, int Count) GetHitErrorsSnapshot() =>
       _hitErrorStore.GetHitErrorsSnapshot();
 
+    private int _readGeneration;
+
     internal (HitsResult Hits, double Accuracy) ReadHitsAndAccuracy() =>
-      _hitErrorStore.ReadHitsAndAccuracy(CurrentStatus, IsPlaying);
+      _hitErrorStore.ReadHitsAndAccuracy(
+        CurrentStatus,
+        IsPlaying,
+        Volatile.Read(ref _readGeneration)
+      );
 
     internal (bool Reset, List<(double timeSec, double offsetMs)> NewItems) GetURTimelineSnapshot() =>
       _urTimelineStore.GetSnapshot();
@@ -127,6 +135,8 @@ namespace OsuMate.Services
       int? maniaKeyCount,
       List<KeyOverlayTransition> transitions
     ) => _keyOverlay.DrainKeyOverlayUpdate(gamemode, maniaKeyCount, transitions);
+
+    internal int UrTimelineVersion => _urTimelineStore.Version;
 
     internal void SyncURTimeline(IReadOnlyList<int> hitErrors, double speedMultiplier) =>
       _urTimelineStore.Sync(hitErrors, speedMultiplier);
@@ -226,13 +236,20 @@ namespace OsuMate.Services
               if (!IsDirectoryLoaded || !_sreader.CanRead)
                 continue;
 
-              _sreader.TryRead(_baseAddresses.Beatmap);
-              PublishBeatmapSnapshot();
-              _hitErrorStore.ReadPlayerMemory(_sreader);
               _sreader.TryRead(_baseAddresses.GeneralData);
-              _sreader.TryRead(_baseAddresses.ResultsScreen);
-
               var newStatus = _baseAddresses.GeneralData.OsuStatus;
+
+              if (newStatus != OsuMemoryStatus.Playing || newStatus != _prevStatus)
+              {
+                _sreader.TryRead(_baseAddresses.Beatmap);
+                PublishBeatmapSnapshot();
+              }
+
+              _hitErrorStore.ReadPlayerMemory(_sreader);
+
+              if (newStatus == OsuMemoryStatus.ResultsScreen)
+                _sreader.TryRead(_baseAddresses.ResultsScreen);
+
               CurrentStatus = newStatus;
               IsPlaying = CurrentStatus == OsuMemoryStatus.Playing;
               IsResultScreen = CurrentStatus == OsuMemoryStatus.ResultsScreen;
@@ -250,7 +267,8 @@ namespace OsuMate.Services
                 InvokeIsolated(OnStatusChanged, prev, newStatus);
               }
 
-              InvokeIsolated(OnMemoryRead);
+              Interlocked.Increment(ref _readGeneration);
+              InvokeMemoryReadHandlers();
             }
             catch (TaskCanceledException)
             {
@@ -266,12 +284,22 @@ namespace OsuMate.Services
       );
     }
 
-    private static void InvokeIsolated(Action? handlers)
+    private Action? _memoryReadSource;
+    private Action[] _memoryReadHandlers = [];
+
+    private void InvokeMemoryReadHandlers()
     {
-      if (handlers == null)
+      var source = OnMemoryRead;
+      if (source == null)
         return;
 
-      foreach (var handler in handlers.GetInvocationList().Cast<Action>())
+      if (!ReferenceEquals(source, _memoryReadSource))
+      {
+        _memoryReadHandlers = [.. source.GetInvocationList().Cast<Action>()];
+        _memoryReadSource = source;
+      }
+
+      foreach (var handler in _memoryReadHandlers)
       {
         try
         {

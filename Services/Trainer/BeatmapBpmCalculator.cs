@@ -23,7 +23,19 @@ namespace OsuMate.Services.Trainer
           durations[bl] = dur;
       }
 
-      var dominantBl = durations.OrderByDescending(kv => kv.Value).First().Key;
+      double dominantBl = 0;
+      double dominantDuration = 0;
+      bool hasDominant = false;
+      foreach (var (beatLength, duration) in durations)
+      {
+        if (hasDominant && duration.CompareTo(dominantDuration) <= 0)
+          continue;
+
+        dominantBl = beatLength;
+        dominantDuration = duration;
+        hasDominant = true;
+      }
+
       return new BpmSummary(
         ToSafeBpm(60000.0 / dominantBl),
         ToSafeBpm(60000.0 / pts.Max(p => p.beatLength)),

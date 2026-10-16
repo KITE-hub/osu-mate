@@ -80,6 +80,9 @@ namespace OsuMate.Services.Osu
       return [.. mods];
     }
 
+    internal static bool ModsEqual(string[] left, string[] right) =>
+      ReferenceEquals(left, right) || left.AsSpan().SequenceEqual(right);
+
     public static double GetTimeScale(string[] mods)
     {
       if (mods.Contains("dt") || mods.Contains("nc"))

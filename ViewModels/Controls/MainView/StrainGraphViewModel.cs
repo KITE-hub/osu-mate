@@ -173,11 +173,13 @@ namespace OsuMate.ViewModels
 
       if (_currentTimeLine != null && _plotModel.Series.Count > 0)
       {
-        _currentTimeLine.Points.Clear();
-        _currentTimeLine.Points.Add(new DataPoint(_currentTimeMs / 1000.0, 0));
-        _currentTimeLine.Points.Add(new DataPoint(_currentTimeMs / 1000.0, _lastMaxValue));
         if (TryMarkRendered(ref _lastRenderedAt, dataUpdateIntervalMs))
+        {
+          _currentTimeLine.Points.Clear();
+          _currentTimeLine.Points.Add(new DataPoint(_currentTimeMs / 1000.0, 0));
+          _currentTimeLine.Points.Add(new DataPoint(_currentTimeMs / 1000.0, _lastMaxValue));
           _plotModel.InvalidatePlot(false);
+        }
         return;
       }
 

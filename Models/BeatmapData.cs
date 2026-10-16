@@ -32,5 +32,7 @@ namespace OsuMate.Models
     ) DetailedOffset { get; set; }
     internal (double rawUR, double modifiedUR) UR { get; set; }
     internal Dictionary<HitResult, double> ModifiedHitWindows { get; set; } = [];
+
+    internal BeatmapData ShallowCopy() => (BeatmapData)MemberwiseClone();
   }
 }

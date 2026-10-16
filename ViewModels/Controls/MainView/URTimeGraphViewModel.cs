@@ -19,7 +19,7 @@ namespace OsuMate.ViewModels
     private double _totalTimeSec = 0;
     private double _currentTimeSec = 0;
     private double _maxWindow = 0;
-    private Dictionary<HitResult, double> _hitWindows = [];
+    private HitJudgementWindows _windows;
     private int _previousDataCount = 0;
     private LineSeries _currentTimeLine = new();
 
@@ -115,9 +115,9 @@ namespace OsuMate.ViewModels
 
     public void SetData(Dictionary<HitResult, double> hitWindows, double totalTimeSec)
     {
-      _hitWindows = hitWindows;
+      _windows = new HitJudgementWindows(hitWindows);
       _totalTimeSec = totalTimeSec;
-      _maxWindow = HitJudgementHelper.GetMaxWindow(hitWindows);
+      _maxWindow = _windows.Max;
 
       if (IsPlaying)
       {
@@ -161,9 +161,11 @@ namespace OsuMate.ViewModels
       if (currentData.Count == previousCount && _plotModel.Series.Count > 0)
       {
         _data = currentData;
-        MoveCurrentTimeLine();
         if (TryMarkRendered(ref _lastRenderedAt, renderIntervalMs))
+        {
+          MoveCurrentTimeLine();
           _plotModel.InvalidatePlot(false);
+        }
         return;
       }
 
@@ -178,9 +180,11 @@ namespace OsuMate.ViewModels
       AppendNewPoints(currentData, previousCount, currentData.Count);
       _data = currentData;
       _previousDataCount = currentData.Count;
-      MoveCurrentTimeLine();
       if (TryMarkRendered(ref _lastRenderedAt, renderIntervalMs))
+      {
+        MoveCurrentTimeLine();
         _plotModel.InvalidatePlot(false);
+      }
     }
 
     private void MoveCurrentTimeLine()
@@ -201,7 +205,7 @@ namespace OsuMate.ViewModels
         var (timeSec, offsetMs) = data[i];
         var point = new ScatterPoint(timeSec, offsetMs);
 
-        var series = HitJudgementHelper.GetJudgement(offsetMs, _hitWindows) switch
+        var series = _windows.GetJudgement(offsetMs) switch
         {
           1 => _perfectSeries,
           2 => _greatSeries,

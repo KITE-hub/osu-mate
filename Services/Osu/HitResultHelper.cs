@@ -38,15 +38,8 @@ namespace OsuMate.Services.Osu
         case 2:
         {
           int maxCombo = ScoreHelper.GetMaxCombo(beatmap, mode);
-          var juiceStreams = beatmap.HitObjects.OfType<JuiceStream>().ToList();
-          int maxTinyDroplets = juiceStreams.Sum(s =>
-            s.NestedHitObjects.OfType<TinyDroplet>().Count()
-          );
-          int maxDroplets =
-            juiceStreams.Sum(s => s.NestedHitObjects.OfType<Droplet>().Count()) - maxTinyDroplets;
-          int maxFruits = beatmap.HitObjects.Sum(h =>
-            h is Fruit ? 1 : (h as JuiceStream)?.NestedHitObjects.Count(n => n is Fruit) ?? 0
-          );
+          var (maxTinyDroplets, allDroplets, maxFruits) = CountCatchObjects(beatmap);
+          int maxDroplets = allDroplets - maxTinyDroplets;
           int countDroplets = Math.Max(0, maxDroplets);
           int countFruits = maxFruits + (maxDroplets - countDroplets);
           int countTinyDroplets = maxCombo + maxTinyDroplets - countFruits - countDroplets;
@@ -125,8 +118,60 @@ namespace OsuMate.Services.Osu
       };
     }
 
+    private static (int TinyDroplets, int Droplets, int Fruits) CountCatchObjects(IBeatmap beatmap)
+    {
+      int tinyDroplets = 0;
+      int droplets = 0;
+      int fruits = 0;
+
+      foreach (var hitObject in beatmap.HitObjects)
+      {
+        if (hitObject is Fruit)
+        {
+          fruits++;
+          continue;
+        }
+
+        if (hitObject is not JuiceStream juiceStream)
+          continue;
+
+        foreach (var nested in juiceStream.NestedHitObjects)
+        {
+          if (nested is TinyDroplet)
+            tinyDroplets++;
+          if (nested is Droplet)
+            droplets++;
+          if (nested is Fruit)
+            fruits++;
+        }
+      }
+
+      return (tinyDroplets, droplets, fruits);
+    }
+
+    public static int GetPredictionTotal(IBeatmap beatmap, int mode)
+    {
+      switch (mode)
+      {
+        case 0:
+        case 3:
+          return beatmap.HitObjects.Count;
+        case 1:
+          return ScoreHelper.GetMaxCombo(beatmap, mode);
+        case 2:
+        {
+          return ScoreHelper.GetMaxCombo(beatmap, mode) + CountCatchObjects(beatmap).TinyDroplets;
+        }
+        default:
+          throw new ArgumentException("Invalid mode provided. Given mode: " + mode);
+      }
+    }
+
+    private static int Scale(int count, int total, int currentTotalHits) =>
+      currentTotalHits == 0 ? 0 : count * total / currentTotalHits;
+
     public static Dictionary<HitResult, int> GenerateHitResultsForPredicted(
-      IBeatmap beatmap,
+      int predictionTotal,
       HitsResult hits,
       int mode
     )
@@ -138,72 +183,32 @@ namespace OsuMate.Services.Osu
           int currentTotalHits = hits.Hit300 + hits.Hit100 + hits.Hit50 + hits.HitMiss;
           return new Dictionary<HitResult, int>
           {
-            {
-              HitResult.Great,
-              currentTotalHits == 0 ? 0 : hits.Hit300 * beatmap.HitObjects.Count / currentTotalHits
-            },
-            {
-              HitResult.Ok,
-              currentTotalHits == 0 ? 0 : hits.Hit100 * beatmap.HitObjects.Count / currentTotalHits
-            },
-            {
-              HitResult.Meh,
-              currentTotalHits == 0 ? 0 : hits.Hit50 * beatmap.HitObjects.Count / currentTotalHits
-            },
-            {
-              HitResult.Miss,
-              currentTotalHits == 0 ? 0 : hits.HitMiss * beatmap.HitObjects.Count / currentTotalHits
-            },
+            { HitResult.Great, Scale(hits.Hit300, predictionTotal, currentTotalHits) },
+            { HitResult.Ok, Scale(hits.Hit100, predictionTotal, currentTotalHits) },
+            { HitResult.Meh, Scale(hits.Hit50, predictionTotal, currentTotalHits) },
+            { HitResult.Miss, Scale(hits.HitMiss, predictionTotal, currentTotalHits) },
           };
         }
         case 1:
         {
           int currentTotalHits = hits.Hit300 + hits.Hit100 + hits.HitMiss;
-          int totalHits = ScoreHelper.GetMaxCombo(beatmap, mode);
           return new Dictionary<HitResult, int>
           {
-            {
-              HitResult.Great,
-              currentTotalHits == 0 ? 0 : hits.Hit300 * totalHits / currentTotalHits
-            },
-            { HitResult.Ok, currentTotalHits == 0 ? 0 : hits.Hit100 * totalHits / currentTotalHits },
-            {
-              HitResult.Miss,
-              currentTotalHits == 0 ? 0 : hits.HitMiss * totalHits / currentTotalHits
-            },
+            { HitResult.Great, Scale(hits.Hit300, predictionTotal, currentTotalHits) },
+            { HitResult.Ok, Scale(hits.Hit100, predictionTotal, currentTotalHits) },
+            { HitResult.Miss, Scale(hits.HitMiss, predictionTotal, currentTotalHits) },
           };
         }
         case 2:
         {
-          int maxCombo = ScoreHelper.GetMaxCombo(beatmap, mode);
-          var juiceStreams = beatmap.HitObjects.OfType<JuiceStream>().ToList();
-          int maxTinyDroplets = juiceStreams.Sum(s =>
-            s.NestedHitObjects.OfType<TinyDroplet>().Count()
-          );
-          int totalObjects = maxCombo + maxTinyDroplets;
           int currentTotalHits = hits.Hit300 + hits.Hit100 + hits.Hit50 + hits.HitKatu + hits.HitMiss;
           return new Dictionary<HitResult, int>
           {
-            {
-              HitResult.Great,
-              currentTotalHits == 0 ? 0 : hits.Hit300 * totalObjects / currentTotalHits
-            },
-            {
-              HitResult.LargeTickHit,
-              currentTotalHits == 0 ? 0 : hits.Hit100 * totalObjects / currentTotalHits
-            },
-            {
-              HitResult.SmallTickHit,
-              currentTotalHits == 0 ? 0 : hits.Hit50 * totalObjects / currentTotalHits
-            },
-            {
-              HitResult.SmallTickMiss,
-              currentTotalHits == 0 ? 0 : hits.HitKatu * totalObjects / currentTotalHits
-            },
-            {
-              HitResult.Miss,
-              currentTotalHits == 0 ? 0 : hits.HitMiss * totalObjects / currentTotalHits
-            },
+            { HitResult.Great, Scale(hits.Hit300, predictionTotal, currentTotalHits) },
+            { HitResult.LargeTickHit, Scale(hits.Hit100, predictionTotal, currentTotalHits) },
+            { HitResult.SmallTickHit, Scale(hits.Hit50, predictionTotal, currentTotalHits) },
+            { HitResult.SmallTickMiss, Scale(hits.HitKatu, predictionTotal, currentTotalHits) },
+            { HitResult.Miss, Scale(hits.HitMiss, predictionTotal, currentTotalHits) },
           };
         }
         case 3:
@@ -212,18 +217,12 @@ namespace OsuMate.Services.Osu
             hits.HitGeki + hits.Hit300 + hits.HitKatu + hits.Hit100 + hits.Hit50 + hits.HitMiss;
           return new Dictionary<HitResult, int>
           {
-            [HitResult.Perfect] =
-              currentTotalHits == 0 ? 0 : hits.HitGeki * beatmap.HitObjects.Count / currentTotalHits,
-            [HitResult.Great] =
-              currentTotalHits == 0 ? 0 : hits.Hit300 * beatmap.HitObjects.Count / currentTotalHits,
-            [HitResult.Good] =
-              currentTotalHits == 0 ? 0 : hits.HitKatu * beatmap.HitObjects.Count / currentTotalHits,
-            [HitResult.Ok] =
-              currentTotalHits == 0 ? 0 : hits.Hit100 * beatmap.HitObjects.Count / currentTotalHits,
-            [HitResult.Meh] =
-              currentTotalHits == 0 ? 0 : hits.Hit50 * beatmap.HitObjects.Count / currentTotalHits,
-            [HitResult.Miss] =
-              currentTotalHits == 0 ? 0 : hits.HitMiss * beatmap.HitObjects.Count / currentTotalHits,
+            [HitResult.Perfect] = Scale(hits.HitGeki, predictionTotal, currentTotalHits),
+            [HitResult.Great] = Scale(hits.Hit300, predictionTotal, currentTotalHits),
+            [HitResult.Good] = Scale(hits.HitKatu, predictionTotal, currentTotalHits),
+            [HitResult.Ok] = Scale(hits.Hit100, predictionTotal, currentTotalHits),
+            [HitResult.Meh] = Scale(hits.Hit50, predictionTotal, currentTotalHits),
+            [HitResult.Miss] = Scale(hits.HitMiss, predictionTotal, currentTotalHits),
           };
         }
         default:

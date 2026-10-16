@@ -12,21 +12,13 @@ namespace OsuMate.ViewModels
     public string Label
     {
       get => _label;
-      set
-      {
-        _label = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _label, value);
     }
 
     public string Value
     {
       get => _value;
-      set
-      {
-        _value = value;
-        OnPropertyChanged();
-      }
+      set => SetField(ref _value, value);
     }
   }
 }

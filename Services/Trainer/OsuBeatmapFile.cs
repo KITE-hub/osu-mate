@@ -278,6 +278,13 @@ namespace OsuMate.Services.Trainer
       }
     }
 
+    internal static OsuBeatmapFile LoadHeaderOnly(string filePath)
+    {
+      var bm = new OsuBeatmapFile { Filename = filePath };
+      bm.ParseMetadataOnly(filePath);
+      return bm;
+    }
+
     public static OsuBeatmapMetadata LoadMetadataOnly(string filePath)
     {
       var bm = new OsuBeatmapFile { Filename = filePath };

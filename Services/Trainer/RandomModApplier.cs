@@ -146,25 +146,67 @@ namespace OsuMate.Services.Trainer
       return 0f;
     }
 
-    private static float ComputeRotatedOverflow(
+    private static float TransformAndMeasureOverflow(
       Vector2 headPosition,
       IReadOnlyList<Vector2> offsets,
       bool flip,
       float rotation,
       float rx,
-      float ry
+      float ry,
+      Vector2[] points,
+      out PathBounds bounds
     )
     {
       float cos = MathF.Cos(rotation);
       float sin = MathF.Sin(rotation);
       float overflow = 0f;
-      foreach (var offset in offsets)
+      float minX = float.MaxValue;
+      float minY = float.MaxValue;
+      float maxX = float.MinValue;
+      float maxY = float.MinValue;
+
+      for (int i = 0; i < points.Length; i++)
       {
-        var point = headPosition + ApplyFlipRotationBy(offset, flip, cos, sin);
+        var point = headPosition + ApplyFlipRotationBy(offsets[i], flip, cos, sin);
+        points[i] = point;
         overflow += ComputeAxisOverflow(point.X, rx, PlayfieldWidth - rx);
         overflow += ComputeAxisOverflow(point.Y, ry, PlayfieldHeight - ry);
+        minX = Math.Min(minX, point.X);
+        minY = Math.Min(minY, point.Y);
+        maxX = Math.Max(maxX, point.X);
+        maxY = Math.Max(maxY, point.Y);
       }
+
+      bounds = new PathBounds(minX, minY, maxX, maxY);
       return overflow;
+    }
+
+    private readonly record struct PathBounds(float MinX, float MinY, float MaxX, float MaxY)
+    {
+      internal static PathBounds Of(IReadOnlyList<Vector2> points)
+      {
+        float minX = float.MaxValue;
+        float minY = float.MaxValue;
+        float maxX = float.MinValue;
+        float maxY = float.MinValue;
+
+        foreach (var point in points)
+        {
+          minX = Math.Min(minX, point.X);
+          minY = Math.Min(minY, point.Y);
+          maxX = Math.Max(maxX, point.X);
+          maxY = Math.Max(maxY, point.Y);
+        }
+
+        return new PathBounds(minX, minY, maxX, maxY);
+      }
+
+      internal float GapSquaredTo(PathBounds other)
+      {
+        float dx = Math.Max(Math.Max(other.MinX - MaxX, MinX - other.MaxX), 0f);
+        float dy = Math.Max(Math.Max(other.MinY - MaxY, MinY - other.MaxY), 0f);
+        return dx * dx + dy * dy;
+      }
     }
 
     private static float PointToSegmentDistance(Vector2 point, Vector2 segStart, Vector2 segEnd)
@@ -439,16 +481,23 @@ namespace OsuMate.Services.Trainer
       return ClampToPlayfield(chosenPosition, radius);
     }
 
+    private const float OverlapPruneMarginPx = 0.5f;
+
     private static float ComputeRotatedOverlapDeficit(
-      Vector2 headPosition,
-      IReadOnlyList<Vector2> offsets,
-      bool flip,
-      float rotation,
+      Vector2[] bodyPoints,
+      PathBounds bodyBounds,
       IReadOnlyList<Vector2> previousShape,
+      PathBounds previousBounds,
       float minSeparation
     )
     {
-      var bodyPoints = TransformOffsets(headPosition, offsets, flip, rotation);
+      if (bodyPoints.Length > 0)
+      {
+        float threshold = minSeparation + OverlapPruneMarginPx;
+        if (bodyBounds.GapSquaredTo(previousBounds) >= threshold * threshold)
+          return 0f;
+      }
+
       float separation = MinDistanceBetweenPaths(bodyPoints, previousShape);
       return Math.Max(0f, minSeparation - separation);
     }
@@ -480,6 +529,11 @@ namespace OsuMate.Services.Trainer
         foreach (var point in previousShape)
           prevShapeRadius = Math.Max(prevShapeRadius, Vector2.Distance(point, previousShape[0]));
 
+      var bodyPoints = new Vector2[collisionOffsets.Count];
+      var previousBounds = previousShape is { Count: > 0 }
+        ? PathBounds.Of(previousShape)
+        : default;
+
       var fitting = new List<(Vector2 Head, bool Flip, float Rotation)>();
       Vector2 bestHead = anchor;
       bool bestFlip = false;
@@ -500,13 +554,28 @@ namespace OsuMate.Services.Trainer
           for (int s = 0; s < rotationSamples; s++)
           {
             float rotation = (float)(2.0 * Math.PI * (s + random.NextDouble()) / rotationSamples);
-            float overflow = ComputeRotatedOverflow(head, collisionOffsets, flip, rotation, rx, ry);
+            float overflow = TransformAndMeasureOverflow(
+              head,
+              collisionOffsets,
+              flip,
+              rotation,
+              rx,
+              ry,
+              bodyPoints,
+              out var bodyBounds
+            );
             if (overflow > 0f && overflow >= bestPenalty)
               continue;
 
             float overlapDeficit = skipOverlapCheck
               ? 0f
-              : ComputeRotatedOverlapDeficit(head, collisionOffsets, flip, rotation, previousShape!, minSeparation);
+              : ComputeRotatedOverlapDeficit(
+                bodyPoints,
+                bodyBounds,
+                previousShape!,
+                previousBounds,
+                minSeparation
+              );
 
             if (overflow <= 0f && overlapDeficit <= 0f)
             {

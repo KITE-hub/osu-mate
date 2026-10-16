@@ -21,6 +21,9 @@ namespace OsuMate.Services.Osu
     private HitsResult _lastSafeHits = new();
     private double _lastSafeAccuracy;
 
+    private int _cachedGeneration = -1;
+    private (HitsResult Hits, double Accuracy) _cachedHitsAndAccuracy;
+
     internal HitErrorSnapshotStore(OsuBaseAddresses baseAddresses)
     {
       _baseAddresses = baseAddresses;
@@ -92,21 +95,28 @@ namespace OsuMate.Services.Osu
 
     internal (HitsResult Hits, double Accuracy) ReadHitsAndAccuracy(
       OsuMemoryStatus currentStatus,
-      bool isPlaying
+      bool isPlaying,
+      int generation
     )
     {
       lock (_lock)
       {
+        if (generation == _cachedGeneration)
+          return _cachedHitsAndAccuracy;
+
         var hits = new HitsResult();
         hits.SetValueFromMemory(currentStatus, _baseAddresses, isPlaying);
         double accuracy = _baseAddresses.Player.Accuracy;
 
-        if (!IsPlausibleHits(hits, accuracy))
-          return (_lastSafeHits.Clone(), _lastSafeAccuracy);
+        if (IsPlausibleHits(hits, accuracy))
+        {
+          _lastSafeHits = hits;
+          _lastSafeAccuracy = accuracy;
+        }
 
-        _lastSafeHits = hits.Clone();
-        _lastSafeAccuracy = accuracy;
-        return (hits.Clone(), accuracy);
+        _cachedHitsAndAccuracy = (_lastSafeHits, _lastSafeAccuracy);
+        _cachedGeneration = generation;
+        return _cachedHitsAndAccuracy;
       }
     }
 

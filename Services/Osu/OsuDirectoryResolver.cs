@@ -14,11 +14,17 @@ namespace OsuMate.Services.Osu
 
     internal event Action<string>? OnDirectoryLoaded;
 
+    private const int ResolveRetryIntervalMs = 500;
+
+    private long _retryNotBeforeMs;
+    private string _lastDetectedPath = string.Empty;
+
     internal void SetManualDirectory(string directory)
     {
       lock (_lock)
       {
         ManualOsuDirectory = directory?.Trim() ?? string.Empty;
+        Volatile.Write(ref _retryNotBeforeMs, 0);
         IsDirectoryLoaded = false;
         OsuDirectory = string.Empty;
         SongsPath = string.Empty;
@@ -30,6 +36,11 @@ namespace OsuMate.Services.Osu
       if (IsDirectoryLoaded)
         return;
 
+      long now = Environment.TickCount64;
+      if (detectedOsuPath == _lastDetectedPath && now < Volatile.Read(ref _retryNotBeforeMs))
+        return;
+      _lastDetectedPath = detectedOsuPath;
+
       string? resolvedDir = null;
       lock (_lock)
       {
@@ -40,7 +51,10 @@ namespace OsuMate.Services.Osu
       }
 
       if (resolvedDir == null)
+      {
+        Volatile.Write(ref _retryNotBeforeMs, now + ResolveRetryIntervalMs);
         return;
+      }
 
       lock (_lock)
       {

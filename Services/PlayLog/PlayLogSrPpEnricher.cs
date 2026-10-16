@@ -19,6 +19,7 @@ namespace OsuMate.Services.PlayLog
     private readonly PlayLogRepository _repository;
     private const int CalculationChunkSize = 16;
     private const int PlayingPollDelayMs = 1000;
+    private const int SaveBatchSize = 200;
     private readonly SemaphoreSlim _calculationGate = new(1, 1);
 
     public PlayLogSrPpEnricher(
@@ -77,34 +78,53 @@ namespace OsuMate.Services.PlayLog
           }
         }
 
-        foreach (var dateGroup in targets.GroupBy(e => e.PlayedAt.Date))
+        var ordered = targets
+          .OrderBy(e => e.BeatmapMd5)
+          .ThenBy(e => e.BeatmapId)
+          .ThenBy(e => e.Mode)
+          .ThenBy(e => e.ModsString)
+          .ToList();
+
+        var cache = new CalculatorCache();
+        var pendingSave = new List<PlayLogEntry>();
+
+        try
         {
-          var ordered = dateGroup
-            .OrderBy(e => e.BeatmapMd5)
-            .ThenBy(e => e.BeatmapId)
-            .ThenBy(e => e.Mode)
-            .ThenBy(e => e.ModsString)
-            .ToList();
-
-          var results = await CalculateGroupAsync(ordered, md5Map);
-
-          await dispatcher.InvokeAsync(() =>
+          foreach (var chunk in ordered.Chunk(CalculationChunkSize))
           {
-            foreach (var result in results)
+            while (_memory.IsPlaying)
+              await Task.Delay(PlayingPollDelayMs);
+
+            var results = await Task.Run(() => CalculateChunk(chunk, md5Map, cache));
+
+            await dispatcher.InvokeAsync(() =>
             {
-              if (result.Failed)
+              foreach (var result in results)
               {
-                result.Entry.IsCalculationFailed = true;
-                continue;
+                if (result.Failed)
+                {
+                  result.Entry.IsCalculationFailed = true;
+                  continue;
+                }
+
+                result.Entry.StarRating = result.StarRating;
+                if (result.Entry.IsCompleted)
+                  result.Entry.Pp = result.Pp;
               }
+            });
 
-              result.Entry.StarRating = result.StarRating;
-              if (result.Entry.IsCompleted)
-                result.Entry.Pp = result.Pp;
+            pendingSave.AddRange(results.Select(r => r.Entry));
+            if (pendingSave.Count >= SaveBatchSize)
+            {
+              _repository.SaveEntries(pendingSave);
+              pendingSave = [];
             }
-          });
-
-          _repository.SaveEntries(results.Select(r => r.Entry).ToList());
+          }
+        }
+        finally
+        {
+          if (pendingSave.Count > 0)
+            _repository.SaveEntries(pendingSave);
         }
       }
       finally
@@ -119,26 +139,6 @@ namespace OsuMate.Services.PlayLog
       double? Pp,
       bool Failed
     );
-
-    private async Task<List<EntryCalculation>> CalculateGroupAsync(
-      List<PlayLogEntry> entries,
-      Dictionary<string, OsuMate.Services.StableDb.BeatmapInfo>? md5Map
-    )
-    {
-      var results = new List<EntryCalculation>(entries.Count);
-      var cache = new CalculatorCache();
-
-      foreach (var chunk in entries.Chunk(CalculationChunkSize))
-      {
-        while (_memory.IsPlaying)
-          await Task.Delay(PlayingPollDelayMs);
-
-        var chunkResults = await Task.Run(() => CalculateChunk(chunk, md5Map, cache));
-        results.AddRange(chunkResults);
-      }
-
-      return results;
-    }
 
     private List<EntryCalculation> CalculateChunk(
       PlayLogEntry[] chunk,

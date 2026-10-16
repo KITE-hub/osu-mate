@@ -2,35 +2,63 @@
 
 namespace OsuMate.Services.Osu
 {
-  internal static class HitJudgementHelper
+  internal readonly struct HitJudgementWindows
   {
-    public static int GetJudgement(double offsetMs, IReadOnlyDictionary<HitResult, double> hitWindows)
+    private readonly double _perfect;
+    private readonly double _great;
+    private readonly double _good;
+    private readonly double _ok;
+    private readonly double _meh;
+
+    internal double Max { get; }
+
+    internal HitJudgementWindows(IReadOnlyDictionary<HitResult, double> hitWindows)
+    {
+      _perfect = HitJudgementHelper.GetWindow(hitWindows, HitResult.Perfect);
+      _great = HitJudgementHelper.GetWindow(hitWindows, HitResult.Great);
+      _good = HitJudgementHelper.GetWindow(hitWindows, HitResult.Good);
+      _ok = HitJudgementHelper.GetWindow(hitWindows, HitResult.Ok);
+      _meh = HitJudgementHelper.GetWindow(hitWindows, HitResult.Meh);
+      Max = HitJudgementHelper.GetMaxWindow(hitWindows);
+    }
+
+    internal int GetJudgement(double offsetMs)
     {
       double abs = Math.Abs(offsetMs);
-      double perfect = GetWindow(hitWindows, HitResult.Perfect);
-      double great = GetWindow(hitWindows, HitResult.Great);
-      double good = GetWindow(hitWindows, HitResult.Good);
-      double ok = GetWindow(hitWindows, HitResult.Ok);
-      double meh = GetWindow(hitWindows, HitResult.Meh);
 
-      if (perfect > 0 && abs <= perfect)
+      if (_perfect > 0 && abs <= _perfect)
         return 1;
-      if (great > 0 && abs <= great)
+      if (_great > 0 && abs <= _great)
         return 2;
-      if (good > 0 && abs <= good)
+      if (_good > 0 && abs <= _good)
         return 3;
-      if (ok > 0 && abs <= ok)
+      if (_ok > 0 && abs <= _ok)
         return 4;
-      if (meh > 0 && abs <= meh)
+      if (_meh > 0 && abs <= _meh)
         return 5;
       return 6;
     }
+  }
+
+  internal static class HitJudgementHelper
+  {
+    public static int GetJudgement(double offsetMs, IReadOnlyDictionary<HitResult, double> hitWindows) =>
+      new HitJudgementWindows(hitWindows).GetJudgement(offsetMs);
 
     public static double GetWindow(IReadOnlyDictionary<HitResult, double> hitWindows, HitResult r) =>
       hitWindows.TryGetValue(r, out var v) ? v : 0;
 
-    public static double GetMaxWindow(IReadOnlyDictionary<HitResult, double> hitWindows) =>
-      hitWindows.Values.Where(x => x > 0).DefaultIfEmpty(0).Max();
+    public static double GetMaxWindow(IReadOnlyDictionary<HitResult, double> hitWindows)
+    {
+      double max = 0;
+      foreach (double value in hitWindows.Values)
+      {
+        if (value > max)
+          max = value;
+      }
+
+      return max;
+    }
 
     public static List<(
       int judgement,

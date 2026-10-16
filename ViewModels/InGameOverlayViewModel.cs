@@ -41,6 +41,8 @@ namespace OsuMate.ViewModels
       }
     }
 
+    private readonly List<(int Id, string Label, string Value)> _resolvedLines = [];
+
     internal void Update(
       BeatmapData? data,
       HitsResult hits,
@@ -55,28 +57,58 @@ namespace OsuMate.ViewModels
       if (data == null)
         return;
 
-      var newLines = enabledIds
-        .Select(id =>
-          GetLine(id, data, hits, accuracy, gamemode, audioTime, speedMultiplier, bestPp)
+      _resolvedLines.Clear();
+      foreach (int id in enabledIds)
+      {
+        if (
+          TryGetLine(
+            id,
+            data,
+            hits,
+            accuracy,
+            gamemode,
+            audioTime,
+            speedMultiplier,
+            bestPp,
+            out string label,
+            out string value
+          )
         )
-        .Where(l => l != null)
-        .ToList();
+          _resolvedLines.Add((id, label, value));
+      }
 
-      bool sameLayout =
-        Lines.Count == newLines.Count && Lines.Zip(newLines, (a, b) => a.Id == b!.Id).All(x => x);
-
-      if (sameLayout)
+      if (HasSameLayout(_resolvedLines))
       {
-        for (int i = 0; i < Lines.Count; i++)
+        for (int i = 0; i < _resolvedLines.Count; i++)
         {
-          Lines[i].Label = newLines[i]!.Label;
-          Lines[i].Value = newLines[i]!.Value;
+          Lines[i].Label = _resolvedLines[i].Label;
+          Lines[i].Value = _resolvedLines[i].Value;
         }
+        return;
       }
-      else
+
+      Lines = new ObservableCollection<OverlayLineItem>(
+        _resolvedLines.Select(line => new OverlayLineItem
+        {
+          Id = line.Id,
+          Label = line.Label,
+          Value = line.Value,
+        })
+      );
+    }
+
+    private bool HasSameLayout(List<(int Id, string Label, string Value)> resolved)
+    {
+      if (Lines.Count != resolved.Count)
+        return false;
+
+      for (int i = 0; i < resolved.Count; i++)
       {
-        Lines = new ObservableCollection<OverlayLineItem>(newLines!);
+        if (Lines[i].Id != resolved[i].Id)
+          return false;
       }
+
+      return true;
     }
 
     internal void UpdateFast(
@@ -119,7 +151,7 @@ namespace OsuMate.ViewModels
     private static string FormatUnstableRate(double raw, double modified) =>
       $"{MathUtils.IsNaNWithNum(raw):F2} ({MathUtils.IsNaNWithNum(modified):F2})";
 
-    private static OverlayLineItem? GetLine(
+    private static bool TryGetLine(
       int id,
       BeatmapData data,
       HitsResult hits,
@@ -127,169 +159,115 @@ namespace OsuMate.ViewModels
       int gamemode,
       double audioTime,
       double speedMultiplier,
-      double? bestPp = null
+      double? bestPp,
+      out string label,
+      out string value
     )
     {
       switch (id)
       {
         case OverlayLineIds.StarRating:
-          var sr = MathUtils.IsNaNWithNum(
-            Math.Round(data.DifficultyAttributes?.StarRating ?? 0, 2)
-          );
-          return new()
-          {
-            Id = id,
-            Label = "SR",
-            Value = $"{sr}",
-          };
+          label = "SR";
+          value = $"{MathUtils.IsNaNWithNum(Math.Round(data.DifficultyAttributes?.StarRating ?? 0, 2))}";
+          return true;
 
         case OverlayLineIds.SsPp:
-          var sspp = Math.Round(MathUtils.IsNaNWithNum(data.PerformanceAttributes?.Total));
-          return new()
-          {
-            Id = id,
-            Label = "SS pp",
-            Value = $"{sspp}pp",
-          };
+          label = "SS pp";
+          value = $"{Math.Round(MathUtils.IsNaNWithNum(data.PerformanceAttributes?.Total))}pp";
+          return true;
 
         case OverlayLineIds.LossPp:
-          var losspp = Math.Round(
-            MathUtils.IsNaNWithNum(data.PerformanceAttributesLossMode?.Total)
-          );
-          return new()
-          {
-            Id = id,
-            Label = "Loss pp",
-            Value = $"{losspp}pp",
-          };
+          label = "Loss pp";
+          value =
+            $"{Math.Round(MathUtils.IsNaNWithNum(data.PerformanceAttributesLossMode?.Total))}pp";
+          return true;
 
         case OverlayLineIds.PredictedPp:
-          var predpp = Math.Round(
-            MathUtils.IsNaNWithNum(data.PerformanceAttributesPredicted?.Total)
-          );
-          return new()
-          {
-            Id = id,
-            Label = "Pred pp",
-            Value = $"{predpp}pp",
-          };
+          label = "Pred pp";
+          value =
+            $"{Math.Round(MathUtils.IsNaNWithNum(data.PerformanceAttributesPredicted?.Total))}pp";
+          return true;
 
         case OverlayLineIds.CurrentPp:
-          var curpp = Math.Round(MathUtils.IsNaNWithNum(data.CurrentPerformanceAttributes?.Total));
-          return new()
-          {
-            Id = id,
-            Label = "pp",
-            Value = $"{curpp}pp",
-          };
+          label = "pp";
+          value =
+            $"{Math.Round(MathUtils.IsNaNWithNum(data.CurrentPerformanceAttributes?.Total))}pp";
+          return true;
 
         case OverlayLineIds.Accuracy:
-          return new()
-          {
-            Id = id,
-            Label = "ACC",
-            Value = FormatAccuracy(accuracy),
-          };
+          label = "ACC";
+          value = FormatAccuracy(accuracy);
+          return true;
 
         case OverlayLineIds.Hits:
-          return new()
-          {
-            Id = id,
-            Label = "Hits",
-            Value = OsuUtils.ConvertHits(gamemode, hits),
-          };
+          label = "Hits";
+          value = OsuUtils.ConvertHits(gamemode, hits);
+          return true;
 
         case OverlayLineIds.AverageOffset:
-          return new()
-          {
-            Id = id,
-            Label = "Avg offset",
-            Value = FormatAverageOffset(
-              data.DetailedOffset.modifiedAvg,
-              data.DetailedOffset.modifiedStdev
-            ),
-          };
+          label = "Avg offset";
+          value = FormatAverageOffset(
+            data.DetailedOffset.modifiedAvg,
+            data.DetailedOffset.modifiedStdev
+          );
+          return true;
 
         case OverlayLineIds.UniversalOffsetHelp:
-          var robustAvgToUniversalOffset = MathUtils.FormatNaturalSign(
-            -1 * data.DetailedOffset.robustAvg
-          );
-          return new()
-          {
-            Id = id,
-            Label = "Universal offset help",
-            Value = $"{robustAvgToUniversalOffset} ms",
-          };
+          label = "Universal offset help";
+          value = $"{MathUtils.FormatNaturalSign(-1 * data.DetailedOffset.robustAvg)} ms";
+          return true;
 
         case OverlayLineIds.LocalOffsetHelp:
-          var robustAvgToLocalOffset = MathUtils.FormatNaturalSign(data.DetailedOffset.robustAvg);
-          return new()
-          {
-            Id = id,
-            Label = "Local offset help",
-            Value = $"{robustAvgToLocalOffset} ms",
-          };
+          label = "Local offset help";
+          value = $"{MathUtils.FormatNaturalSign(data.DetailedOffset.robustAvg)} ms";
+          return true;
 
         case OverlayLineIds.UnstableRate:
-          return new()
-          {
-            Id = id,
-            Label = "UR",
-            Value = FormatUnstableRate(data.UR.rawUR, data.UR.modifiedUR),
-          };
+          label = "UR";
+          value = FormatUnstableRate(data.UR.rawUR, data.UR.modifiedUR);
+          return true;
 
         case OverlayLineIds.Progress:
-          var child = audioTime * speedMultiplier - data.FirstObjectTimeModified;
-          var mother = data.StrainTimeModified - data.FirstObjectTimeModified;
-          if (mother == 0)
-            return new()
-            {
-              Id = id,
-              Label = "Progress",
-              Value = "0 %",
-            };
-          var progress = Math.Clamp(child * 100 / mother, 0, 100);
-          return new()
-          {
-            Id = id,
-            Label = "Progress",
-            Value = $"{progress:F1} %",
-          };
+          label = "Progress";
+          value = FormatProgress(data, audioTime, speedMultiplier);
+          return true;
 
         case OverlayLineIds.RemainingNotes:
-          var judgedSoFar =
+          int judgedSoFar =
             hits.HitGeki + hits.Hit300 + hits.HitKatu + hits.Hit100 + hits.Hit50 + hits.HitMiss;
-          var remainingNotes = Math.Max(0, data.TotalHitObjectCount - judgedSoFar);
-          return new()
-          {
-            Id = id,
-            Label = "Remaining",
-            Value = $"{remainingNotes}",
-          };
+          label = "Remaining";
+          value = $"{Math.Max(0, data.TotalHitObjectCount - judgedSoFar)}";
+          return true;
 
         case OverlayLineIds.Bpm:
-          var bpm = MathUtils.IsNaNWithNum(data.Bpm.CurrentBpm).ToString("F1");
-          var minBpm = MathUtils.IsNaNWithNum(data.Bpm.MinimumBpm).ToString("F0");
-          var maxBpm = MathUtils.IsNaNWithNum(data.Bpm.MaximumBpm).ToString("F0");
-          return new()
-          {
-            Id = id,
-            Label = "BPM",
-            Value = $"{bpm} ({minBpm}-{maxBpm})",
-          };
+          string bpm = MathUtils.IsNaNWithNum(data.Bpm.CurrentBpm).ToString("F1");
+          string minBpm = MathUtils.IsNaNWithNum(data.Bpm.MinimumBpm).ToString("F0");
+          string maxBpm = MathUtils.IsNaNWithNum(data.Bpm.MaximumBpm).ToString("F0");
+          label = "BPM";
+          value = $"{bpm} ({minBpm}-{maxBpm})";
+          return true;
 
         case OverlayLineIds.BestPp:
-          var bestPpValue = bestPp.HasValue ? $"{Math.Round(bestPp.Value)}pp" : "-";
-          return new()
-          {
-            Id = id,
-            Label = "Best pp",
-            Value = bestPpValue,
-          };
+          label = "Best pp";
+          value = bestPp.HasValue ? $"{Math.Round(bestPp.Value)}pp" : "-";
+          return true;
 
         default:
-          return null;
+          label = string.Empty;
+          value = string.Empty;
+          return false;
       }
+    }
+
+    private static string FormatProgress(BeatmapData data, double audioTime, double speedMultiplier)
+    {
+      var mother = data.StrainTimeModified - data.FirstObjectTimeModified;
+      if (mother == 0)
+        return "0 %";
+
+      var child = audioTime * speedMultiplier - data.FirstObjectTimeModified;
+      var progress = Math.Clamp(child * 100 / mother, 0, 100);
+      return $"{progress:F1} %";
     }
   }
 }
