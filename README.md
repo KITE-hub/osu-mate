@@ -4,7 +4,9 @@ A companion desktop tool for **osu!** (Windows, C# / WPF).
 
 ![Main window](.github/images/screenshot-mainView.png)
 
-![Overview when playing](.github/images/screenshot-playing.png)
+![Overview when playing(taiko)](.github/images/screenshot-playing.png)
+
+![Overview when playing(mania 4K)](.github/images/screenshot-playing2.png)
 
 ## Features
 

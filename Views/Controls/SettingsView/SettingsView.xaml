@@ -613,6 +613,178 @@
         </Grid>
       </StackPanel>
 
+      <StackPanel Margin="{StaticResource SectionSpacing}" DataContext="{Binding Overlay}">
+        <Grid Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock
+            Text="In-Game Overlay"
+            Style="{StaticResource TextTitleStyle}"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Left"
+          />
+          <CheckBox
+            IsChecked="{Binding OverlayEnabled}"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Right"
+            Style="{StaticResource ToggleSwitchStyle}"
+          />
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock
+            Text="Font Size"
+            FontSize="12"
+            VerticalAlignment="Center"
+            Width="160"
+            Foreground="{DynamicResource TextBrush}"
+          />
+          <Slider
+            Minimum="8"
+            Maximum="48"
+            Value="{Binding OverlayFontSize}"
+            Style="{StaticResource SliderStyle}"
+            Width="140"
+            VerticalAlignment="Center"
+          />
+          <TextBlock
+            Text="{Binding OverlayFontSize, StringFormat={}{0:F0}}"
+            FontSize="12"
+            Margin="12,0,0,0"
+            VerticalAlignment="Center"
+            Foreground="{DynamicResource TextBrush}"
+          />
+        </StackPanel>
+
+        <Grid Height="22" Margin="{StaticResource RowSpacing}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="160" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock
+            Grid.Column="0"
+            Text="Relative Position (drag)"
+            FontSize="12"
+            VerticalAlignment="Center"
+            Foreground="{DynamicResource TextBrush}"
+          />
+          <TextBlock
+            Grid.Column="1"
+            Text="{Binding OverlayPositionText}"
+            Style="{StaticResource TextCaptionStyle}"
+            VerticalAlignment="Center"
+          />
+          <StackPanel Grid.Column="2" Orientation="Horizontal">
+            <Button
+              Content="Save"
+              Width="40"
+              FontSize="11"
+              Command="{Binding SavePositionCommand}"
+              Margin="0,0,6,0"
+              Style="{StaticResource SettingsButtonStyle}"
+            />
+            <Button
+              Content="Apply"
+              Width="45"
+              FontSize="11"
+              Command="{Binding ApplyPositionCommand}"
+              Style="{StaticResource SettingsButtonStyle}"
+            />
+          </StackPanel>
+        </Grid>
+
+        <Grid Height="22" Margin="{StaticResource RowSpacing}">
+          <TextBlock
+            Text="Show Value First"
+            FontSize="12"
+            VerticalAlignment="Center"
+            Foreground="{DynamicResource TextBrush}"
+            HorizontalAlignment="Left"
+          />
+          <CheckBox
+            IsChecked="{Binding IsShowValueFirst}"
+            Style="{StaticResource ToggleSwitchStyle}"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Center"
+          />
+        </Grid>
+
+        <ToggleButton
+          x:Name="OverlayItemPriorityToggle"
+          Content="Item Priority"
+          Style="{StaticResource AccordionHeaderStyle}"
+          Margin="{StaticResource RowSpacing}"
+        />
+
+        <ItemsControl
+          x:Name="ChipList"
+          ItemsSource="{Binding Items}"
+          Visibility="{Binding IsChecked, ElementName=OverlayItemPriorityToggle, Converter={StaticResource BoolToVisibilityConverter}}"
+        >
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Vertical" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border
+                Margin="0,3"
+                Padding="8,3"
+                CornerRadius="6"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource SeparatorBrush}"
+                Background="{DynamicResource SurfaceLevel2Brush}"
+                AllowDrop="True"
+                MouseLeftButtonDown="Item_MouseLeftButtonDown"
+                Tag="{Binding}"
+              >
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock
+                    Grid.Column="0"
+                    Text="☰"
+                    FontSize="14"
+                    VerticalAlignment="Center"
+                    Margin="0,0,8,0"
+                    Cursor="SizeAll"
+                    Opacity="0.4"
+                    Foreground="{DynamicResource TextBrush}"
+                  />
+                  <TextBlock
+                    Grid.Column="1"
+                    Text="{Binding Label}"
+                    FontSize="12"
+                    VerticalAlignment="Center"
+                    Foreground="{DynamicResource TextBrush}"
+                  >
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+                  <CheckBox
+                    Grid.Column="2"
+                    IsChecked="{Binding IsEnabled}"
+                    VerticalAlignment="Center"
+                    Margin="8,0,0,0"
+                    Style="{StaticResource ToggleSwitchStyle}"
+                  />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+
       <StackPanel Margin="{StaticResource SectionSpacing}" DataContext="{Binding URBar}">
         <Grid Height="22" Margin="{StaticResource RowSpacing}">
           <TextBlock
@@ -1082,177 +1254,6 @@
         </StackPanel>
       </StackPanel>
 
-      <StackPanel Margin="{StaticResource SectionSpacing}" DataContext="{Binding Overlay}">
-        <Grid Height="22" Margin="{StaticResource RowSpacing}">
-          <TextBlock
-            Text="In-Game Overlay"
-            Style="{StaticResource TextTitleStyle}"
-            VerticalAlignment="Center"
-            HorizontalAlignment="Left"
-          />
-          <CheckBox
-            IsChecked="{Binding OverlayEnabled}"
-            VerticalAlignment="Center"
-            HorizontalAlignment="Right"
-            Style="{StaticResource ToggleSwitchStyle}"
-          />
-        </Grid>
-
-        <StackPanel Orientation="Horizontal" Height="22" Margin="{StaticResource RowSpacing}">
-          <TextBlock
-            Text="Font Size"
-            FontSize="12"
-            VerticalAlignment="Center"
-            Width="160"
-            Foreground="{DynamicResource TextBrush}"
-          />
-          <Slider
-            Minimum="8"
-            Maximum="48"
-            Value="{Binding OverlayFontSize}"
-            Style="{StaticResource SliderStyle}"
-            Width="140"
-            VerticalAlignment="Center"
-          />
-          <TextBlock
-            Text="{Binding OverlayFontSize, StringFormat={}{0:F0}}"
-            FontSize="12"
-            Margin="12,0,0,0"
-            VerticalAlignment="Center"
-            Foreground="{DynamicResource TextBrush}"
-          />
-        </StackPanel>
-
-        <Grid Height="22" Margin="{StaticResource RowSpacing}">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="160" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <TextBlock
-            Grid.Column="0"
-            Text="Relative Position (drag)"
-            FontSize="12"
-            VerticalAlignment="Center"
-            Foreground="{DynamicResource TextBrush}"
-          />
-          <TextBlock
-            Grid.Column="1"
-            Text="{Binding OverlayPositionText}"
-            Style="{StaticResource TextCaptionStyle}"
-            VerticalAlignment="Center"
-          />
-          <StackPanel Grid.Column="2" Orientation="Horizontal">
-            <Button
-              Content="Save"
-              Width="40"
-              FontSize="11"
-              Command="{Binding SavePositionCommand}"
-              Margin="0,0,6,0"
-              Style="{StaticResource SettingsButtonStyle}"
-            />
-            <Button
-              Content="Apply"
-              Width="45"
-              FontSize="11"
-              Command="{Binding ApplyPositionCommand}"
-              Style="{StaticResource SettingsButtonStyle}"
-            />
-          </StackPanel>
-        </Grid>
-
-        <Grid Height="22" Margin="{StaticResource RowSpacing}">
-          <TextBlock
-            Text="Show Value First"
-            FontSize="12"
-            VerticalAlignment="Center"
-            Foreground="{DynamicResource TextBrush}"
-            HorizontalAlignment="Left"
-          />
-          <CheckBox
-            IsChecked="{Binding IsShowValueFirst}"
-            Style="{StaticResource ToggleSwitchStyle}"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Center"
-          />
-        </Grid>
-
-        <ToggleButton
-          x:Name="OverlayItemPriorityToggle"
-          Content="Item Priority"
-          Style="{StaticResource AccordionHeaderStyle}"
-          Margin="{StaticResource RowSpacing}"
-        />
-
-        <ItemsControl
-          x:Name="ChipList"
-          ItemsSource="{Binding Items}"
-          Visibility="{Binding IsChecked, ElementName=OverlayItemPriorityToggle, Converter={StaticResource BoolToVisibilityConverter}}"
-        >
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <StackPanel Orientation="Vertical" />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <Border
-                Margin="0,3"
-                Padding="8,3"
-                CornerRadius="6"
-                BorderThickness="1"
-                BorderBrush="{DynamicResource SeparatorBrush}"
-                Background="{DynamicResource SurfaceLevel2Brush}"
-                AllowDrop="True"
-                MouseLeftButtonDown="Item_MouseLeftButtonDown"
-                Tag="{Binding}"
-              >
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <TextBlock
-                    Grid.Column="0"
-                    Text="☰"
-                    FontSize="14"
-                    VerticalAlignment="Center"
-                    Margin="0,0,8,0"
-                    Cursor="SizeAll"
-                    Opacity="0.4"
-                    Foreground="{DynamicResource TextBrush}"
-                  />
-                  <TextBlock
-                    Grid.Column="1"
-                    Text="{Binding Label}"
-                    FontSize="12"
-                    VerticalAlignment="Center"
-                    Foreground="{DynamicResource TextBrush}"
-                  >
-                    <TextBlock.Style>
-                      <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                        <Style.Triggers>
-                          <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                            <Setter Property="Opacity" Value="0.4" />
-                          </DataTrigger>
-                        </Style.Triggers>
-                      </Style>
-                    </TextBlock.Style>
-                  </TextBlock>
-                  <CheckBox
-                    Grid.Column="2"
-                    IsChecked="{Binding IsEnabled}"
-                    VerticalAlignment="Center"
-                    Margin="8,0,0,0"
-                    Style="{StaticResource ToggleSwitchStyle}"
-                  />
-                </Grid>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
     </StackPanel>
   </ScrollViewer>
 </UserControl>
