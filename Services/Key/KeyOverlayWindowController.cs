@@ -1,4 +1,4 @@
-using System;
+using OsuMate.Utils;
 using OsuMate.ViewModels;
 using OsuMate.Views;
 
@@ -45,7 +45,7 @@ namespace OsuMate.Services.Key
       }
       catch (Exception e)
       {
-        OsuMate.Utils.LogUtils.DebugLogger(
+        LogUtils.DebugLogger(
           "KeyOverlayWindowController: key overlay disabled because initialization failed: " + e,
           true,
           writeToFile: true

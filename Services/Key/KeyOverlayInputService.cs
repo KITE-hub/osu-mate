@@ -1,19 +1,16 @@
-using System.IO;
 using System.Windows.Forms;
 using OsuMate.Models;
-using OsuMate.Services.Osu;
-using OsuMate.Utils;
 
 namespace OsuMate.Services.Key
 {
 
   internal sealed class KeyOverlayInputService(
     RawInputService rawInput,
-    Func<string> osuDirectory,
+    IOsuKeyConfigProvider keyConfig,
     Func<bool> isPlaying
   )
   {
-    private readonly KeyLayoutResolver _layouts = new(new OsuKeyConfigReader(osuDirectory));
+    private readonly KeyLayoutResolver _layouts = new(keyConfig);
 
     private readonly object _liveTransitionLock = new();
     private readonly List<RawInputService.KeyTransition> _rawTransitionBuffer = [];
@@ -31,20 +28,33 @@ namespace OsuMate.Services.Key
       var layout = _layouts.Resolve(gamemode, gamemode == OsuMode.Mania ? maniaKeyCount : null, isPlaying());
       if (layout.Labels.Length == 0)
       {
-        DiscardRawInputTransitions();
+        ReleaseLiveInput();
         return KeyOverlaySnapshot.Empty;
       }
 
       return DrainLiveKeyOverlaySnapshot(layout, transitions);
     }
 
-    private void DiscardRawInputTransitions()
+    private void ReleaseLiveInput()
     {
       lock (_liveTransitionLock)
       {
-        _rawTransitionBuffer.Clear();
+        ReleaseLiveTransitionState();
         rawInput.DrainTransitions(_rawTransitionBuffer);
+        _rawTransitionBuffer.Clear();
       }
+    }
+
+    private void ReleaseLiveTransitionState()
+    {
+      if (_liveTransitionBindings.Length == 0)
+        return;
+
+      _liveTransitionBindings = [];
+      _liveTransitionHoldCount = [];
+      _liveTransitionPressed = [];
+      _cachedLiveSnapshot = KeyOverlaySnapshot.Empty;
+      rawInput.SetActiveKeys([]);
     }
 
     private void EnsureLiveTransitionState(ResolvedKeyLayout layout)
@@ -77,6 +87,7 @@ namespace OsuMate.Services.Key
         var bindings = _liveTransitionBindings;
         var holdCount = _liveTransitionHoldCount;
         var pressed = _liveTransitionPressed;
+        var changed = false;
 
         foreach (var raw in _rawTransitionBuffer)
         {
@@ -93,10 +104,11 @@ namespace OsuMate.Services.Key
 
             pressed[lane] = nowPressed;
             transitions.Add(new KeyOverlayTransition(lane, nowPressed, raw.TimestampTicks));
+            changed = true;
           }
         }
 
-        if (transitions.Count == 0 && _cachedLiveSnapshot.Keys.Length == layout.Labels.Length)
+        if (!changed && _cachedLiveSnapshot.Keys.Length == layout.Labels.Length)
           return _cachedLiveSnapshot;
 
         var keys = new KeyOverlayKeyState[layout.Labels.Length];

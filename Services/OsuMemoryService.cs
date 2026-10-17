@@ -55,7 +55,7 @@ namespace OsuMate.Services
     private IntPtr _lastMainWindowHandle = IntPtr.Zero;
 
     private const int MemoryReadWarmupMs = 6000;
-    private int _lastSeenOsuPid = -1;
+    private volatile int _lastSeenOsuPid = -1;
     private DateTime? _osuWindowSeenAt = null;
     private volatile bool _isMemoryReadReady = false;
 
@@ -63,7 +63,11 @@ namespace OsuMate.Services
 
     public OsuMemoryService(RawInputService rawInput)
     {
-      _keyOverlay = new KeyOverlayInputService(rawInput, () => OsuDirectory, () => IsPlaying);
+      _keyOverlay = new KeyOverlayInputService(
+        rawInput,
+        new OsuMemoryKeyConfigReader(() => _lastSeenOsuPid, () => _isMemoryReadReady),
+        () => IsPlaying
+      );
       _hitErrorStore = new HitErrorSnapshotStore(_baseAddresses);
       _urTimelineStore = new UrTimelineStore(_baseAddresses);
     }

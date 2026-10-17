@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Windows.Forms;
 using OsuMate.Utils;
 using static OsuMate.Utils.Win32Interop;
@@ -21,6 +20,7 @@ namespace OsuMate.Services.Key
     private const uint RidevInputSink = 0x00000100;
     private const uint RidevRemove = 0x00000001;
     private const int MouseButtonFlagsOffset = 4;
+    private const int VirtualKeyMask = 0xFF;
     private const int MaxQueuedTransitions = 4096;
     private const ushort RiKeyBreak = 0x0001;
     private const ushort RiKeyE0 = 0x0002;
@@ -30,6 +30,9 @@ namespace OsuMate.Services.Key
     private const ushort RiMouseRightButtonDown = 0x0004;
     private const ushort RiMouseRightButtonUp = 0x0008;
     private static readonly IntPtr HwndMessage = new(-3);
+    private static readonly int KeyboardMakeCodeOffset = KeyboardFieldOffset(nameof(RawKeyboard.MakeCode));
+    private static readonly int KeyboardFlagsOffset = KeyboardFieldOffset(nameof(RawKeyboard.Flags));
+    private static readonly int KeyboardVirtualKeyOffset = KeyboardFieldOffset(nameof(RawKeyboard.VirtualKey));
 
     private readonly ConcurrentDictionary<Keys, byte> _pressedKeys = [];
     private readonly ConcurrentQueue<KeyTransition> _transitions = new();
@@ -74,6 +77,9 @@ namespace OsuMate.Services.Key
         TranslateMessage(ref msg);
         DispatchMessage(ref msg);
       }
+
+      if (_windowHandle != IntPtr.Zero)
+        DestroyWindow(_windowHandle);
     }
 
     private IntPtr CreateMessageWindow()
@@ -146,9 +152,10 @@ namespace OsuMate.Services.Key
       var dataPtr = IntPtr.Add(_rawInputBuffer, headerSize);
       if (type == RimTypeKeyboard)
       {
-        var keyboard = Marshal.PtrToStructure<RawKeyboard>(dataPtr);
-        var rawKey = (Keys)(keyboard.VirtualKey & 0xFF);
-        var vk = NormalizeVirtualKey(rawKey, keyboard);
+        var makeCode = (ushort)Marshal.ReadInt16(dataPtr, KeyboardMakeCodeOffset);
+        var keyFlags = (ushort)Marshal.ReadInt16(dataPtr, KeyboardFlagsOffset);
+        var rawKey = (Keys)(Marshal.ReadInt16(dataPtr, KeyboardVirtualKeyOffset) & VirtualKeyMask);
+        var vk = NormalizeVirtualKey(rawKey, makeCode, keyFlags);
         var activeKeys = _activeKeys;
         if (!activeKeys.Contains(vk))
         {
@@ -156,7 +163,7 @@ namespace OsuMate.Services.Key
             return;
           vk = rawKey;
         }
-        SetPressed(vk, (keyboard.Flags & RiKeyBreak) == 0);
+        SetPressed(vk, (keyFlags & RiKeyBreak) == 0);
       }
       else if (type == RimTypeMouse)
       {
@@ -185,12 +192,15 @@ namespace OsuMate.Services.Key
       }
     }
 
-    private static Keys NormalizeVirtualKey(Keys key, RawKeyboard keyboard)
+    private static int KeyboardFieldOffset(string fieldName) =>
+      Marshal.OffsetOf<RawKeyboard>(fieldName).ToInt32();
+
+    private static Keys NormalizeVirtualKey(Keys key, ushort makeCode, ushort flags)
     {
-      var isExtended = (keyboard.Flags & RiKeyE0) != 0;
+      var isExtended = (flags & RiKeyE0) != 0;
       return key switch
       {
-        Keys.ShiftKey => keyboard.MakeCode == RightShiftMakeCode ? Keys.RShiftKey : Keys.LShiftKey,
+        Keys.ShiftKey => makeCode == RightShiftMakeCode ? Keys.RShiftKey : Keys.LShiftKey,
         Keys.ControlKey => isExtended ? Keys.RControlKey : Keys.LControlKey,
         Keys.Menu => isExtended ? Keys.RMenu : Keys.LMenu,
         _ => key,
@@ -208,6 +218,12 @@ namespace OsuMate.Services.Key
           set.Add(k);
       }
       _activeKeys = set;
+      foreach (var pressed in _pressedKeys.Keys)
+      {
+        if (!set.Contains(pressed))
+          _pressedKeys.TryRemove(pressed, out _);
+      }
+
       _mouseNeeded = set.Contains(Keys.LButton) || set.Contains(Keys.RButton);
       SyncMouseRegistration();
     }
@@ -268,9 +284,6 @@ namespace OsuMate.Services.Key
         return;
       }
 
-      if (_windowHandle != IntPtr.Zero)
-        Win32Interop.DestroyWindow(_windowHandle);
-
       _pressedKeys.Clear();
       while (_transitions.TryDequeue(out _)) { }
       Marshal.FreeHGlobal(_rawInputBuffer);
@@ -303,19 +316,6 @@ namespace OsuMate.Services.Key
       public ushort Reserved;
       public ushort VirtualKey;
       public uint Message;
-      public uint ExtraInformation;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RawMouse
-    {
-      public ushort Flags;
-      public ushort Reserved;
-      public ushort ButtonFlags;
-      public ushort ButtonData;
-      public uint RawButtons;
-      public int LastX;
-      public int LastY;
       public uint ExtraInformation;
     }
 
